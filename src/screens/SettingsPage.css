@@ -48,8 +48,18 @@
   font-size: 13.5px;
 }
 
-.settings__version {
-  margin: 0;
-  font-size: 12.5px;
+.settings__update {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings__update-text {
+  min-width: 0;
+  font-size: 14px;
+}
+
+.settings__update-msg {
+  margin-top: 2px;
+  font-size: 13px;
   color: var(--color-text-sub);
 }

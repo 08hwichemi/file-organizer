@@ -1,6 +1,6 @@
 # PR마다: 화면 빌드·Rust 테스트를 검사하고, Windows 설치 파일(.exe)을 아티팩트로 올린다.
 # 설치 파일은 Actions 실행 결과 페이지 아래 "Artifacts"에서 받는다.
-# 정식 배포(v* 태그 → Releases 업로드·업데이트 서명)는 8단계에서 따로 만든다.
+# 정식 배포(자동 업데이트)는 release.yml이 main에 병합될 때마다 한다.
 name: PR 빌드
 
 on:
@@ -77,8 +77,9 @@ jobs:
       - name: 화면 의존성 설치
         run: npm ci
 
+      # PR용 설치 파일은 업데이트 서명 없이 만든다(서명 키는 배포 때만 씀).
       - name: 설치 파일 만들기 (NSIS)
-        run: npm run tauri build
+        run: npm run tauri build -- --config src-tauri/tauri.pr.conf.json
 
       - name: 설치 파일 올리기
         uses: actions/upload-artifact@v4

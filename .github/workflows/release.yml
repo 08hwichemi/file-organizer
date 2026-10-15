@@ -1,0 +1,96 @@
+# main에 병합될 때마다 새 버전(0.1.<실행 번호>)을 만들어 공개 저장소
+# 08hwichemi/file-organizer-releases 의 Releases에 올린다.
+# 설치된 프로그램은 거기 있는 latest.json을 보고 스스로 업데이트한다.
+#
+# 필요한 GitHub Secrets(이 저장소 Settings → Secrets and variables → Actions):
+#   TAURI_SIGNING_PRIVATE_KEY           업데이트 서명 개인 키(저장소에 커밋 금지)
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  그 키의 암호
+#   RELEASES_TOKEN                      file-organizer-releases에 쓰기 권한이 있는 토큰
+# 하나라도 없으면 배포를 건너뛴다(실패로 표시하지 않음).
+name: 배포
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  RELEASES_OWNER: 08hwichemi
+  RELEASES_REPO: file-organizer-releases
+
+jobs:
+  release:
+    name: 새 버전 배포
+    runs-on: windows-latest
+    steps:
+      - name: 배포 준비 확인
+        id: ready
+        shell: bash
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          if [ -z "$KEY" ] || [ -z "$TOKEN" ]; then
+            echo "::warning title=배포 건너뜀::GitHub Secrets에 TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD, RELEASES_TOKEN을 넣으면 자동 배포가 시작돼요."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v5
+        if: steps.ready.outputs.ok == 'true'
+
+      - uses: actions/setup-node@v5
+        if: steps.ready.outputs.ok == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.ready.outputs.ok == 'true'
+
+      - uses: Swatinem/rust-cache@v2
+        if: steps.ready.outputs.ok == 'true'
+        with:
+          workspaces: src-tauri
+
+      - name: 화면 의존성 설치
+        if: steps.ready.outputs.ok == 'true'
+        run: npm ci
+
+      # 버전은 실행할 때마다 1씩 올라간다(PR용 설치 파일은 0.1.0이라 항상 이보다 낮다).
+      - name: 버전 정하기
+        if: steps.ready.outputs.ok == 'true'
+        shell: bash
+        run: |
+          VERSION="0.1.${{ github.run_number }}"
+          npm version "$VERSION" --no-git-tag-version
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: 만들어서 공개 저장소에 올리기
+        if: steps.ready.outputs.ok == 'true'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          owner: ${{ env.RELEASES_OWNER }}
+          repo: ${{ env.RELEASES_REPO }}
+          releaseCommitish: main
+          tagName: v${{ env.VERSION }}
+          releaseName: 파일 정리 도우미 ${{ env.VERSION }}
+          releaseBody: |
+            아래 Assets에서 `-setup.exe`로 끝나는 파일을 받아 실행하세요.
+            이미 설치했다면 받을 필요 없어요. 프로그램이 알아서 새 버전을 알려 드려요.
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          updaterJsonPreferNsis: true

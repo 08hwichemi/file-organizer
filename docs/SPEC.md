@@ -114,8 +114,10 @@
 - 자동 실행: autostart 플러그인(기본 켬), 자동 실행 시 트레이로만. single-instance 플러그인.
 - 업데이트: updater 플러그인. 시작 시 + 하루 한 번 확인 → "새 버전이 있어요 · 지금 업데이트" → 설치 후 재시작.
   - 업데이트 서명 키: 개인 키는 GitHub Secrets(`TAURI_SIGNING_PRIVATE_KEY`, `..._PASSWORD`)에만, 별도 백업 필수(잃으면 기존 설치본에 업데이트 불가).
-  - `latest.json` + 설치 파일은 GitHub Releases. **누구나 받을 수 있는 공개 위치여야 한다** → 8. 아직 정할 것.
-- 빌드: `v*` 태그 → GitHub Actions(windows-latest, tauri-action)가 빌드·서명·Releases 업로드. PR마다 설치 파일을 아티팩트로도 만든다.
+  - 개인 키 암호는 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. 공개 키는 `tauri.conf.json`의 `plugins.updater.pubkey`.
+  - `latest.json` + 설치 파일은 **공개 저장소 `08hwichemi/file-organizer-releases`의 Releases**(코드는 비공개 저장소에 그대로). 이 저장소에 쓰는 토큰은 Secrets `RELEASES_TOKEN`.
+- 빌드·배포: **main에 병합될 때마다** GitHub Actions(`release.yml`, windows-latest, tauri-action)가 버전 `0.1.<실행 번호>`로 빌드·서명해 공개 저장소 Releases에 올린다. 설치된 프로그램은 다음 확인 때 스스로 업데이트한다. Secrets가 없으면 배포를 건너뛴다.
+- PR마다 설치 파일을 아티팩트로도 만든다(버전 0.1.0, 업데이트 서명 없음).
 - "알 수 없는 게시자" 경고: 1차는 "추가 정보 → 실행" 안내, 이후 코드 서명 인증서 검토.
 
 ## 8. 기술 구조
@@ -142,11 +144,11 @@
 5. 규칙 — 규칙 카드, 추천, 연도·학기·학급 인식, 바로 정리 모드, 규칙 목록. 완료: 같은 형식 파일에 추천이 뜬다. 날짜 계산은 단위 테스트.
 6. 트레이·자동 실행·한 개만 실행·설정. 완료: 재부팅 후 트레이에만 뜨고, 창 X 후에도 감시 계속.
 7. 검색 — 자체 색인 → Everything SDK → 검색창. 완료: Everything 있는/없는 PC 모두 검색.
-8. 업데이트와 배포 — 서명 키, updater, Releases, Everything 포함, 라이선스 고지. 완료: v0.1.0 설치본이 v0.1.1 태그 후 스스로 업데이트.
+8. 업데이트와 배포 — ~~서명 키, updater, Releases~~(3단계 뒤로 앞당겨 완료: 병합할 때마다 자동 배포), Everything 포함, 라이선스 고지. 완료: 설치본이 다음 병합 뒤 스스로 업데이트.
 
 ## 10. 아직 정할 것
 
-- [ ] 저장소 공개 여부: ① 전체 공개 ② 코드는 비공개 + 릴리스용 공개 저장소. 비공개로 시작, 8단계 전에 결정.
+- [x] 저장소 공개 여부: ② 코드는 비공개 + 릴리스용 공개 저장소(`file-organizer-releases`)로 결정.
 - [ ] 프로그램 이름(가칭 "파일 정리 도우미").
 - [ ] 교사용 예시 폴더 기본 목록. 지금 안(2단계): 업무(공문·회의록·계획서) · 수업 · 평가(수행평가·지필고사) · 학급(상담·사진·출결) · 생활기록부 · 연수 · 개인 — `src-tauri/src/setup.rs`의 `TEACHER_EXAMPLE`.
 - [ ] 검색 단축키 Alt+Space 충돌 여부(학교 PC).
