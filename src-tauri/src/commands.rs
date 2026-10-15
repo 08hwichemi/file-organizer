@@ -108,21 +108,18 @@ pub fn handle_new_file(app: &AppHandle, file: NewFile) {
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct AppInfo {
     pub name: &'static str,
-    pub version: &'static str,
+    pub version: String,
     pub os: &'static str,
 }
 
-pub fn current_app_info() -> AppInfo {
+/// 버전은 tauri.conf.json(= package.json)의 값. 배포할 때 자동으로 올라간다.
+#[tauri::command]
+pub fn app_info(app: AppHandle) -> AppInfo {
     AppInfo {
         name: "파일 정리 도우미",
-        version: env!("CARGO_PKG_VERSION"),
+        version: app.package_info().version.to_string(),
         os: std::env::consts::OS,
     }
-}
-
-#[tauri::command]
-pub fn app_info() -> AppInfo {
-    current_app_info()
 }
 
 /// 처음 실행 화면에 필요한 정보. 기본 위치는 Windows에서 Known Folder 기준이라
@@ -343,17 +340,4 @@ pub fn hide_popup(app: AppHandle) {
 #[tauri::command]
 pub fn list_inbox(state: State<'_, AppState>) -> Result<Vec<InboxItem>, String> {
     state.with_db(|conn| inbox::list(conn).map_err(db_err))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn app_info_uses_package_version() {
-        let info = current_app_info();
-        assert_eq!(info.version, env!("CARGO_PKG_VERSION"));
-        assert_eq!(info.name, "파일 정리 도우미");
-        assert!(!info.os.is_empty());
-    }
 }

@@ -6,7 +6,7 @@
 - 기획서: [docs/SPEC.md](docs/SPEC.md)
 - 화면 시안: [docs/design](docs/design)
 
-> 개발 중입니다. 설치 파일은 첫 배포 후 Releases에 올라옵니다.
+> 개발 중입니다. 설치 파일: https://github.com/08hwichemi/file-organizer-releases/releases/latest (`-setup.exe` 파일). 한 번 설치하면 이후에는 프로그램이 스스로 업데이트합니다.
 
 ## 개발
 
@@ -21,3 +21,4 @@ cd src-tauri && cargo test   # Rust 단위 테스트
 
 - 폴더: `src/`(React 화면), `src-tauri/`(Rust), `docs/`(기획서·시안), `.github/workflows/`(빌드).
 - PR을 올리면 GitHub Actions가 Windows 설치 파일을 만든다. PR의 Checks → "PR 빌드" → 아래 Artifacts에서 받는다.
+- main에 병합하면 `release.yml`이 새 버전을 공개 저장소 Releases에 올리고, 설치된 프로그램이 스스로 업데이트한다. 필요한 Secrets는 `release.yml` 맨 위 설명 참고.

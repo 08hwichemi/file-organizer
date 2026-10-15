@@ -1,7 +1,10 @@
 import { Inbox, Settings as SettingsIcon } from "lucide-react";
+import { useEffect } from "react";
 import FolderIcon from "../components/FolderIcon";
+import UpdateBanner from "../components/UpdateBanner";
 import { friendlyName } from "../lib/paths";
 import { useAppStore, type Page } from "../store/useAppStore";
+import { startUpdateChecks } from "../store/useUpdateStore";
 import InboxPage from "./InboxPage";
 import SettingsPage from "./SettingsPage";
 import "./MainWindow.css";
@@ -17,6 +20,8 @@ export default function MainWindow() {
   const goTo = useAppStore((s) => s.goTo);
   const settings = useAppStore((s) => s.settings);
   const known = useAppStore((s) => s.setupInfo);
+
+  useEffect(() => startUpdateChecks(), []);
 
   const watching = settings?.watchFolders.map((w) => friendlyName(w, known)).join(" · ") ?? "";
 
@@ -50,7 +55,10 @@ export default function MainWindow() {
           <div className="sidebar__status-text">지켜볼 폴더: {watching}</div>
         </div>
       </nav>
-      <main className="main-window__content">{page === "inbox" ? <InboxPage /> : <SettingsPage />}</main>
+      <main className="main-window__content">
+        <UpdateBanner />
+        {page === "inbox" ? <InboxPage /> : <SettingsPage />}
+      </main>
     </div>
   );
 }

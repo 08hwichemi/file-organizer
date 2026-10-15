@@ -5,6 +5,7 @@ import WatchFolderEditor from "../components/WatchFolderEditor";
 import { errorMessage, getAppInfo } from "../lib/backend";
 import type { OrganizeMode } from "../lib/types";
 import { useAppStore } from "../store/useAppStore";
+import { useUpdateStore } from "../store/useUpdateStore";
 import "./SettingsPage.css";
 
 // 설정(SPEC 3-3). 바꾸면 바로 저장한다. 나머지 항목은 6단계에서 늘어난다.
@@ -81,7 +82,9 @@ export default function SettingsPage() {
         <div className="settings__path">{settings.rootFolder}</div>
       </Section>
 
-      {version && <p className="settings__version">파일 정리 도우미 버전 {version}</p>}
+      <Section title="업데이트" description="새 버전이 나오면 프로그램이 알아서 알려 드려요(켤 때와 하루에 한 번 확인).">
+        <UpdateRow version={version} />
+      </Section>
     </div>
   );
 }
@@ -120,5 +123,30 @@ function Section({
         </p>
       )}
     </section>
+  );
+}
+
+function UpdateRow({ version }: { version: string | null }) {
+  const { status, version: newVersion, error, check } = useUpdateStore();
+  const message =
+    status === "checking"
+      ? "확인하는 중…"
+      : status === "latest"
+        ? "지금 최신 버전이에요."
+        : status === "available" || status === "downloading"
+          ? `새 버전 ${newVersion}이 있어요. 위의 ‘지금 업데이트’를 눌러 주세요.`
+          : status === "error"
+            ? error
+            : null;
+  return (
+    <div className="settings__update button-row">
+      <div className="settings__update-text">
+        <div>지금 버전 {version ?? "…"}</div>
+        {message && <div className="settings__update-msg">{message}</div>}
+      </div>
+      <button type="button" className="btn" onClick={() => void check()} disabled={status === "checking" || status === "downloading"}>
+        업데이트 확인
+      </button>
+    </div>
   );
 }
