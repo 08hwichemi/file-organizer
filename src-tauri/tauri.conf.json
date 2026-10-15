@@ -3,7 +3,7 @@
   "productName": "파일 정리 도우미",
   "mainBinaryName": "file-organizer",
   "version": "../package.json",
-  "identifier": "io.github.hwichemi.file-organizer",
+  "identifier": "com.hwichemi.file-organizer",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
