@@ -8,7 +8,15 @@
   --color-accent-soft: #e7eefb;
   --color-text: #17191c;
   --color-text-sub: #5f6670;
+  --color-text-strong: #3d434b;
   --color-line: #e4e6ea;
+  --color-line-soft: #eef0f2;
+  --color-line-strong: #d7dade;
+  --color-accent-line: #c9d6f2;
+  --color-accent-faint: #f4f7fd;
+  --color-surface-sub: #f6f7f9;
+  --color-success: #1b6e43;
+  --color-danger: #a8352a;
   --color-bg: #f4f5f7;
   --color-surface: #ffffff;
   --color-folder-back: #e3b23c;
@@ -80,4 +88,128 @@ select {
 :focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
+}
+
+/* ---------- 공통 버튼 ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--control-height);
+  padding: 0 14px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--color-surface-sub);
+}
+
+.btn:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.btn--primary {
+  min-height: var(--control-height-main);
+  padding: 0 22px;
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: #ffffff;
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+.btn--primary:hover:not(:disabled) {
+  border-color: var(--color-accent-hover);
+  background: var(--color-accent-hover);
+}
+
+.btn--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-sub);
+}
+
+.btn--link {
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.btn--link:hover:not(:disabled) {
+  background: transparent;
+  color: var(--color-accent-hover);
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height);
+  min-width: var(--control-height);
+  height: var(--control-height);
+  padding: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-sub);
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: var(--color-surface-sub);
+}
+
+.icon-btn:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+/* 화면에는 안 보이고 화면 읽기 프로그램에만 읽히는 글자 */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.error-text {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 13px;
+}
+
+.center-message {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 24px;
+  text-align: center;
+}
+
+.center-message p {
+  margin: 0;
+}
+
+.center-message__detail {
+  color: var(--color-text-sub);
+  font-size: 13px;
+}
+
+.stack-12 {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }

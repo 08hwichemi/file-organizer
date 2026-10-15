@@ -1,0 +1,155 @@
+.setup {
+  min-height: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 16px 32px;
+}
+
+.setup__card {
+  width: 100%;
+  max-width: 640px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.setup__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 24px;
+}
+
+.setup__brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-sub);
+}
+
+.setup__logo {
+  display: flex;
+}
+
+.setup__count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-sub);
+  white-space: nowrap;
+}
+
+.setup__progress {
+  height: 3px;
+  background: var(--color-line-soft);
+}
+
+.setup__progress span {
+  display: block;
+  height: 100%;
+  background: var(--color-accent);
+  transition: width 0.2s ease;
+}
+
+.setup__content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px 24px 8px;
+}
+
+.setup__title {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.setup__lead {
+  margin: -8px 0 4px;
+  color: var(--color-text-sub);
+}
+
+.setup__foot {
+  justify-content: space-between;
+  padding: 20px 24px 24px;
+}
+
+.setup__example {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 16px;
+  margin: 10px 0 2px;
+  padding: 0;
+  list-style: none;
+}
+
+.setup__example li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.setup__example-name {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.setup__example-sub {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-sub);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.setup__summary {
+  margin: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+}
+
+.setup__summary-row {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.setup__summary-row + .setup__summary-row {
+  border-top: 1px solid var(--color-line-soft);
+}
+
+.setup__summary-row dt {
+  color: var(--color-text-sub);
+  font-size: 13.5px;
+}
+
+.setup__summary-row dd {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-weight: 500;
+}
+
+.setup__summary-row .btn--link {
+  font-size: 13px;
+}
+
+.setup__path {
+  font-weight: 600;
+}
+
+.setup__sub {
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--color-text-sub);
+}
