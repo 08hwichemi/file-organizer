@@ -1,11 +1,25 @@
+import { useEffect, useState } from "react";
+import FileBadge from "../components/FileBadge";
 import FolderGrid from "../components/FolderGrid";
+import { listInbox, onBackendEvent } from "../lib/backend";
+import { formatAgo } from "../lib/format";
+import { friendlyName } from "../lib/paths";
+import type { InboxItem } from "../lib/types";
 import { useAppStore } from "../store/useAppStore";
 import "./InboxPage.css";
 
-// 정리함(SPEC 3-2). 2단계에서는 정리 폴더 탐색만 되고, 파일 목록은 3·4단계에서 채운다.
+// 정리함(SPEC 3-2). 3단계: 모인 파일 목록 + 정리 폴더 탐색. 넣는 방법(끌어다 놓기 등)은 4단계.
 export default function InboxPage() {
   const settings = useAppStore((s) => s.settings);
+  const known = useAppStore((s) => s.setupInfo);
   const root = settings?.rootFolder;
+  const [items, setItems] = useState<InboxItem[] | null>(null);
+
+  useEffect(() => {
+    const load = () => void listInbox().then(setItems).catch(() => setItems([]));
+    load();
+    return onBackendEvent("inbox-changed", load);
+  }, []);
 
   return (
     <div className="page">
@@ -19,10 +33,32 @@ export default function InboxPage() {
       </div>
       <div className="inbox">
         <section className="inbox__files" aria-label="정리할 파일">
-          <div className="inbox__empty">
-            <div className="inbox__empty-title">정리함이 비었어요</div>
-            <div className="inbox__empty-text">새 파일이 들어오면 여기에 모여요.</div>
-          </div>
+          {items && items.length > 0 && (
+            <>
+              <div className="inbox__files-head">정리할 파일 {items.length}개</div>
+              <ul className="inbox__list">
+                {items.map((item) => (
+                  <li key={item.id} className="inbox__row">
+                    <FileBadge name={item.name} size={36} />
+                    <div className="inbox__text">
+                      <div className="inbox__name" title={item.name}>
+                        {item.name}
+                      </div>
+                      <div className="inbox__meta">
+                        {friendlyName(item.sourceDir, known)} · {formatAgo(item.addedAt)}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {items && items.length === 0 && (
+            <div className="inbox__empty">
+              <div className="inbox__empty-title">정리함이 비었어요</div>
+              <div className="inbox__empty-text">새 파일이 들어오면 여기에 모여요.</div>
+            </div>
+          )}
         </section>
         {root && (
           <div className="inbox__folders">

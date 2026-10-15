@@ -1,15 +1,10 @@
 import { useEffect, useState } from "react";
-import { ChevronLeft } from "lucide-react";
-import { errorMessage, listFolders } from "../lib/backend";
-import { baseName } from "../lib/paths";
+import { errorMessage, listFolders, onBackendEvent } from "../lib/backend";
+import { baseName, type Crumb } from "../lib/paths";
 import type { FolderEntry } from "../lib/types";
 import FolderIcon from "./FolderIcon";
+import PathBar from "./PathBar";
 import "./FolderGrid.css";
-
-interface Crumb {
-  name: string;
-  path: string;
-}
 
 interface Props {
   rootPath: string;
@@ -23,12 +18,15 @@ export default function FolderGrid({ rootPath }: Props) {
   const [trail, setTrail] = useState<Crumb[]>([{ name: baseName(rootPath), path: rootPath }]);
   const [folders, setFolders] = useState<FolderEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  // 파일을 넣거나 되돌리면 폴더 안 파일 수가 바뀌므로 다시 읽는다.
+  useEffect(() => onBackendEvent("inbox-changed", () => setReloadKey((k) => k + 1)), []);
 
   const current = trail[trail.length - 1];
 
   useEffect(() => {
     let alive = true;
-    setFolders(null);
     setError(null);
     listFolders(current.path)
       .then((list) => alive && setFolders(list))
@@ -36,7 +34,7 @@ export default function FolderGrid({ rootPath }: Props) {
     return () => {
       alive = false;
     };
-  }, [current.path]);
+  }, [current.path, reloadKey]);
 
   const open = (f: FolderEntry) => setTrail((t) => [...t, { name: f.name, path: f.path }]);
   const goTo = (index: number) => setTrail((t) => t.slice(0, index + 1));
@@ -44,34 +42,7 @@ export default function FolderGrid({ rootPath }: Props) {
   return (
     <section className="fgrid" aria-label="정리 폴더">
       <div className="fgrid__bar">
-        <button
-          type="button"
-          className="icon-btn"
-          aria-label="위 폴더로"
-          disabled={trail.length === 1}
-          onClick={() => goTo(trail.length - 2)}
-        >
-          <ChevronLeft size={18} />
-        </button>
-        <nav className="fgrid__crumbs" aria-label="현재 위치">
-          {trail.map((c, i) => (
-            <span key={c.path} className="fgrid__crumb">
-              {i > 0 && (
-                <span className="fgrid__sep" aria-hidden="true">
-                  ›
-                </span>
-              )}
-              <button
-                type="button"
-                className={i === trail.length - 1 ? "fgrid__crumb-btn fgrid__crumb-btn--here" : "fgrid__crumb-btn"}
-                aria-current={i === trail.length - 1 ? "location" : undefined}
-                onClick={() => goTo(i)}
-              >
-                {c.name}
-              </button>
-            </span>
-          ))}
-        </nav>
+        <PathBar trail={trail} onGo={goTo} />
       </div>
 
       {error && <p className="fgrid__note error-text">{error}</p>}

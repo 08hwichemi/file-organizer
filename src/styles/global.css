@@ -213,3 +213,16 @@ select {
   flex-direction: column;
   gap: 12px;
 }
+
+/* 작은 강조 버튼(입력칸 옆 "만들기" 등) */
+.btn--accent {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.btn--accent:hover:not(:disabled) {
+  border-color: var(--color-accent-hover);
+  background: var(--color-accent-hover);
+}

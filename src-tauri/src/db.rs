@@ -28,6 +28,27 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
              PRAGMA user_version = 1;",
         )?;
     }
+    if version < 2 {
+        // 이동 기록(되돌리기용)과 정리함(미룬 파일·모아 둔 파일).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS moves (
+                 id            INTEGER PRIMARY KEY,
+                 original_path TEXT    NOT NULL,
+                 moved_path    TEXT    NOT NULL,
+                 moved_at      INTEGER NOT NULL,
+                 rule          TEXT,
+                 undone_at     INTEGER
+             );
+             CREATE TABLE IF NOT EXISTS inbox (
+                 id         INTEGER PRIMARY KEY,
+                 path       TEXT    NOT NULL UNIQUE,
+                 source_dir TEXT    NOT NULL,
+                 added_at   INTEGER NOT NULL,
+                 reason     TEXT    NOT NULL
+             );
+             PRAGMA user_version = 2;",
+        )?;
+    }
     Ok(())
 }
 
@@ -47,6 +68,14 @@ pub fn set_value(conn: &Connection, key: &str, value: &str) -> rusqlite::Result<
         params![key, value],
     )?;
     Ok(())
+}
+
+/// 지금 시각(1970년부터 밀리초). 기록에 쓴다.
+pub fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
 }
 
 #[cfg(test)]

@@ -46,3 +46,39 @@ export interface FolderEntry {
   fileCount: number;
   folderCount: number;
 }
+
+export interface FolderMatch {
+  name: string;
+  path: string;
+  /** 정리 폴더부터의 경로 이름들 */
+  trail: string[];
+}
+
+/** 팝업에서 물어볼 새 파일 */
+export interface PendingFile {
+  path: string;
+  name: string;
+  sourceDir: string;
+  size: number;
+}
+
+export interface PopupState {
+  current: PendingFile | null;
+  /** 지금 파일 말고 기다리는 파일 수 */
+  remaining: number;
+}
+
+export interface PutResult {
+  moveId: number;
+  movedPath: string;
+  destDir: string;
+}
+
+export interface InboxItem {
+  id: number;
+  path: string;
+  name: string;
+  sourceDir: string;
+  addedAt: number;
+  size: number;
+}
