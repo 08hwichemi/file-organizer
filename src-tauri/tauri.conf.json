@@ -20,6 +20,18 @@
         "minWidth": 760,
         "minHeight": 520,
         "center": true
+      },
+      {
+        "label": "popup",
+        "title": "새 파일",
+        "width": 460,
+        "height": 640,
+        "resizable": false,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "focus": false
       }
     ],
     "security": {
@@ -28,7 +40,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "publisher": "파일 정리 도우미",
     "shortDescription": "새 파일을 원하는 폴더로 정리해 주는 프로그램",
     "icon": [
@@ -39,10 +53,14 @@
       "icons/icon.ico"
     ],
     "windows": {
-      "webviewInstallMode": { "type": "downloadBootstrapper" },
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
       "nsis": {
         "installMode": "currentUser",
-        "languages": ["Korean"],
+        "languages": [
+          "Korean"
+        ],
         "displayLanguageSelector": false
       }
     }

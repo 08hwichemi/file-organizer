@@ -29,3 +29,35 @@ export function friendlyName(path: string, known: KnownFolders | null): string {
   if (known?.documents && samePath(path, known.documents)) return "문서";
   return baseName(path);
 }
+
+export interface Crumb {
+  name: string;
+  path: string;
+}
+
+/** 정리 폴더(root)부터 path까지의 경로 조각들. path가 root 밖이면 null. */
+export function trailFor(root: string, path: string, separator: string): Crumb[] | null {
+  const rootName = baseName(root);
+  const base = root.replace(/[\\/]+$/, "");
+  if (samePath(base, path)) return [{ name: rootName, path: base }];
+  const prefix = base + separator;
+  if (!path.toLowerCase().startsWith(prefix.toLowerCase())) return null;
+  const crumbs: Crumb[] = [{ name: rootName, path: base }];
+  let current = base;
+  for (const part of path.slice(prefix.length).split(separator).filter(Boolean)) {
+    current = current + separator + part;
+    crumbs.push({ name: part, path: current });
+  }
+  return crumbs;
+}
+
+/** 넣을 곳 표시용: "정리 폴더 › 평가 › 수행평가". 정리 폴더 밖이면 전체 경로. */
+export function displayPath(root: string | null, path: string, separator: string): string {
+  const trail = root ? trailFor(root, path, separator) : null;
+  return trail ? trail.map((c) => c.name).join(" › ") : path;
+}
+
+export function parentPath(path: string, separator: string): string {
+  const i = path.replace(/[\\/]+$/, "").lastIndexOf(separator);
+  return i > 0 ? path.slice(0, i) : path;
+}

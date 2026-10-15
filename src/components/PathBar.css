@@ -1,0 +1,59 @@
+.pathbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pathbar--compact {
+  gap: 6px;
+}
+
+.pathbar__crumbs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: var(--control-height);
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  overflow: hidden;
+}
+
+.pathbar__crumb {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.pathbar__sep {
+  padding: 0 2px;
+  color: #9aa1ab;
+  font-size: 13px;
+}
+
+.pathbar__btn {
+  min-height: 28px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-sub);
+  font-size: 13.5px;
+}
+
+.pathbar--compact .pathbar__btn {
+  padding: 0 6px;
+  font-size: 13px;
+}
+
+.pathbar__btn:hover {
+  background: var(--color-line);
+}
+
+.pathbar__btn--here {
+  color: var(--color-text);
+  font-weight: 600;
+}
