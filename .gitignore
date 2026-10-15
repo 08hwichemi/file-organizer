@@ -1,0 +1,17 @@
+# 의존성·빌드 결과
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# 편집기·OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+
+# 업데이트 서명 키는 절대 커밋하지 않는다 (GitHub Secrets에만)
+*.key
+*.key.pub

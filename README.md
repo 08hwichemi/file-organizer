@@ -7,3 +7,17 @@
 - 화면 시안: [docs/design](docs/design)
 
 > 개발 중입니다. 설치 파일은 첫 배포 후 Releases에 올라옵니다.
+
+## 개발
+
+필요한 것: Node.js 22, Rust(stable). 리눅스에서는 `libwebkit2gtk-4.1-dev librsvg2-dev`도 설치한다.
+
+```bash
+npm install
+npm run dev            # 브라우저에서 화면만 보기 (가짜 데이터: src/mocks/)
+npm run tauri dev      # 실제 프로그램 창으로 실행
+cd src-tauri && cargo test   # Rust 단위 테스트
+```
+
+- 폴더: `src/`(React 화면), `src-tauri/`(Rust), `docs/`(기획서·시안), `.github/workflows/`(빌드).
+- PR을 올리면 GitHub Actions가 Windows 설치 파일을 만든다. PR의 Checks → "PR 빌드" → 아래 Artifacts에서 받는다.

@@ -1,0 +1,25 @@
+[package]
+name = "file-organizer"
+version = "0.1.0"
+description = "파일 정리 도우미"
+edition = "2021"
+publish = false
+
+[lib]
+# 이름에 _lib를 붙여 Windows에서 bin과 lib 이름이 겹치지 않게 한다.
+name = "file_organizer_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

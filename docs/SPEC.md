@@ -122,6 +122,8 @@
 - 창: 팝업 = 테두리 없는 작은 창(항상 위, 오른쪽 아래), 메인·검색 = 별도 창, 창 X = 숨기기.
 - 데이터: `%APPDATA%\파일정리도우미\data.db` 하나에 설정·규칙·이동 기록·정리함·자체 색인. 폴더 구조는 저장하지 않고 디스크를 직접 읽는다.
 - 저장소: `src/`(React), `src-tauri/`(Rust), `docs/`(기획서·시안), `.github/workflows/`.
+  - `src/lib/backend.ts`가 Rust 명령을 부르는 유일한 통로. Tauri 밖(브라우저)에서는 `src/mocks/`의 가짜 데이터를 돌려준다.
+  - 앱 식별자 `com.hwichemi.file-organizer`, 실행 파일 이름 `file-organizer.exe`(표시 이름은 "파일 정리 도우미"). 식별자는 설치·업데이트 경로에 쓰이므로 배포 후에는 바꾸지 않는다.
 
 ## 9. 개발 단계 (단계마다 PR 하나)
 
