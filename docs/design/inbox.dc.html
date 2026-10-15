@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>정리함</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'IBM Plex Sans KR',sans-serif;color:#17191C;word-break:keep-all}
+button{font:inherit;cursor:pointer}
+input{font:inherit}
+a{color:#2B59C3}a:hover{color:#1E4296}
+</style>
+</helmet>
+<div style="min-height: 940px; background: #F4F5F7; display: flex; flex-wrap: wrap; font-family: 'IBM Plex Sans KR', sans-serif; color: #17191C">
+
+  <nav aria-label="메뉴" style="flex: 1 1 200px; box-sizing: border-box; background: #FFFFFF; border-right: 1px solid #E4E6EA; padding: 20px 12px; display: flex; flex-direction: column; gap: 4px">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 4px 10px 18px">
+      <div style="width: 30px; height: 30px; border-radius: 8px; background: #2B59C3; display: flex; align-items: center; justify-content: center">
+        <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+      </div>
+      <span style="font-size: 15px; font-weight: 700">파일 정리 도우미</span>
+    </div>
+    <a href="#" style="display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 10px; border-radius: 8px; background: #E8EEFB; color: #1E4296; font-size: 14px; font-weight: 600; text-decoration: none">
+      <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.5 5h13l3.5 7v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z"></path></svg>
+      <span style="flex: 1">정리함</span>
+      <span style="font-size: 12px; font-weight: 700; background: #2B59C3; color: #FFFFFF; border-radius: 10px; padding: 1px 8px">{{leftCount}}</span>
+    </a>
+    <a href="#" style="display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 10px; border-radius: 8px; color: #3D434B; font-size: 14px; text-decoration: none">
+      <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+      <span>최근 정리한 파일</span>
+    </a>
+    <a href="#" style="display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 10px; border-radius: 8px; color: #3D434B; font-size: 14px; text-decoration: none">
+      <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+      <span style="flex: 1">파일 검색</span>
+      <span style="font-size: 11px; color: #5F6670; border: 1px solid #D7DADF; border-radius: 4px; padding: 0 5px; line-height: 18px">Alt+Space</span>
+    </a>
+    <a href="#" style="display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 10px; border-radius: 8px; color: #3D434B; font-size: 14px; text-decoration: none">
+      <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h6"></path></svg>
+      <span>정리 규칙</span>
+    </a>
+    <a href="#" style="display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 10px; border-radius: 8px; color: #3D434B; font-size: 14px; text-decoration: none">
+      <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"></path></svg>
+      <span>설정</span>
+    </a>
+    <div style="flex: 1; min-height: 24px"></div>
+    <div style="padding: 12px; border-radius: 10px; background: #F4F5F7; display: flex; flex-direction: column; gap: 4px">
+      <div style="display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: #1B6E43">
+        <span style="width: 8px; height: 8px; border-radius: 50%; background: #1B6E43"></span>
+        <span>작동 중</span>
+      </div>
+      <div style="font-size: 12.5px; color: #5F6670">바탕화면 · 다운로드를 지켜보는 중</div>
+    </div>
+  </nav>
+
+  <main style="flex: 999 1 600px; min-width: 0; box-sizing: border-box; padding: 26px 28px 28px; display: flex; flex-direction: column; gap: 18px">
+
+    <div>
+      <h1 style="margin: 0; font-size: 24px; font-weight: 700">정리함</h1>
+      <p style="margin: 6px 0 0; font-size: 14px; color: #5F6670">왼쪽 파일을 오른쪽 폴더 위로 끌어다 놓으면 들어가요. 폴더를 누르면 안으로 들어가요.</p>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start">
+
+      <section aria-label="정리할 파일" style="flex: 1 1 340px; max-width: 420px; min-width: 0; background: #FFFFFF; border: 1px solid #E4E6EA; border-radius: 14px; overflow: hidden">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-bottom: 1px solid #EEF0F2">
+          <div role="tablist" style="display: flex; gap: 2px">
+            <sc-for list="{{tabs}}" as="t" hint-placeholder-count="3">
+              <button role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="height: 34px; padding: 0 10px; border: 0; border-radius: 8px; background: {{t.bg}}; color: {{t.fg}}; font-size: 13px; font-weight: {{t.fw}}; white-space: nowrap">{{t.label}} <span style="color: #5F6670; font-weight: 400">{{t.count}}</span></button>
+            </sc-for>
+          </div>
+          <button onClick="{{acceptAll}}" style="height: 34px; padding: 0 11px; border: 1px solid #C9D6F2; border-radius: 8px; background: #F4F7FD; color: #1E4296; font-size: 12.5px; font-weight: 600; white-space: nowrap">추천대로 모두</button>
+        </div>
+
+        <sc-if value="{{hasSel}}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; align-items: center; gap: 10px; padding: 9px 14px; background: #F4F7FD; border-bottom: 1px solid #DCE5F7">
+            <span style="font-size: 13px; font-weight: 600; color: #1E4296; flex: 1">{{selCount}}개 선택됨 · 폴더의 ‘여기에 넣기’를 누르세요</span>
+            <button onClick="{{clearSel}}" style="height: 30px; padding: 0 10px; border: 1px solid #D7DADF; border-radius: 7px; background: #FFFFFF; color: #3D434B; font-size: 12.5px; white-space: nowrap">선택 해제</button>
+          </div>
+        </sc-if>
+
+        <div style="display: flex; flex-direction: column">
+          <sc-for list="{{rows}}" as="f" hint-placeholder-count="8">
+            <div style="display: flex; flex-direction: column; gap: 8px; padding: 11px 14px; border-bottom: 1px solid #F0F1F3; background: {{f.bg}}; outline: {{f.outline}}; outline-offset: -3px; opacity: {{f.op}}">
+              <div style="display: flex; align-items: center; gap: 11px; min-width: 0">
+                <input type="checkbox" aria-label="{{f.name}} 선택" checked="{{f.sel}}" onChange="{{f.toggle}}" style="width: 17px; height: 17px; margin: 0; accent-color: #2B59C3; flex-shrink: 0">
+                <div style="width: 36px; height: 36px; border-radius: 8px; background: {{f.badgeBg}}; color: {{f.badgeFg}}; font-size: 10.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0">{{f.badge}}</div>
+                <div style="min-width: 0; flex: 1">
+                  <div style="font-size: 13.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{f.name}}</div>
+                  <div style="font-size: 12px; color: #5F6670; margin-top: 1px">{{f.meta}}</div>
+                </div>
+              </div>
+              <sc-if value="{{f.hasSug}}" hint-placeholder-val="{{ true }}">
+                <div style="display: flex; align-items: center; gap: 8px; padding-left: 28px">
+                  <span style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: #3D434B">
+                    <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5F6670" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+                    <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{f.sug}}</span>
+                  </span>
+                  <button onClick="{{f.accept}}" style="height: 30px; padding: 0 12px; border: 0; border-radius: 7px; background: #2B59C3; color: #FFFFFF; font-size: 12.5px; font-weight: 600; white-space: nowrap; flex-shrink: 0">넣기</button>
+                </div>
+              </sc-if>
+              <sc-if value="{{f.noSug}}" hint-placeholder-val="{{ false }}">
+                <div style="padding-left: 28px; font-size: 12.5px; color: {{f.noteFg}}">{{f.note}}</div>
+              </sc-if>
+            </div>
+          </sc-for>
+          <sc-if value="{{empty}}" hint-placeholder-val="{{ false }}">
+            <div style="padding: 48px 20px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center">
+              <div style="font-size: 15px; font-weight: 600">정리함이 비었어요</div>
+              <div style="font-size: 13px; color: #5F6670">새 파일이 들어오면 여기에 모여요.</div>
+              <button onClick="{{restart}}" style="margin-top: 8px; height: 36px; padding: 0 14px; border: 1px solid #D7DADF; border-radius: 8px; background: #FFFFFF; font-size: 13px">예시 다시 보기</button>
+            </div>
+          </sc-if>
+        </div>
+      </section>
+
+      <section aria-label="정리 폴더" style="flex: 999 1 460px; min-width: 0; background: #FFFFFF; border: 1px solid #E4E6EA; border-radius: 14px; display: flex; flex-direction: column">
+
+        <div style="display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid #EEF0F2">
+          <button onClick="{{goUp}}" aria-label="위 폴더로" style="width: 34px; height: 34px; border: 1px solid #E4E6EA; border-radius: 8px; background: #FFFFFF; color: {{upFg}}; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+          </button>
+          <div style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 2px; height: 34px; padding: 0 6px; border-radius: 8px; background: #F4F5F7; overflow: hidden">
+            <sc-for list="{{crumbs}}" as="c" hint-placeholder-count="2">
+              <span style="display: flex; align-items: center; gap: 2px; flex-shrink: 0">
+                <sc-if value="{{c.sep}}" hint-placeholder-val="{{ false }}"><span style="color: #9AA1AB; font-size: 13px; padding: 0 2px">›</span></sc-if>
+                <button onClick="{{c.go}}" style="height: 28px; padding: 0 7px; border: 0; border-radius: 6px; background: transparent; color: {{c.fg}}; font-size: 13.5px; font-weight: {{c.fw}}; white-space: nowrap">{{c.name}}</button>
+              </span>
+            </sc-for>
+          </div>
+          <sc-if value="{{showPutHere}}" hint-placeholder-val="{{ false }}">
+            <button onClick="{{putHere}}" style="height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: #2B59C3; color: #FFFFFF; font-size: 13px; font-weight: 600; white-space: nowrap; flex-shrink: 0">이 폴더에 넣기</button>
+          </sc-if>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 8px; padding: 10px 14px 0; flex-wrap: wrap">
+          <span style="font-size: 12px; font-weight: 600; color: #5F6670; margin-right: 2px">자주 쓰는 폴더</span>
+          <sc-for list="{{favs}}" as="v" hint-placeholder-count="6">
+            <button onClick="{{v.go}}" style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 9px 0 5px; border: 1px solid #E4E6EA; border-radius: 7px; background: #FFFFFF; font-size: 12.5px; color: #17191C; white-space: nowrap">
+              <span style="font-size: 11px; font-weight: 600; color: #5F6670; border: 1px solid #D7DADF; border-radius: 4px; width: 18px; line-height: 18px; text-align: center">{{v.key}}</span>
+              <span>{{v.name}}</span>
+            </button>
+          </sc-for>
+        </div>
+
+        <sc-if value="{{creating}}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; gap: 6px; padding: 12px 14px 0">
+            <input aria-label="새 폴더 이름" placeholder="새 폴더 이름" value="{{newName}}" onChange="{{onName}}" style="flex: 1; min-width: 0; height: 36px; box-sizing: border-box; border: 1px solid #2B59C3; border-radius: 8px; padding: 0 12px; font-size: 13.5px; outline: none">
+            <button onClick="{{make}}" style="height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: #2B59C3; color: #FFFFFF; font-size: 13px; font-weight: 600; white-space: nowrap">만들기</button>
+            <button onClick="{{cancelNew}}" style="height: 36px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: #5F6670; font-size: 13px; white-space: nowrap">취소</button>
+          </div>
+        </sc-if>
+
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 16px 14px 18px">
+          <sc-for list="{{tiles}}" as="t" hint-placeholder-count="7">
+            <div style="position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 8px 10px; border-radius: 12px; border: {{t.border}}; background: {{t.bg}}">
+              <sc-if value="{{t.hasKey}}" hint-placeholder-val="{{ false }}">
+                <span style="position: absolute; top: 8px; left: 8px; font-size: 11px; font-weight: 600; color: #5F6670; border: 1px solid #D7DADF; border-radius: 4px; width: 18px; line-height: 18px; text-align: center; background: #FFFFFF">{{t.key}}</span>
+              </sc-if>
+              <button onClick="{{t.open}}" aria-label="{{t.name}} 폴더 열기" style="width: 100%; border: 0; background: transparent; padding: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; color: #17191C">
+                <svg aria-hidden="true" width="64" height="52" viewBox="0 0 64 52"><path d="M4 8a5 5 0 0 1 5-5h14l6 6h26a5 5 0 0 1 5 5v4H4z" fill="{{t.back}}"></path><rect x="2" y="15" width="60" height="35" rx="5" fill="{{t.front}}"></rect><rect x="10" y="10" width="44" height="8" rx="2" fill="#FFFFFF" opacity="{{t.innerOp}}"></rect></svg>
+                <span style="width: 100%; font-size: 13.5px; font-weight: 600; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{t.name}}</span>
+              </button>
+              <div style="height: 28px; display: flex; align-items: center; justify-content: center">
+                <sc-if value="{{t.showMeta}}" hint-placeholder-val="{{ true }}">
+                  <span style="font-size: 12px; color: #5F6670; white-space: nowrap">{{t.meta}}</span>
+                </sc-if>
+                <sc-if value="{{t.showPut}}" hint-placeholder-val="{{ false }}">
+                  <button onClick="{{t.put}}" style="height: 28px; padding: 0 10px; border: 1px solid #2B59C3; border-radius: 7px; background: #FFFFFF; color: #2B59C3; font-size: 12px; font-weight: 600; white-space: nowrap">여기에 넣기</button>
+                </sc-if>
+                <sc-if value="{{t.target}}" hint-placeholder-val="{{ false }}">
+                  <span style="font-size: 12px; font-weight: 600; color: #2B59C3; white-space: nowrap">놓으면 여기로</span>
+                </sc-if>
+              </div>
+              <sc-if value="{{t.target}}" hint-placeholder-val="{{ false }}">
+                <div aria-hidden="true" style="position: absolute; top: -14px; right: -26px; display: flex; align-items: center; gap: 8px; padding: 7px 10px 7px 7px; border-radius: 9px; background: #FFFFFF; border: 1px solid #C9D6F2; box-shadow: 0 8px 20px rgba(23, 25, 28, 0.16); transform: rotate(-4deg); z-index: 2">
+                  <span style="width: 26px; height: 26px; border-radius: 6px; background: #F0EAFB; color: #6541B5; font-size: 9.5px; font-weight: 700; display: flex; align-items: center; justify-content: center">JPG</span>
+                  <span style="font-size: 12px; font-weight: 500; white-space: nowrap">체험학습_단체사진_01.jpg</span>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+          <button onClick="{{startNew}}" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 124px; border: 1.5px dashed #C3C8CF; border-radius: 12px; background: #FFFFFF; color: #5F6670; font-size: 13px; font-weight: 600">
+            <svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+            <span>새 폴더</span>
+          </button>
+        </div>
+
+        <sc-if value="{{noSub}}" hint-placeholder-val="{{ false }}">
+          <div style="margin: -4px 14px 16px; padding: 12px 14px; border-radius: 10px; background: #F6F7F9; font-size: 13px; color: #5F6670">이 폴더 안에는 하위 폴더가 없어요. 파일 {{curFiles}}개가 들어 있어요.</div>
+        </sc-if>
+
+        <sc-if value="{{hasMsg}}" hint-placeholder-val="{{ false }}">
+          <div style="margin: 0 14px 16px; display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: 10px; background: #1F2328; color: #FFFFFF; font-size: 13.5px">
+            <span style="flex: 1; min-width: 0">{{msg}}</span>
+            <sc-if value="{{canUndo}}" hint-placeholder-val="{{ true }}">
+              <button onClick="{{undo}}" style="border: 0; background: transparent; color: #A9C2F5; font-size: 13.5px; font-weight: 600; padding: 4px 2px; white-space: nowrap">되돌리기</button>
+            </sc-if>
+          </div>
+        </sc-if>
+      </section>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":940}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = this.initial();
+    this.onName = (e) => this.setState({ newName: e.target.value });
+    this.cancelNew = () => this.setState({ creating: false, newName: '' });
+    this.make = () => {
+      const name = this.state.newName.trim();
+      if (!name) return;
+      const id = 'x' + Date.now();
+      this.setState({ extra: this.state.extra.concat([{ id: id, name: name, parent: this.state.cur }]), creating: false, newName: '' });
+    };
+  }
+
+  initial() {
+    return { done: {}, sel: {}, tab: 'all', demo: true, msg: '', last: [], cur: null, creating: false, newName: '', extra: [], added: {} };
+  }
+
+  folders() {
+    return [
+      { id: 'work', name: '업무', parent: null, files: 4 },
+      { id: 'class', name: '수업', parent: null, files: 2 },
+      { id: 'eval', name: '평가', parent: null, files: 0 },
+      { id: 'home', name: '학급 3-2', parent: null, files: 6 },
+      { id: 'record', name: '생활기록부', parent: null, files: 31 },
+      { id: 'train', name: '연수', parent: null, files: 9 },
+      { id: 'me', name: '개인', parent: null, files: 14 },
+      { id: 'work-doc', name: '공문', parent: 'work', files: 57 },
+      { id: 'work-meet', name: '회의록', parent: 'work', files: 18 },
+      { id: 'work-plan', name: '계획서', parent: 'work', files: 11 },
+      { id: 'c1', name: '2027 1학기', parent: 'class', files: 46 },
+      { id: 'c2', name: '2027 2학기', parent: 'class', files: 12 },
+      { id: 'p', name: '수행평가', parent: 'eval', files: 3 },
+      { id: 'exam', name: '지필고사', parent: 'eval', files: 22 },
+      { id: 'p27', name: '2027', parent: 'p', files: 0 },
+      { id: 'p27-1', name: '1학기', parent: 'p27', files: 19 },
+      { id: 'p27-2', name: '2학기', parent: 'p27', files: 4 },
+      { id: 'home-c', name: '상담', parent: 'home', files: 8 },
+      { id: 'home-ph', name: '사진', parent: 'home', files: 120 },
+      { id: 'home-at', name: '출결', parent: 'home', files: 15 }
+    ].concat(this.state.extra.map((f) => ({ id: f.id, name: f.name, parent: f.parent, files: 0 })));
+  }
+
+  files() {
+    return [
+      { id: 'f1', name: '2027_1학기_3-2_수행평가_채점기준.hwp', ext: 'HWP', src: 'down', when: '방금', sug: 'p27-1' },
+      { id: 'f2', name: '학업성적관리위원회_회의록_10월.hwp', ext: 'HWP', src: 'down', when: '12분 전', sug: 'work-meet' },
+      { id: 'f3', name: '2학기_지필고사_감독배정표.xlsx', ext: 'XLSX', src: 'down', when: '1시간 전', sug: 'exam' },
+      { id: 'f4', name: '3-2_학부모상담_일정.xlsx', ext: 'XLSX', src: 'desk', when: '오늘 오전', sug: 'home-c' },
+      { id: 'f5', name: '2027학년도_교육과정_편성_안내.pdf', ext: 'PDF', src: 'down', when: '어제', sug: 'work-doc' },
+      { id: 'f6', name: '체험학습_단체사진_01.jpg', ext: 'JPG', src: 'desk', when: '어제', sug: '' },
+      { id: 'f7', name: '광합성_수업자료.pptx', ext: 'PPTX', src: 'down', when: '2일 전', sug: 'c2' },
+      { id: 'f8', name: 'scan_20261013.pdf', ext: 'PDF', src: 'down', when: '2일 전', sug: '' }
+    ];
+  }
+
+  renderVals() {
+    const s = this.state;
+    const folders = this.folders();
+    const byId = {};
+    folders.forEach((f) => { byId[f.id] = f; });
+    const kids = (id) => folders.filter((f) => f.parent === id);
+    const pathOf = (id) => {
+      const names = [];
+      let f = byId[id];
+      while (f) { names.unshift(f.name); f = byId[f.parent]; }
+      return names;
+    };
+    const filesIn = (id) => (byId[id] ? byId[id].files : 0) + (s.added[id] || 0);
+
+    const colors = {
+      HWP: ['#E7EEFB', '#2B59C3'], XLSX: ['#E3F2E9', '#1B6E43'], PDF: ['#FBEAE7', '#A8352A'],
+      JPG: ['#F0EAFB', '#6541B5'], PPTX: ['#FCEEE2', '#A64C14']
+    };
+    const all = this.files().filter((f) => !s.done[f.id]);
+    const visible = all.filter((f) => s.tab === 'all' || f.src === s.tab);
+    const selIds = all.filter((f) => s.sel[f.id]).map((f) => f.id);
+
+    const put = (ids, folderId) => {
+      const done = Object.assign({}, this.state.done);
+      const sel = Object.assign({}, this.state.sel);
+      const added = Object.assign({}, this.state.added);
+      ids.forEach((id) => { done[id] = folderId; delete sel[id]; added[folderId] = (added[folderId] || 0) + 1; });
+      const label = ids.length === 1 ? '‘' + this.files().find((f) => f.id === ids[0]).name + '’ 파일을' : ids.length + '개 파일을';
+      this.setState({ done: done, sel: sel, added: added, demo: false, last: ids, msg: label + ' ' + pathOf(folderId).join(' › ') + '에 넣었어요' });
+    };
+
+    const rows = visible.map((f) => {
+      const c = colors[f.ext] || ['#EEF0F2', '#3D434B'];
+      const on = !!s.sel[f.id];
+      const dragging = s.demo && f.id === 'f6';
+      return {
+        name: f.name,
+        meta: (f.src === 'down' ? '다운로드' : '바탕화면') + ' · ' + f.when,
+        badge: f.ext, badgeBg: c[0], badgeFg: c[1],
+        sel: on,
+        bg: on ? '#F7F9FE' : '#FFFFFF',
+        outline: dragging ? '2px dashed #2B59C3' : 'none',
+        op: dragging ? 0.55 : 1,
+        hasSug: !!f.sug,
+        noSug: !f.sug,
+        sug: f.sug ? pathOf(f.sug).join(' › ') : '',
+        note: dragging ? '‘학급 3-2’ 폴더로 옮기는 중…' : '추천 없음 · 오른쪽 폴더로 끌어다 놓으세요',
+        noteFg: dragging ? '#2B59C3' : '#5F6670',
+        toggle: () => {
+          const sel = Object.assign({}, this.state.sel);
+          if (sel[f.id]) { delete sel[f.id]; } else { sel[f.id] = true; }
+          this.setState({ sel: sel, demo: false });
+        },
+        accept: () => put([f.id], f.sug)
+      };
+    });
+
+    const tabs = [['all', '전체'], ['down', '다운로드'], ['desk', '바탕화면']].map((t) => {
+      const on = s.tab === t[0];
+      return {
+        label: t[1],
+        count: all.filter((f) => t[0] === 'all' || f.src === t[0]).length,
+        on: on ? 'true' : 'false',
+        bg: on ? '#F1F3F6' : 'transparent',
+        fg: on ? '#17191C' : '#3D434B',
+        fw: on ? 600 : 400,
+        pick: () => this.setState({ tab: t[0] })
+      };
+    });
+
+    const favMap = [['1', 'work-doc'], ['2', 'work-meet'], ['3', 'c2'], ['4', 'p27-1'], ['5', 'exam'], ['6', 'home']];
+    const keyOf = {};
+    favMap.forEach((p) => { keyOf[p[1]] = p[0]; });
+    const go = (id) => () => this.setState({ cur: id, creating: false, demo: false });
+
+    const tiles = kids(s.cur).map((f) => {
+      const target = s.demo && f.id === 'home';
+      const sub = kids(f.id).length;
+      const n = filesIn(f.id);
+      const parts = [];
+      if (sub) parts.push('폴더 ' + sub);
+      if (n) parts.push('파일 ' + n);
+      return {
+        name: f.name,
+        key: keyOf[f.id] || '',
+        hasKey: !!keyOf[f.id],
+        meta: parts.length ? parts.join(' · ') : '비어 있음',
+        innerOp: (n > 0 || sub > 0) ? 0.85 : 0,
+        target: target,
+        showMeta: !target && selIds.length === 0,
+        showPut: !target && selIds.length > 0,
+        border: target ? '2px dashed #2B59C3' : '1px solid #EEF0F2',
+        bg: target ? '#F2F6FE' : '#FFFFFF',
+        back: target ? '#4C78D8' : '#E3B23C',
+        front: target ? '#7FA2EA' : '#F5CB5C',
+        open: go(f.id),
+        put: () => put(selIds, f.id)
+      };
+    });
+
+    const crumbIds = [];
+    let c = byId[s.cur];
+    while (c) { crumbIds.unshift(c.id); c = byId[c.parent]; }
+    const crumbs = [{ name: '정리 폴더', go: go(null), sep: false, fg: crumbIds.length ? '#3D434B' : '#17191C', fw: crumbIds.length ? 400 : 600 }]
+      .concat(crumbIds.map((id, i) => ({ name: byId[id].name, go: go(id), sep: true, fg: i === crumbIds.length - 1 ? '#17191C' : '#3D434B', fw: i === crumbIds.length - 1 ? 600 : 400 })));
+
+    const favs = favMap.map((p) => ({
+      key: p[0],
+      name: byId[p[1]].name,
+      go: () => {
+        if (selIds.length) { put(selIds, p[1]); return; }
+        this.setState({ cur: byId[p[1]].parent, creating: false, demo: false });
+      }
+    }));
+
+    const withSug = visible.filter((f) => f.sug);
+
+    return {
+      leftCount: all.length,
+      tabs: tabs,
+      rows: rows,
+      empty: rows.length === 0,
+      acceptAll: () => {
+        if (!withSug.length) return;
+        const done = Object.assign({}, this.state.done);
+        const added = Object.assign({}, this.state.added);
+        withSug.forEach((f) => { done[f.id] = f.sug; added[f.sug] = (added[f.sug] || 0) + 1; });
+        this.setState({ done: done, added: added, sel: {}, demo: false, last: withSug.map((f) => f.id), msg: withSug.length + '개 파일을 추천 위치에 넣었어요' });
+      },
+      hasSel: selIds.length > 0,
+      selCount: selIds.length,
+      clearSel: () => this.setState({ sel: {}, demo: false }),
+      crumbs: crumbs,
+      upFg: s.cur ? '#17191C' : '#B6BBC2',
+      goUp: () => { if (this.state.cur) this.setState({ cur: byId[this.state.cur].parent, creating: false, demo: false }); },
+      showPutHere: !!s.cur && selIds.length > 0,
+      putHere: () => put(selIds, s.cur),
+      favs: favs,
+      tiles: tiles,
+      noSub: tiles.length === 0,
+      curFiles: s.cur ? filesIn(s.cur) : 0,
+      creating: s.creating,
+      startNew: () => this.setState({ creating: true, newName: '', demo: false }),
+      newName: s.newName,
+      onName: this.onName,
+      make: this.make,
+      cancelNew: this.cancelNew,
+      hasMsg: !!s.msg,
+      canUndo: s.last.length > 0,
+      msg: s.msg,
+      undo: () => {
+        const done = Object.assign({}, this.state.done);
+        const added = Object.assign({}, this.state.added);
+        this.state.last.forEach((id) => { const to = done[id]; if (to) added[to] = Math.max(0, (added[to] || 1) - 1); delete done[id]; });
+        this.setState({ done: done, added: added, msg: '', last: [] });
+      },
+      restart: () => this.setState(this.initial())
+    };
+  }
+}
+</script>
+</body>
+</html>
