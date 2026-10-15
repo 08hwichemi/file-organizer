@@ -14,7 +14,7 @@
 
 ```bash
 npm install
-npm run dev            # 브라우저에서 화면만 보기 (가짜 데이터: src/mocks/)
+npm run dev            # 브라우저에서 화면만 보기 (가짜 데이터: src/mocks/, 주소 뒤 ?mock=ready 면 처음 설정 건너뜀)
 npm run tauri dev      # 실제 프로그램 창으로 실행
 cd src-tauri && cargo test   # Rust 단위 테스트
 ```
