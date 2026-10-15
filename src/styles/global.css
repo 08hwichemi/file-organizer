@@ -1,0 +1,83 @@
+/* Pretendard: npm 패키지에서 번들에 포함한다(외부 CDN 사용 금지). */
+@import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
+
+:root {
+  /* 색 — CLAUDE.md "화면 규칙" */
+  --color-accent: #2b59c3;
+  --color-accent-hover: #1e4296;
+  --color-accent-soft: #e7eefb;
+  --color-text: #17191c;
+  --color-text-sub: #5f6670;
+  --color-line: #e4e6ea;
+  --color-bg: #f4f5f7;
+  --color-surface: #ffffff;
+  --color-folder-back: #e3b23c;
+  --color-folder-front: #f5cb5c;
+
+  /* 크기 */
+  --control-height: 36px;
+  --control-height-main: 44px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, "Segoe UI",
+    "Malgun Gothic", sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  /* 한글이 단어 중간에서 줄바꿈되지 않게 */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* 버튼: 높이 최소 36px, 글자가 두 줄로 나뉘지 않게 */
+button {
+  min-height: var(--control-height);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+input,
+select {
+  min-height: var(--control-height);
+}
+
+/* 버튼 줄: 버튼 하나만 다음 줄로 내려가지 않게 */
+.button-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
