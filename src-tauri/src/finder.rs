@@ -22,6 +22,8 @@ use tauri::{AppHandle, Emitter, Manager, State};
 const EVENT_OPENED: &str = "search-opened";
 /// 자체 색인을 다 읽었음(화면이 지금 검색어로 다시 찾는다)
 const EVENT_INDEXED: &str = "search-indexed";
+/// 정리 폴더 안의 폴더가 바뀜(탐색기에서 만들거나 지움) → 폴더 격자를 새로 읽게
+const EVENT_FOLDERS: &str = "folders-changed";
 /// 고를 수 있는 단축키(빈 문자열 = 쓰지 않음)
 pub const SHORTCUTS: &[&str] = &["Alt+Space", "Ctrl+Alt+F", "Ctrl+Shift+Space"];
 /// 정리 폴더·지켜볼 폴더 색인은 검색 화면을 열 때 이보다 오래됐으면 다시 읽는다(알림이 빠지는 경우 대비).
@@ -209,6 +211,14 @@ pub fn start_live(app: &AppHandle) {
             if state.indexing.load(Ordering::SeqCst) {
                 continue; // 다 읽은 뒤에 반영한다
             }
+            let root = state
+                .db
+                .lock()
+                .ok()
+                .and_then(|c| settings::load(&c).ok())
+                .and_then(|s| s.root_folder)
+                .map(PathBuf::from);
+            let folders = root.is_some_and(|r| rescan || touches_folders(&dirty, &r));
             let mut rebuild = false;
             if let Ok(mut index) = state.index.lock() {
                 let old = index.built_at.is_none_or(|t| t.elapsed() > RESCAN_MIN_GAP);
@@ -221,11 +231,22 @@ pub fn start_live(app: &AppHandle) {
                 }
             }
             rescan = false;
+            if folders {
+                let _ = app.emit(EVENT_FOLDERS, ());
+            }
             if rebuild {
                 refresh_index(&app, true);
             }
         }
     });
+}
+
+/// 바뀐 것 가운데 정리 폴더 안의 폴더(새로 생겼거나 없어진 것)가 있는지.
+/// 파일만 들어오고 나간 것은 폴더 격자와 상관없으니 빼지만, 없어진 것은 폴더였는지 알 수 없어 넣는다.
+fn touches_folders(dirty: &HashSet<PathBuf>, root: &Path) -> bool {
+    dirty
+        .iter()
+        .any(|p| p.starts_with(root) && p != root && (p.is_dir() || !p.exists()))
 }
 
 /// 단축키를 바꿔 등록한다. 다른 프로그램이 쓰고 있으면 오류.
@@ -523,4 +544,31 @@ pub fn set_search_shortcut(
         *err = None;
     }
     Ok(s)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_folder_changes_under_root_count() {
+        let tmp = tempfile::Builder::new().prefix("fd").tempdir().unwrap();
+        let root = tmp.path().join("정리");
+        std::fs::create_dir_all(root.join("업무")).unwrap();
+        std::fs::write(root.join("업무").join("a.hwp"), b"x").unwrap();
+        let other = tmp.path().join("다운로드");
+        std::fs::create_dir_all(other.join("새 폴더")).unwrap();
+
+        let set = |ps: &[PathBuf]| ps.iter().cloned().collect::<HashSet<_>>();
+        // 파일만 들어온 것, 정리 폴더 밖의 폴더, 정리 폴더 자신은 아니다
+        assert!(!touches_folders(
+            &set(&[root.join("업무").join("a.hwp")]),
+            &root
+        ));
+        assert!(!touches_folders(&set(&[other.join("새 폴더")]), &root));
+        assert!(!touches_folders(&set(std::slice::from_ref(&root)), &root));
+        // 새 폴더, 없어진 것
+        assert!(touches_folders(&set(&[root.join("업무")]), &root));
+        assert!(touches_folders(&set(&[root.join("지운 폴더")]), &root));
+    }
 }

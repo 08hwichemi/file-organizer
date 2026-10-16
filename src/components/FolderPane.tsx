@@ -62,7 +62,11 @@ export default function FolderPane(props: Props) {
   const current = trail[trail.length - 1];
 
   // 파일을 넣거나 되돌리면 폴더 안 파일 수가 바뀌므로 다시 읽는다.
-  useEffect(() => onBackendEvent("inbox-changed", () => setReloadKey((k) => k + 1)), []);
+  useEffect(() => {
+    const reload = () => setReloadKey((k) => k + 1);
+    const stops = [onBackendEvent("inbox-changed", reload), onBackendEvent("folders-changed", reload)];
+    return () => stops.forEach((stop) => stop());
+  }, []);
 
   useEffect(() => {
     let alive = true;
