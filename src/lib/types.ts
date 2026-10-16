@@ -24,6 +24,17 @@ export interface Settings {
   /** 1학기·2학기가 시작하는 달(기본 3·9) */
   firstTermMonth: number;
   secondTermMonth: number;
+  /** 컴퓨터를 켜면 자동 실행(트레이로만) */
+  autostart: boolean;
+  /** 추천만일 때 팝업에 응답이 없으면 n초 뒤 추천 위치에 넣기(0 = 끔) */
+  waitSeconds: number;
+  /** 자주 쓰는 폴더 1~6 직접 고른 것(null = 자동) */
+  pinnedFavorites: (string | null)[];
+}
+
+/** 프로그램 상태(트레이와 함께 바뀜) */
+export interface Status {
+  paused: boolean;
 }
 
 export interface ExampleFolder {

@@ -44,7 +44,18 @@ pub struct Settings {
     /// 1학기·2학기가 시작하는 달(학년도·학기 계산, 기본 3월·9월)
     pub first_term_month: u32,
     pub second_term_month: u32,
+    /// 컴퓨터를 켜면 자동 실행(트레이로만). 기본 켬(SPEC 7장).
+    pub autostart: bool,
+    /// 추천만일 때, 팝업에 응답이 없으면 이 시간(초) 뒤 추천 위치에 넣는다. 0이면 끔.
+    pub wait_seconds: u32,
+    /// 자주 쓰는 폴더 1~6을 직접 고른 것(없는 칸은 자동으로 채운다)
+    pub pinned_favorites: Vec<Option<String>>,
 }
+
+/// 자주 쓰는 폴더(숫자 키) 칸 수
+pub const FAVORITE_SLOTS: usize = 6;
+/// "응답 없으면 n초 뒤"의 최대값
+pub const MAX_WAIT_SECONDS: u32 = 60;
 
 impl Default for Settings {
     fn default() -> Self {
@@ -57,6 +68,9 @@ impl Default for Settings {
             place_mode: PlaceMode::default(),
             first_term_month: months.first,
             second_term_month: months.second,
+            autostart: true,
+            wait_seconds: 0,
+            pinned_favorites: Vec::new(),
         }
     }
 }
@@ -73,6 +87,30 @@ impl Settings {
             crate::naming::TermMonths::default()
         }
     }
+}
+
+/// 자주 쓰는 폴더(숫자 키 1~6): 직접 고른 칸은 그 폴더, 나머지 칸은 자동 목록에서 차례로 채운다.
+/// 없어진 폴더는 건너뛴다. 결과의 순서가 숫자 키 순서.
+pub fn merge_favorites(
+    pins: &[Option<String>],
+    auto: Vec<String>,
+    exists: impl Fn(&str) -> bool,
+) -> Vec<String> {
+    let pinned: Vec<&String> = pins.iter().flatten().collect();
+    let mut auto = auto
+        .into_iter()
+        .filter(|a| !pinned.contains(&a) && exists(a));
+    let mut out: Vec<String> = Vec::new();
+    for i in 0..FAVORITE_SLOTS {
+        let pick = match pins.get(i) {
+            Some(Some(p)) if exists(p) && !out.contains(p) => Some(p.clone()),
+            _ => auto.find(|a| !out.contains(a)),
+        };
+        if let Some(p) = pick {
+            out.push(p);
+        }
+    }
+    out
 }
 
 /// 1학기가 2학기보다 먼저 시작해야 한다(1~12월).
@@ -118,6 +156,9 @@ mod tests {
             place_mode: PlaceMode::Auto,
             first_term_month: 3,
             second_term_month: 8,
+            autostart: false,
+            wait_seconds: 10,
+            pinned_favorites: vec![None, Some("C:\\정리 폴더\\평가".into())],
         };
         save(&conn, &s).unwrap();
         assert_eq!(load(&conn).unwrap(), s);
@@ -134,6 +175,30 @@ mod tests {
         // 5단계 전에 저장한 설정: 추천만, 3월·9월
         assert_eq!(s.place_mode, PlaceMode::Suggest);
         assert_eq!((s.first_term_month, s.second_term_month), (3, 9));
+        // 6단계 전에 저장한 설정: 자동 실행 켬, 기다리기 끔
+        assert!(s.autostart);
+        assert_eq!(s.wait_seconds, 0);
+        assert!(s.pinned_favorites.is_empty());
+    }
+
+    #[test]
+    fn favorites_keep_pinned_slots_and_fill_the_rest() {
+        let s = |v: &str| v.to_string();
+        let auto = vec![s("/r/공문"), s("/r/평가"), s("/r/상담"), s("/r/없음")];
+        let exists = |p: &str| p != "/r/없음" && p != "/r/지운 폴더";
+        // 2번 칸만 직접 고름 → 1번은 자동, 2번은 고른 폴더, 나머지 자동(고른 폴더는 다시 안 나옴)
+        let pins = vec![None, Some(s("/r/평가"))];
+        assert_eq!(
+            merge_favorites(&pins, auto.clone(), exists),
+            ["/r/공문", "/r/평가", "/r/상담"]
+        );
+        // 고른 폴더가 없어졌으면 그 칸은 자동으로
+        let pins = vec![Some(s("/r/지운 폴더")), None];
+        assert_eq!(
+            merge_favorites(&pins, auto.clone(), exists),
+            ["/r/공문", "/r/평가", "/r/상담"]
+        );
+        assert_eq!(merge_favorites(&[], auto, exists).len(), 3);
     }
 
     #[test]

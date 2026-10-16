@@ -20,6 +20,7 @@ import type {
   RuleView,
   Settings,
   SetupInfo,
+  Status,
   SetupRequest,
   TrashResult,
   UndoManyResult,
@@ -35,16 +36,19 @@ export async function isPopupWindow(): Promise<boolean> {
   return getCurrentWindow().label === "popup";
 }
 
-/** Rust가 보내는 알림: popup-changed(팝업 차례 바뀜), inbox-changed(정리함 바뀜) */
-export type BackendEvent = "popup-changed" | "inbox-changed";
+/**
+ * Rust가 보내는 알림: popup-changed(팝업 차례 바뀜), inbox-changed(정리함 바뀜),
+ * status-changed(일시 정지 등), navigate(트레이에서 고른 화면, 값 = "inbox" 등)
+ */
+export type BackendEvent = "popup-changed" | "inbox-changed" | "status-changed" | "navigate";
 
 /** 알림을 듣는다. 돌려준 함수를 부르면 그만 듣는다. */
-export function onBackendEvent(name: BackendEvent, handler: () => void): () => void {
+export function onBackendEvent(name: BackendEvent, handler: (payload: unknown) => void): () => void {
   if (usingMocks) return mockEvents.on(name, handler);
   let stop: (() => void) | null = null;
   let cancelled = false;
   void import("@tauri-apps/api/event").then(({ listen }) =>
-    listen(name, () => handler()).then((unlisten) => {
+    listen(name, (e) => handler(e.payload)).then((unlisten) => {
       if (cancelled) unlisten();
       else stop = unlisten;
     }),
@@ -94,6 +98,38 @@ export function setPlaceMode(mode: PlaceMode): Promise<Settings> {
 export function setTermMonths(first: number, second: number): Promise<Settings> {
   if (usingMocks) return mockBackend.setTermMonths(first, second);
   return invoke("set_term_months", { first, second });
+}
+
+export function getStatus(): Promise<Status> {
+  if (usingMocks) return mockBackend.getStatus();
+  return invoke("get_status");
+}
+
+/** 일시 정지 / 다시 시작 */
+export function setPaused(paused: boolean): Promise<Status> {
+  if (usingMocks) return mockBackend.setPaused(paused);
+  return invoke("set_paused", { paused });
+}
+
+export function setAutostart(enabled: boolean): Promise<Settings> {
+  if (usingMocks) return mockBackend.setAutostart(enabled);
+  return invoke("set_autostart", { enabled });
+}
+
+export function setWaitSeconds(seconds: number): Promise<Settings> {
+  if (usingMocks) return mockBackend.setWaitSeconds(seconds);
+  return invoke("set_wait_seconds", { seconds });
+}
+
+export function setPinnedFavorites(pins: (string | null)[]): Promise<Settings> {
+  if (usingMocks) return mockBackend.setPinnedFavorites(pins);
+  return invoke("set_pinned_favorites", { pins });
+}
+
+/** 정리 폴더를 다른 폴더로(원래 폴더·파일은 그대로) */
+export function setRootFolder(path: string): Promise<Settings> {
+  if (usingMocks) return mockBackend.setRootFolder(path);
+  return invoke("set_root_folder", { path });
 }
 
 export function listFolders(path: string): Promise<FolderEntry[]> {
