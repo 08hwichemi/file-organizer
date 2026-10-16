@@ -119,7 +119,7 @@
   --finder-cols: minmax(0, 2.6fr) minmax(0, 1.4fr) 152px 104px 72px;
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  overflow: auto;
   scroll-padding-top: 38px;
   container-type: inline-size;
 }
@@ -136,15 +136,59 @@
   background: var(--color-surface);
 }
 
+/* 열 제목 칸: 제목(누르면 정렬) + 오른쪽 끝의 선(끌면 너비, 두 번 누르면 내용에 맞춤) */
+.finder__thc {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  border-right: 1px solid var(--color-line-soft);
+}
+
+.finder__thc:last-child {
+  border-right: 0;
+}
+
+.finder__resize {
+  position: absolute;
+  top: 0;
+  right: -5px;
+  z-index: 2;
+  width: 9px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.finder__resize::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 4px;
+  width: 1px;
+  background: transparent;
+}
+
+.finder__resize:hover::after,
+.is-col-resizing .finder__resize::after {
+  background: var(--color-accent);
+}
+
+body.is-col-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
 .finder__th {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 4px;
   min-width: 0;
   min-height: 36px;
   padding: 0 10px;
+  overflow: hidden;
   border: 0;
-  border-right: 1px solid var(--color-line-soft);
   border-radius: 0;
   background: transparent;
   color: var(--color-text-sub);
@@ -152,10 +196,6 @@
   font-weight: 500;
   text-align: left;
   white-space: nowrap;
-}
-
-.finder__th:last-child {
-  border-right: 0;
 }
 
 button.finder__th:hover {
@@ -288,21 +328,28 @@ button.finder__th:hover {
   font-size: 12.5px;
 }
 
-/* 좁은 창: 위치·유형 칸을 숨기고 위치는 이름 아래에 */
+/* 열 너비를 직접 바꾼 뒤: 탐색기처럼 그 너비 그대로, 넓으면 표 안에서 옆으로 내려 본다 */
+.finder__table--sized .finder__head,
+.finder__table--sized .finder__list {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* 좁은 창(너비를 바꾸지 않았을 때): 위치·유형 칸을 숨기고 위치는 이름 아래에 */
 @container (max-width: 800px) {
-  .finder__head,
-  .finder__row {
+  .finder__table:not(.finder__table--sized) .finder__head,
+  .finder__table:not(.finder__table--sized) .finder__row {
     grid-template-columns: minmax(0, 1fr) 150px 70px;
   }
 
-  .finder__th--dir,
-  .finder__th--type,
-  .finder__td--dir,
-  .finder__td--type {
+  .finder__table:not(.finder__table--sized) .finder__thc--dir,
+  .finder__table:not(.finder__table--sized) .finder__thc--type,
+  .finder__table:not(.finder__table--sized) .finder__td--dir,
+  .finder__table:not(.finder__table--sized) .finder__td--type {
     display: none;
   }
 
-  .finder__meta {
+  .finder__table:not(.finder__table--sized) .finder__meta {
     display: block;
   }
 }
