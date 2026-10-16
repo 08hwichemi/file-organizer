@@ -28,12 +28,19 @@ export const useAppStore = create<AppState>((set) => ({
   page: "inbox",
 
   async load() {
-    try {
-      const [settings, setupInfo] = await Promise.all([backend.getSettings(), backend.getSetupInfo()]);
-      set({ settings, setupInfo, status: settings.setupDone ? "ready" : "setup", loadError: null });
-    } catch (error) {
-      set({ status: "error", loadError: backend.errorMessage(error) });
+    // 프로그램이 막 켜지는 중이면 잠깐 실패할 수 있어 몇 번 다시 시도한다.
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        const [settings, setupInfo] = await Promise.all([backend.getSettings(), backend.getSetupInfo()]);
+        set({ settings, setupInfo, status: settings.setupDone ? "ready" : "setup", loadError: null });
+        return;
+      } catch (error) {
+        lastError = error;
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
     }
+    set({ status: "error", loadError: backend.errorMessage(lastError) });
   },
 
   // 아래 세 함수는 실패하면 오류를 그대로 던진다. 부른 화면이 문구를 보여 준다.

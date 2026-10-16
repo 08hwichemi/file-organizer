@@ -19,7 +19,8 @@
         "height": 720,
         "minWidth": 760,
         "minHeight": 520,
-        "center": true
+        "center": true,
+        "create": false
       },
       {
         "label": "popup",
@@ -31,7 +32,8 @@
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "visible": false,
-        "focus": false
+        "focus": false,
+        "create": false
       }
     ],
     "security": {
