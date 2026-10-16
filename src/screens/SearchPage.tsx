@@ -69,7 +69,7 @@ export default function SearchPage() {
   const settings = useAppStore((s) => s.settings);
   const sep = useAppStore((s) => s.setupInfo?.separator ?? "\\");
   const focusToken = useAppStore((s) => s.searchFocus);
-  const goTo = useAppStore((s) => s.goTo);
+  const openSettings = useAppStore((s) => s.openSettings);
   const root = settings?.rootFolder ?? null;
 
   const [query, setQuery] = useState(lastQuery);
@@ -247,7 +247,7 @@ export default function SearchPage() {
           <span className="finder__scope">
             {scopeText(response, progress)}
             {onlyFolders && (
-              <button type="button" className="finder__link" onClick={() => goTo("settings")}>
+              <button type="button" className="finder__link" onClick={() => openSettings("search")}>
                 범위 바꾸기
               </button>
             )}
