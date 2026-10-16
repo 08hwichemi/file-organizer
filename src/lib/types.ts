@@ -34,7 +34,11 @@ export interface Settings {
   searchShortcut: string;
   /** 파일 검색 범위: PC 전체(true, 기본) / 정리 폴더와 지켜볼 폴더만(false) */
   searchWholePc: boolean;
+  /** 쓰는 곳: school = 학교(교사용 예시 폴더·단어·학기), general = 일반(회사·개인) */
+  userKind: UserKind;
 }
+
+export type UserKind = "school" | "general";
 
 /** Everything: ready = PC 전체 검색, notRunning = 설치·실행 안 됨, noDll = SDK 빠짐, unsupported = Windows 아님 */
 export type EverythingState = "ready" | "notRunning" | "noDll" | "unsupported";
@@ -94,6 +98,8 @@ export interface SetupInfo {
   rootFolderName: string;
   separator: string;
   teacherExample: ExampleFolder[];
+  /** 일반(회사·개인) 예시 폴더 */
+  generalExample: ExampleFolder[];
 }
 
 /** empty = 빈 정리 폴더, teacher = 교사용 예시 폴더, existing = 쓰던 폴더 그대로 */
@@ -112,6 +118,8 @@ export interface SetupRequest {
   structure?: FolderSpec[];
   watchFolders: string[];
   organizeMode: OrganizeMode;
+  /** 쓰는 곳(예시 폴더·자동 분류 단어·학기 시작 달이 달라짐) */
+  userKind: UserKind;
 }
 
 export interface FolderEntry {
@@ -298,56 +306,53 @@ export interface FolderFiles {
   truncated: boolean;
 }
 
-/** 이름 조각 종류: 글자 · 번호 · 학급(3-2) · 연도 · 학기 */
-export type PieceKind = "text" | "number" | "class" | "year" | "term";
+/**
+ * 새 이름을 이루는 블록(Rust renamer::Block과 같은 모양).
+ * 첫 파일에 적은 이름을 Rust가 블록으로 알아듣고, 화면에서 블록을 직접 고칠 수도 있다.
+ */
+export type Block =
+  | { k: "text"; text: string }
+  /** 지금 이름. from이 있으면 그 글자를 to로(없으면 지움) */
+  | { k: "name"; from?: string; to?: string }
+  /** 지금 이름의 i번째 조각(0부터) */
+  | { k: "piece"; i: number }
+  | { k: "year" }
+  | { k: "today" }
+  | { k: "fileDate" }
+  /** 이름의 번호(plain = 앞의 0 빼기) */
+  | { k: "num"; plain: boolean }
+  /** 순서 번호 */
+  | { k: "seq"; start: number; width: number }
+  /** 명렬표에서 찾은 학생 이름 */
+  | { k: "student" };
 
-export interface PieceInfo {
-  /** 1부터. 틀에서는 {조각 n} */
-  index: number;
-  kind: PieceKind;
-  /** 모든 파일에서 같은지 */
-  common: boolean;
-  sample: string;
-}
-
-export interface SuggestedTemplate {
+/** 블록을 화면에 보여 줄 모양(첫 파일 기준) */
+export interface BlockView {
   label: string;
-  template: string;
-  needsRoster: boolean;
+  value: string;
 }
 
-/** 규칙 알아내기 결과 */
-export interface NameAnalysis {
-  pieces: PieceInfo[];
-  /** 가장 많은 모양인 파일 수 / 전체 */
-  matching: number;
-  total: number;
-  numberPiece: number | null;
-  suggestions: SuggestedTemplate[];
-}
-
-export interface NumberOptions {
-  /** true = 이름에서 읽기, false = 순서대로 매기기 */
-  fromName: boolean;
-  start: number;
-  /** 자릿수(0 = 자동) */
-  digits: number;
-}
-
-export interface Replacement {
-  find: string;
-  with: string;
+export interface FirstFile {
+  name: string;
+  stem: string;
+  ext: string;
+  /** 이름의 번호(적힌 그대로) */
+  number: string | null;
+  fileDate: string;
+  today: string;
+  year: string;
 }
 
 export interface RenameRequest {
   files: string[];
-  template: string;
-  number: NumberOptions;
-  replacements: Replacement[];
-  prefix: string;
-  suffix: string;
+  /** 첫 파일에 적은 새 이름(확장자 빼고) */
+  example: string;
+  /** 블록을 직접 고쳤으면 그 블록(null = example로 알아듣기) */
+  blocks: Block[] | null;
   /** 붙여 넣은 명렬표(저장하지 않음) */
   roster: string;
+  /** 화면에서 부르는 이름: "명렬표" / "번호·이름 목록" */
+  listWord: string;
 }
 
 /** same = 그대로, rename = 바꿈, conflict = 같은 이름이 있어 (2)를 붙임, invalid = 쓸 수 없는 이름, skip = 값이 없어 건너뜀 */
@@ -368,7 +373,13 @@ export interface RosterInfo {
 }
 
 export interface RenamePreview {
-  analysis: NameAnalysis;
+  blocks: Block[];
+  views: BlockView[];
+  first: FirstFile | null;
+  /** 안내 한 줄 */
+  hint: string | null;
+  /** 명렬표 칸을 열어야 하는지 */
+  openRoster: boolean;
   roster: RosterInfo;
   rows: PreviewRow[];
   changes: number;

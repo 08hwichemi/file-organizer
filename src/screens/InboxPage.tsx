@@ -117,12 +117,18 @@ export default function InboxPage() {
     [busy, nameOf, root, sep],
   );
 
-  // 정해진 곳에 넣기: 줄의 [넣기](추천 위치) 또는 [자동 분류](미리보기에서 확인한 파일)
-  const accept = async (paths: string[], how: "suggest" | "classify") => {
-    if (paths.length === 0 || busy) return;
+  // 정해진 곳에 넣기: 줄의 [넣기](추천 위치) 또는 [자동 분류](미리보기에서 확인한 파일 + 직접 옮긴 파일)
+  const accept = async (
+    paths: string[],
+    how: "suggest" | "classify",
+    manual: { destDir: string; paths: string[] }[] = [],
+  ) => {
+    if (paths.length + manual.length === 0 || busy) return;
     setBusy(true);
     try {
-      const outcomes = how === "suggest" ? await putSuggested(paths) : await classifyFiles(paths);
+      const outcomes =
+        how === "suggest" ? await putSuggested(paths) : paths.length > 0 ? await classifyFiles(paths) : [];
+      for (const m of manual) outcomes.push(...(await putFiles(m.paths, m.destDir)));
       const done = outcomes.filter((o) => o.moveId !== null);
       const failed = outcomes.filter((o) => o.error);
       const where = how === "suggest" ? "추천 위치에 넣었어요" : "자동으로 나눴어요";
@@ -310,9 +316,9 @@ export default function InboxPage() {
           root={root}
           separator={sep}
           onClose={() => setClassifying(null)}
-          onRun={(paths) => {
+          onRun={(auto, manual) => {
             setClassifying(null);
-            void accept(paths, "classify");
+            void accept(auto, "classify", manual);
           }}
         />
       )}

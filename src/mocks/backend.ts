@@ -28,9 +28,8 @@ import type {
   SearchInfo,
   SearchResponse,
   FolderFiles,
-  NameAnalysis,
-  PieceInfo,
-  PieceKind,
+  Block,
+  BlockView,
   PreviewRow,
   RenameFile,
   RenamePreview,
@@ -42,6 +41,7 @@ import type {
   SetupRequest,
   TrashResult,
   UndoManyResult,
+  UserKind,
 } from "../lib/types";
 
 const HOME = "C:\\Users\\선생님";
@@ -63,6 +63,13 @@ const setupInfo: SetupInfo = {
     { name: "생활기록부", children: [] },
     { name: "연수", children: [] },
     { name: "개인", children: [] },
+  ],
+  generalExample: [
+    { name: "업무", children: ["보고서", "회의록", "계약서"] },
+    { name: "돈 관리", children: ["영수증", "세금", "보험"] },
+    { name: "개인", children: ["병원", "증명서"] },
+    { name: "공부", children: [] },
+    { name: "사진", children: [] },
   ],
 };
 
@@ -111,6 +118,7 @@ let settings: Settings = startReady
       pinnedFavorites: [],
       searchShortcut: "Alt+Space",
       searchWholePc: true,
+      userKind: params.get("kind") === "general" ? "general" : "school",
     }
   : {
       setupDone: false,
@@ -125,6 +133,7 @@ let settings: Settings = startReady
       pinnedFavorites: [],
       searchShortcut: "Alt+Space",
       searchWholePc: true,
+      userKind: params.get("kind") === "general" ? "general" : "school",
     };
 
 const trees = new Map<string, MockFolder>(startReady ? [[readyRoot, teacherTree()]] : []);
@@ -208,9 +217,24 @@ const manyFiles: StoredItem[] =
       }))
     : [];
 
+// 주소 뒤 &classify=1: 자동 분류 카드판을 볼 수 있게 여러 종류의 이름을 넣는다
+const CLASSIFY_SAMPLES = [
+  "수행평가_채점기준_1학기.hwp", "수행평가_안내문.hwp", "수행평가_결과_3-2.xlsx", "루브릭_과학탐구.hwp",
+  "중간고사_시험지_화학.hwp", "기말고사_문항정보표.xlsx", "2학기_중간고사_감독.xlsx",
+  "공문_시행문_정보보안.pdf", "협조_요청_공문.pdf", "회신_학교폭력예방.hwp",
+  "교무회의록_10월.hwp", "학년협의회_회의록.hwp", "학급상담_일지.hwp", "결석계_김민지.pdf",
+  "세특_초안_3-2.hwp", "생기부_점검표.xlsx", "학습지_광합성.hwp", "활동지_산화환원.hwp",
+  "연수_이수증_정보보호.pdf", "사진_체육대회_01.jpg", "사진_체육대회_02.jpg", "setup_hancom.exe",
+];
+const classifyFiles: StoredItem[] =
+  params.get("classify") === "1"
+    ? CLASSIFY_SAMPLES.map((name, i) => ({ id: 2000 + i, ...file(DOWNLOADS, name, 30_000 + i * 1000), addedAt: Date.now() - i * 600_000 }))
+    : [];
+
 let inbox: StoredItem[] = startReady
   ? [
       ...manyFiles,
+      ...classifyFiles,
       { id: 1, ...file(DOWNLOADS, "2학기_지필고사_감독배정표.xlsx", 22_000), addedAt: Date.now() - 12 * 60_000 },
       { id: 2, ...file(DESKTOP, "3-2_학부모상담_일정.xlsx", 15_000), addedAt: Date.now() - 3 * 3600_000 },
       { id: 3, ...file(DOWNLOADS, "scan_20261013.pdf", 820_000), addedAt: Date.now() - 26 * 3600_000 },
@@ -613,6 +637,9 @@ export const mockBackend = {
       rootFolder: root,
       watchFolders: req.watchFolders,
       organizeMode: req.organizeMode,
+      userKind: req.userKind,
+      firstTermMonth: req.userKind === "general" ? 1 : 3,
+      secondTermMonth: req.userKind === "general" ? 7 : 9,
     };
     return delay({ ...settings });
   },
@@ -948,6 +975,16 @@ export const mockBackend = {
     return delay(undefined);
   },
 
+  setUserKind(kind: UserKind) {
+    settings = {
+      ...settings,
+      userKind: kind,
+      firstTermMonth: kind === "general" ? 1 : 3,
+      secondTermMonth: kind === "general" ? 7 : 9,
+    };
+    return delay({ ...settings });
+  },
+
   setSearchWholePc(enabled: boolean) {
     settings = { ...settings, searchWholePc: enabled };
     return delay({ ...settings });
@@ -1127,89 +1164,78 @@ export const mockBackend = {
   },
 };
 
-// ---------- 이름 바꾸기 가짜 폴더·이름 짓기 ----------
+// ---------- 이름 바꾸기 가짜 폴더·이름 짓기(renamer.rs의 infer·render를 옮긴 것) ----------
 const renameFolders = new Map<string, RenameFile[]>();
 const renameBatches = new Map<number, { file: RenameFile; from: string }[]>();
 let renameBatch = 0;
 
+/** 고른 폴더마다 다른 예시: 학생 이름 · 번호 과제 · 스캔 · ‘최종’ 문서 · 사진 */
+const RENAME_SAMPLES: { date: string; names: string[]; sub?: string[] }[] = [
+  { date: "2026-09-17", names: ["고다윤.pdf", "김민찬.pdf", "김서한.pdf", "김찬혁.pdf", "김태우.pdf", "민건희.pdf", "민정우.pdf"] },
+  {
+    date: "2026-10-02",
+    names: Array.from({ length: 12 }, (_, i) => `${String(i + 1).padStart(2, "0")}.hwp`),
+    sub: ["13.hwp", "14번 과제.hwp"],
+  },
+  { date: "2026-10-15", names: ["scan_001.pdf", "scan_002.pdf", "scan_003.pdf", "scan_004.pdf", "scan_005.pdf"] },
+  { date: "2026-09-03", names: ["회의록_최종.hwp", "계획서_최종.hwp", "예산안_최종_수정.hwp", "참석자 명단.xlsx"] },
+  { date: "2025-07-21", names: ["IMG_2041.jpg", "IMG_2042.jpg", "IMG_2055.jpg", "IMG_2060.jpg", "IMG_2071.jpg"] },
+];
+
 function mockRenameFolder(folder: string): RenameFile[] {
   let files = renameFolders.get(folder);
   if (!files) {
-    const now = Date.now();
-    const make = (name: string, subDir: string, i: number): RenameFile => ({
+    const n = Number(folder.match(/(\d+)$/)?.[1] ?? 1);
+    const sample = RENAME_SAMPLES[(n - 1) % RENAME_SAMPLES.length];
+    const ms = new Date(sample.date + "T09:00:00").getTime();
+    const make = (name: string, subDir: string): RenameFile => ({
       path: [folder, subDir, name].filter(Boolean).join(SEP),
       name,
       subDir,
-      modified: now - i * 3_600_000,
+      modified: ms,
       size: 24_000,
     });
-    files = [
-      ...Array.from({ length: 30 }, (_, i) => make(`${String(i + 1).padStart(2, "0")}.hwp`, "", 40 - i)),
-      make("제출 안내.pdf", "", 50),
-      make("31.hwp", "늦게 낸 것", 2),
-      make("32번 과제.hwp", "늦게 낸 것", 1),
-    ];
+    files = [...sample.names.map((x) => make(x, "")), ...(sample.sub ?? []).map((x) => make(x, "늦게 낸 것"))];
     renameFolders.set(folder, files);
   }
   return files;
 }
 
-type MockToken = { text: string; kind: PieceKind; value: number | null };
+const stemExt = (name: string): [string, string] => {
+  const i = name.lastIndexOf(".");
+  return i > 0 ? [name.slice(0, i), name.slice(i)] : [name, ""];
+};
+const isYearText = (t: string) => /^20\d\d$/.test(t);
+const pad = (n: number, w: number) => String(n).padStart(w, "0");
 
-function mockTokens(stem: string): MockToken[] {
-  const out: MockToken[] = [];
+function mockPieces(stem: string): string[] {
+  const out: string[] = [];
   for (const raw of stem.split(/[\s_()[\].,·{}]+/).filter(Boolean)) {
-    const parts = /^[1-6]-\d{1,2}$/.test(raw) ? [raw] : raw.split("-").filter(Boolean);
-    for (const t of parts) {
-      let kind: PieceKind = "text";
-      let value: number | null = null;
-      if (/^[1-6]-\d{1,2}$/.test(t)) kind = "class";
-      else if (/^\d+$/.test(t)) {
-        const n = Number(t);
-        if (t.length === 4 && n >= 2000 && n <= 2099) kind = "year";
-        else [kind, value] = ["number", t.length === 5 ? n % 100 : n];
-      } else if (/^\d+번$/.test(t)) [kind, value] = ["number", Number(t.slice(0, -1))];
-      else if (t === "1학기" || t === "2학기") kind = "term";
-      else if (/^(\d{2}|\d{4})(학년도|년)$/.test(t)) kind = "year";
-      out.push({ text: t, kind, value });
-    }
+    if (/^[1-6]-\d{1,2}$/.test(raw)) out.push(raw);
+    else out.push(...raw.split("-").filter(Boolean));
   }
   return out;
 }
 
-function mockAnalyze(stems: string[]): NameAnalysis {
-  const all = stems.map(mockTokens);
-  const shapes = new Map<string, number>();
-  for (const t of all) {
-    const k = t.map((x) => x.kind).join(",");
-    shapes.set(k, (shapes.get(k) ?? 0) + 1);
+type MockNumber = { raw: string; value: number };
+function mockNumber(stem: string): MockNumber | null {
+  const make = (raw: string) => ({ raw, value: raw.length === 5 ? Number(raw) % 100 : Number(raw) });
+  const pieces = mockPieces(stem);
+  for (let i = pieces.length - 1; i >= 0; i--) {
+    const t = pieces[i];
+    if (/^\d+$/.test(t) && !isYearText(t)) return make(t);
+    const m = t.match(/^(\d+)번$/);
+    if (m) return make(m[1]);
   }
-  let base = "";
-  let matching = 0;
-  for (const [k, n] of shapes) if (n > matching) [base, matching] = [k, n];
-  const group = all.filter((t) => t.map((x) => x.kind).join(",") === base);
-  if (!base || group.length === 0) return { pieces: [], matching: 0, total: stems.length, numberPiece: null, suggestions: [] };
-  const pieces: PieceInfo[] = group[0].map((tok, i) => ({
-    index: i + 1,
-    kind: tok.kind,
-    common: group.every((t) => t[i].text.toLowerCase() === tok.text.toLowerCase()),
-    sample: tok.text,
-  }));
-  const numberPiece = [...pieces].reverse().find((p) => p.kind === "number" && (!p.common || group.length === 1))?.index ?? null;
-  const suggestions: NameAnalysis["suggestions"] = [];
-  if (numberPiece !== null) {
-    suggestions.push({ label: "번호로 된 이름이네요 → 학생 이름(번호)", template: "{학생 이름}({번호})", needsRoster: true });
-    const c = pieces.find((p) => p.kind === "text" && p.common && p.index !== numberPiece);
-    if (c) {
-      suggestions.push({
-        label: `‘${pieces.map((p) => p.sample).join("_")}’ 모양 → 번호_학생 이름_${c.sample}`,
-        template: `{번호}_{학생 이름}_{조각 ${c.index}}`,
-        needsRoster: true,
-      });
-      suggestions.push({ label: `${c.sample}(번호)`, template: `{조각 ${c.index}}({번호})`, needsRoster: false });
+  for (let i = pieces.length - 1; i >= 0; i--) {
+    const runs = [...pieces[i].matchAll(/(\d+)(?=(\D*)$)/g)];
+    for (const r of runs.reverse()) {
+      const after = pieces[i].slice((r.index ?? 0) + r[1].length);
+      if (/^\d+$/.test(pieces[i])) continue;
+      if (!isYearText(r[1]) && !after.startsWith("학기") && !after.startsWith("학년")) return make(r[1]);
     }
   }
-  return { pieces, matching, total: stems.length, numberPiece, suggestions };
+  return null;
 }
 
 function mockRoster(text: string): { names: Map<number, string>; info: RosterInfo } {
@@ -1222,8 +1248,7 @@ function mockRoster(text: string): { names: Map<number, string>; info: RosterInf
     const fields = (line.includes("\t") ? line.split("\t") : line.includes(",") ? line.split(",") : line.split(/\s+/))
       .map((f) => f.trim())
       .filter(Boolean);
-    const numField = fields.find((f) => /^\d{1,6}번?$/.test(f));
-    const digits = numField?.replace("번", "");
+    const digits = fields.find((f) => /^\d{1,6}번?$/.test(f))?.replace("번", "");
     const num = digits ? (digits.length === 5 ? Number(digits) % 100 : Number(digits)) : null;
     const name = fields.find((f) => !/\d/.test(f) && !header.includes(f));
     if (num && name) {
@@ -1235,78 +1260,166 @@ function mockRoster(text: string): { names: Map<number, string>; info: RosterInf
   return { names, info };
 }
 
+type MockFile = { name: string; stem: string; ext: string; pieces: string[]; number: MockNumber | null; date: string };
+function mockFileInfo(path: string): MockFile {
+  const name = path.slice(path.lastIndexOf(SEP) + 1);
+  const [stem, ext] = stemExt(name);
+  const f = [...renameFolders.values()].flat().find((x) => x.path === path);
+  const d = f ? new Date(f.modified) : new Date();
+  return {
+    name,
+    stem,
+    ext,
+    pieces: mockPieces(stem),
+    number: mockNumber(stem),
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1, 2)}-${pad(d.getDate(), 2)}`,
+  };
+}
+
+const MOCK_TODAY = { year: "2026", date: "2026-10-16" };
+
+function mockInfer(target: string, F: MockFile, roster: Map<number, string>): Block[] {
+  if (!target.trim() || target === F.stem) return [];
+  if (!target.includes(F.stem)) {
+    let p = 0;
+    while (p < target.length && p < F.stem.length && target[p] === F.stem[p]) p++;
+    let q = 0;
+    while (q < target.length - p && q < F.stem.length - p && target[target.length - 1 - q] === F.stem[F.stem.length - 1 - q]) q++;
+    const removed = F.stem.slice(p, F.stem.length - q);
+    const inserted = target.slice(p, target.length - q);
+    if (removed && (!inserted || (p + q) * 2 >= F.stem.length)) return [inserted ? { k: "name", from: removed, to: inserted } : { k: "name", from: removed }];
+  }
+  const src: [Block, string][] = [];
+  if (F.number && roster.get(F.number.value)) src.push([{ k: "student" }, roster.get(F.number.value)!]);
+  src.push([{ k: "name" }, F.stem]);
+  if (F.number) {
+    src.push([{ k: "num", plain: false }, F.number.raw]);
+    if (String(F.number.value) !== F.number.raw) src.push([{ k: "num", plain: true }, String(F.number.value)]);
+  }
+  if (F.pieces.length > 1) F.pieces.forEach((t, i) => src.push([{ k: "piece", i }, t]));
+  src.push([{ k: "year" }, MOCK_TODAY.year], [{ k: "today" }, MOCK_TODAY.date], [{ k: "fileDate" }, F.date]);
+  const sources = src.filter(([, t]) => t).sort((a, b) => b[1].length - a[1].length);
+  const digitish = (b: Block) => b.k === "year" || b.k === "today" || b.k === "fileDate" || b.k === "num";
+  let blocks: Block[] = [];
+  let lit = "";
+  let i = 0;
+  outer: while (i < target.length) {
+    for (const [b, t] of sources) {
+      if (target.substr(i, t.length).toLowerCase() !== t.toLowerCase()) continue;
+      if (digitish(b) && (/\d/.test(target[i - 1] ?? "") || /\d/.test(target[i + t.length] ?? ""))) continue;
+      if (lit) blocks.push({ k: "text", text: lit });
+      lit = "";
+      blocks.push(b);
+      i += t.length;
+      continue outer;
+    }
+    lit += target[i++];
+  }
+  if (lit) blocks.push({ k: "text", text: lit });
+  if (blocks.some((b) => b.k === "num")) return blocks;
+  let converted = false;
+  blocks = blocks.flatMap((b): Block[] => {
+    if (b.k !== "text" || converted) return [b];
+    const m = b.text.match(/^(.*?)(\d+)(\D*)$/);
+    if (!m || isYearText(m[2])) return [b];
+    converted = true;
+    const out: Block[] = [];
+    if (m[1]) out.push({ k: "text", text: m[1] });
+    out.push({ k: "seq", start: Number(m[2]), width: m[2].length });
+    if (m[3]) out.push({ k: "text", text: m[3] });
+    return out;
+  });
+  return blocks;
+}
+
+function mockRender(blocks: Block[], G: MockFile, index: number, F: MockFile, roster: Map<number, string>, word: string): string {
+  let out = "";
+  for (const b of blocks) {
+    if (b.k === "text") out += b.text;
+    else if (b.k === "name") out += b.from ? G.stem.split(b.from).join(b.to ?? "") : G.stem;
+    else if (b.k === "piece") {
+      if (G.pieces.length !== F.pieces.length) throw new Error("이름 모양이 첫 파일과 달라요");
+      out += G.pieces[b.i];
+    } else if (b.k === "year") out += MOCK_TODAY.year;
+    else if (b.k === "today") out += MOCK_TODAY.date;
+    else if (b.k === "fileDate") out += G.date;
+    else if (b.k === "num") {
+      if (!G.number) throw new Error("이름에 번호가 없어요");
+      out += b.plain ? String(G.number.value) : G.number.raw;
+    } else if (b.k === "seq") out += pad(b.start + index, b.width);
+    else if (b.k === "student") {
+      if (!G.number) throw new Error(`이름에 번호가 없어 ${word}에서 찾을 수 없어요`);
+      if (roster.size === 0) throw new Error(`${word}를 붙여 넣어야 해요`);
+      const n = roster.get(G.number.value);
+      if (!n) throw new Error(`${word}에 ${G.number.value}번이 없어요`);
+      out += n;
+    }
+  }
+  return out;
+}
+
+function mockView(b: Block, F: MockFile, roster: Map<number, string>, word: string): BlockView {
+  switch (b.k) {
+    case "text":
+      return { label: "글자", value: `“${b.text}”` };
+    case "name":
+      return { label: "지금 이름", value: b.from ? (b.to ? `‘${b.from}’ → ‘${b.to}’` : `‘${b.from}’ 지움`) : F.stem };
+    case "piece":
+      return { label: `이름 조각 ${b.i + 1}`, value: F.pieces[b.i] ?? "" };
+    case "year":
+      return { label: "올해", value: MOCK_TODAY.year };
+    case "today":
+      return { label: "오늘 날짜", value: MOCK_TODAY.date };
+    case "fileDate":
+      return { label: "파일 날짜", value: F.date };
+    case "num":
+      return { label: "이름의 번호", value: F.number ? (b.plain ? String(F.number.value) : F.number.raw) : "없음" };
+    case "seq":
+      return { label: "순서 번호", value: `${pad(b.start, b.width)}, ${b.start + 1} …` };
+    case "student":
+      return { label: `${word}의 이름`, value: (F.number && roster.get(F.number.value)) || `${word} 필요` };
+  }
+}
+
 const tidyName = (s: string) =>
   s
     .replace(/\s+/g, " ")
-    .replace(/ {2,}/g, " ")
     .replace(/_{2,}/g, "_")
     .replace(/^[\s_-]+|[\s_-]+$/g, "");
 
 function mockPlan(req: RenameRequest): RenamePreview {
-  const names = req.files.map((p) => p.slice(p.lastIndexOf(SEP) + 1));
-  const analysis = mockAnalyze(names.map(stemOf));
-  const base = analysis.pieces.map((p) => p.kind).join(",");
+  const word = req.listWord.trim() || "명렬표";
   const roster = mockRoster(req.roster);
-  const template = req.template.trim();
-  const last = req.number.start + req.files.length - 1;
-  const width = req.number.digits || (req.number.fromName ? 1 : String(last).length);
-  const usesNumber = template.includes("{번호}") || template.includes("{학생 이름}");
-  const rows: PreviewRow[] = req.files.map((path, i) => {
-    const name = names[i];
-    const stem = stemOf(name);
-    const ext = name.slice(stem.length);
-    const toks = mockTokens(stem);
-    const matches = toks.map((t) => t.kind).join(",") === base;
-    let num: number | null = null;
-    if (req.number.fromName) {
-      const fromPiece = matches && analysis.numberPiece ? toks[analysis.numberPiece - 1]?.value : null;
-      num = fromPiece ?? [...toks].reverse().find((t) => t.kind === "number")?.value ?? null;
-      if (num === null) {
-        const m = stem.match(/(\d+)(?!.*\d)/);
-        if (m && !(m[1].length === 4 && Number(m[1]) >= 2000)) num = Number(m[1]);
-      }
-    } else num = req.number.start + i;
-    const numText = num === null ? null : String(num).padStart(width, "0");
-    const row: PreviewRow = { path, oldName: name, newName: name, status: "same", note: null };
-    let s = stem;
-    if (template) {
-      if (usesNumber && numText === null) return { ...row, status: "skip", note: "이름에서 번호를 찾지 못했어요" };
-      let error: string | null = null;
-      s = template.replace(/\{([^}]*)\}/g, (whole, slotRaw: string) => {
-        const slot = slotRaw.trim();
-        if (slot === "원래 이름") return stem;
-        if (slot === "번호") return numText ?? "";
-        if (slot === "학생 이름") {
-          const st = num !== null ? roster.names.get(num) : undefined;
-          if (!st) error = `명렬표에 ${num}번이 없어요`;
-          return st ?? "";
-        }
-        if (slot === "연도") return stem.match(/20\d\d/)?.[0] ?? "";
-        if (slot === "학기") return stem.match(/[12]학기/)?.[0] ?? "";
-        if (slot === "학급") return stem.match(/[1-6]-\d{1,2}/)?.[0] ?? "";
-        if (slot === "날짜") return new Date(Date.now()).toISOString().slice(0, 10);
-        const n = slot.match(/^조각\s*(\d+)$/);
-        if (n) {
-          if (!matches || !toks[Number(n[1]) - 1]) error = "이름 모양이 다른 파일이에요";
-          return toks[Number(n[1]) - 1]?.text ?? "";
-        }
-        return whole;
-      });
-      if (error) return { ...row, status: "skip", note: error };
+  const infos = req.files.map(mockFileInfo);
+  const F = infos[0];
+  if (!F) return { blocks: [], views: [], first: null, hint: null, openRoster: false, roster: roster.info, rows: [], changes: 0 };
+  const blocks = req.blocks ?? mockInfer(req.example, F, roster.names);
+  const views = blocks.map((b) => mockView(b, F, roster.names, word));
+  const hasStudent = blocks.some((b) => b.k === "student");
+  const hasNumber = blocks.some((b) => b.k === "num" || b.k === "seq");
+  const person = blocks
+    .map((b) => (b.k === "text" ? b.text.replace(/[()_\s-]/g, "") : ""))
+    .find((t) => /^[가-힣]{2,4}$/.test(t));
+  let hint: string | null = null;
+  if (hasStudent && roster.names.size === 0) hint = `학생 이름은 ${word}에서 번호로 찾아요. 아래에 ${word}를 붙여 넣으세요.`;
+  else if (person && hasNumber && F.number && roster.names.size === 0)
+    hint = `‘${person}’이(가) ${F.number.value}번 학생 이름이라면 ${word}를 붙여 넣으세요. 다른 파일도 ${word}에서 이름을 찾아 넣어요.`;
+
+  const rows: PreviewRow[] = infos.map((G, i) => {
+    const row: PreviewRow = { path: req.files[i], oldName: G.name, newName: G.name, status: "same", note: null };
+    if (blocks.length === 0) return row;
+    let s: string;
+    try {
+      s = tidyName(mockRender(blocks, G, i, F, roster.names, word));
+    } catch (e) {
+      return { ...row, status: "skip", note: (e as Error).message };
     }
-    for (const r of req.replacements) {
-      if (!r.find) continue;
-      s = s.replace(new RegExp(r.find.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), r.with);
-    }
-    s = tidyName(req.prefix + s + req.suffix);
-    const newName = s + ext;
+    const newName = s + G.ext;
     if (!s) return { ...row, status: "invalid", note: "이름이 비어 있어요" };
     const bad = newName.match(/[\\/:*?"<>|]/);
     if (bad) return { ...row, status: "invalid", note: `이름에 ‘${bad[0]}’ 글자는 쓸 수 없어요.` };
-    if (newName === name) return row;
-    return { ...row, newName, status: "rename" };
+    return newName === G.name ? row : { ...row, newName, status: "rename" };
   });
-  // 겹침: 바꾸지 않는 파일 이름과 앞서 정한 새 이름을 피해 (2) (3) …
   const moving = new Set(rows.filter((r) => r.status === "rename").map((r) => r.path));
   const taken = new Map<string, Set<string>>();
   for (const r of rows) {
@@ -1317,23 +1430,21 @@ function mockPlan(req: RenameRequest): RenamePreview {
       taken.set(dir, new Set(others.filter((f) => !moving.has(f.path)).map((f) => f.name.toLowerCase())));
     }
     const set = taken.get(dir)!;
-    const stem = stemOf(r.newName);
-    const ext = r.newName.slice(stem.length);
+    const [stem, ext] = stemExt(r.newName);
     let candidate = r.newName;
     let n = 1;
     while (set.has(candidate.toLowerCase())) candidate = `${stem} (${++n})${ext}`;
     set.add(candidate.toLowerCase());
     if (n > 1) Object.assign(r, { status: "conflict", note: `같은 이름이 있어 (${n})을 붙여요`, newName: candidate });
   }
-  return { analysis, roster: roster.info, rows, changes: rows.filter((r) => r.status === "rename" || r.status === "conflict").length };
-}
-
-// 주소 뒤 &auto=1: "바로 정리"로 이미 옮긴 파일 알림부터 보이게
-if (params.get("auto") === "1" && mockRules[0]) {
-  const original = file(DOWNLOADS, "2027_1학기_3-1_수행평가_결과.hwp", 52_000);
-  const id = ++nextId;
-  moves.push({ id, original, destDir: `${readyRoot}\\평가\\수행평가\\2027\\1학기`, undone: false });
-  autoMoved = [
-    { moveId: id, name: original.name, destDir: moves[moves.length - 1].destDir, reason: { kind: "rule", rule: plainRule(mockRules[0]) } },
-  ];
+  return {
+    blocks,
+    views,
+    first: { name: F.name, stem: F.stem, ext: F.ext, number: F.number?.raw ?? null, fileDate: F.date, today: MOCK_TODAY.date, year: MOCK_TODAY.year },
+    hint,
+    openRoster: hint !== null,
+    roster: roster.info,
+    rows,
+    changes: rows.filter((r) => r.status === "rename" || r.status === "conflict").length,
+  };
 }

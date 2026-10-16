@@ -8,6 +8,7 @@
 
 use crate::naming::{self, TermMonths};
 use crate::rules::{self, Rule, Target};
+use crate::settings::UserKind;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -67,8 +68,42 @@ const TEACHER_WORDS: &[(&[&str], &[&str])] = &[
     (&["연수"], &["연수", "이수증"]),
 ];
 
-pub fn default_words() -> Vec<WordGroup> {
-    TEACHER_WORDS
+/// 일반(회사·개인) 기본 단어. 폴더는 처음 실행의 일반 예시 구조에 맞췄다.
+const GENERAL_WORDS: &[(&[&str], &[&str])] = &[
+    (&["업무", "보고서"], &["보고서", "보고", "리포트", "report"]),
+    (&["업무", "회의록"], &["회의록", "회의", "미팅", "meeting"]),
+    (&["업무", "계약서"], &["계약서", "계약", "견적서", "견적"]),
+    (
+        &["돈 관리", "영수증"],
+        &[
+            "영수증",
+            "결제",
+            "청구서",
+            "거래명세서",
+            "receipt",
+            "invoice",
+        ],
+    ),
+    (
+        &["돈 관리", "세금"],
+        &["세금", "연말정산", "원천징수", "납세", "부가세"],
+    ),
+    (&["돈 관리", "보험"], &["보험", "보험금"]),
+    (&["개인", "병원"], &["진료", "처방", "진단서", "병원"]),
+    (
+        &["개인", "증명서"],
+        &["증명서", "등본", "초본", "가족관계", "이력서"],
+    ),
+    (&["공부"], &["강의", "과제", "교재", "시험"]),
+];
+
+/// 쓰는 곳에 맞는 기본 단어(학교: 교사용, 일반: 회사·개인)
+pub fn default_words(kind: UserKind) -> Vec<WordGroup> {
+    let table = match kind {
+        UserKind::School => TEACHER_WORDS,
+        UserKind::General => GENERAL_WORDS,
+    };
+    table
         .iter()
         .map(|(folder, words)| WordGroup {
             folder: folder.iter().map(|s| s.to_string()).collect(),
@@ -77,13 +112,18 @@ pub fn default_words() -> Vec<WordGroup> {
         .collect()
 }
 
-/// 저장한 자동 분류 단어. 아직 고친 적이 없으면 기본 단어.
+/// 저장한 자동 분류 단어. 아직 고친 적이 없으면 쓰는 곳에 맞는 기본 단어.
 pub fn load_words(conn: &Connection) -> Vec<WordGroup> {
     crate::db::get_value(conn, WORDS_KEY)
         .ok()
         .flatten()
         .and_then(|json| serde_json::from_str(&json).ok())
-        .unwrap_or_else(default_words)
+        .unwrap_or_else(|| {
+            let kind = crate::settings::load(conn)
+                .map(|s| s.user_kind)
+                .unwrap_or_default();
+            default_words(kind)
+        })
 }
 
 /// 빈 칸·겹치는 단어를 정리하고, 폴더 이름이 바른지 확인한다.
@@ -361,7 +401,7 @@ mod tests {
         Classifier::new(
             root,
             rules,
-            default_words(),
+            default_words(UserKind::School),
             (2027, 4),
             TermMonths::default(),
         )
@@ -481,7 +521,17 @@ mod tests {
     #[test]
     fn words_normalize_and_roundtrip() {
         let conn = crate::db::open_in_memory().unwrap();
-        assert_eq!(load_words(&conn), default_words());
+        assert_eq!(load_words(&conn), default_words(UserKind::School));
+        // 일반 사용자는 일반 기본 단어(고친 적이 없을 때)
+        let s = crate::settings::Settings {
+            user_kind: UserKind::General,
+            ..crate::settings::Settings::default()
+        };
+        crate::settings::save(&conn, &s).unwrap();
+        assert!(load_words(&conn)
+            .iter()
+            .any(|g| g.folder == ["돈 관리", "영수증"]));
+        crate::settings::save(&conn, &crate::settings::Settings::default()).unwrap();
         let groups = normalize_words(vec![WordGroup {
             folder: vec![" 업무 ".into(), "".into(), "출장".into()],
             words: vec![" 출장 ".into(), "출장".into(), "".into(), "여비".into()],

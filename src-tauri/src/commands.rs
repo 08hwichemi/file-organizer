@@ -301,6 +301,8 @@ pub struct SetupInfo {
     pub root_folder_name: &'static str,
     pub separator: String,
     pub teacher_example: Vec<ExampleFolder>,
+    /// 일반(회사·개인) 예시 폴더
+    pub general_example: Vec<ExampleFolder>,
 }
 
 #[derive(Debug, Serialize)]
@@ -323,6 +325,10 @@ pub fn setup_info(app: tauri::AppHandle) -> SetupInfo {
             .iter()
             .map(|(name, children)| ExampleFolder { name, children })
             .collect(),
+        general_example: setup::GENERAL_EXAMPLE
+            .iter()
+            .map(|(name, children)| ExampleFolder { name, children })
+            .collect(),
     }
 }
 
@@ -342,6 +348,29 @@ pub fn complete_setup(
     // 자동 실행은 기본 켬(SPEC 7장). 실패해도 설정은 끝낸다(설정 화면에서 다시 켤 수 있음).
     let _ = apply_autostart(&app, new_settings.autostart);
     Ok(new_settings)
+}
+
+/// 쓰는 곳 바꾸기(학교/일반): 학기 시작 달을 그에 맞추고, 고친 적 없는 자동 분류 단어는 그쪽 기본 단어가 된다.
+/// 이미 만든 폴더는 그대로 둔다.
+#[tauri::command]
+pub fn set_user_kind(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    kind: settings::UserKind,
+) -> Result<Settings, String> {
+    let s = state.with_db(|conn| {
+        let mut s = settings::load(conn)?;
+        if s.user_kind != kind {
+            s.user_kind = kind;
+            let m = kind.term_months();
+            s.first_term_month = m.first;
+            s.second_term_month = m.second;
+            settings::save(conn, &s)?;
+        }
+        Ok(s)
+    })?;
+    notify_inbox(&app);
+    Ok(s)
 }
 
 #[tauri::command]
@@ -825,7 +854,7 @@ pub fn set_auto_words(
 ) -> Result<Vec<WordGroup>, String> {
     let groups = match groups {
         Some(g) => classify::normalize_words(g)?,
-        None => classify::default_words(),
+        None => classify::default_words(state.with_db(settings::load)?.user_kind),
     };
     state.with_db(|conn| classify::save_words(conn, &groups))?;
     notify_inbox(&app);

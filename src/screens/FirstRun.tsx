@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { FileText, FolderInput, FolderPlus, FolderTree, Monitor } from "lucide-react";
+import { Briefcase, FileText, FolderInput, FolderPlus, FolderTree, Monitor, School } from "lucide-react";
 import ChoiceCard from "../components/ChoiceCard";
 import FolderIcon from "../components/FolderIcon";
 import ModeChoice from "../components/ModeChoice";
@@ -7,14 +7,14 @@ import StructureEditor, { structureProblem } from "../components/StructureEditor
 import WatchFolderEditor from "../components/WatchFolderEditor";
 import { errorMessage, pickFolder } from "../lib/backend";
 import { friendlyName, joinPath, samePath } from "../lib/paths";
-import type { FolderSpec, OrganizeMode, SetupInfo } from "../lib/types";
+import type { FolderSpec, OrganizeMode, SetupInfo, UserKind } from "../lib/types";
 import { useAppStore } from "../store/useAppStore";
 import "./FirstRun.css";
 
 type Location = "documents" | "desktop" | "custom" | "existing";
-type StepKey = "location" | "structure" | "watch" | "mode" | "confirm";
+type StepKey = "kind" | "location" | "structure" | "watch" | "mode" | "confirm";
 
-// 처음 실행(SPEC 3-3): 정리 폴더 → 폴더 구성 → 지켜볼 폴더 → 새 파일 알림 방식 → 시작.
+// 처음 실행(SPEC 3-3): 쓰는 곳 → 정리 폴더 → 폴더 구성 → 지켜볼 폴더 → 새 파일 알림 방식 → 시작.
 export default function FirstRun() {
   const finishSetup = useAppStore((s) => s.finishSetup);
   const info = useAppStore((s) => s.setupInfo);
@@ -25,8 +25,9 @@ export default function FirstRun() {
   );
   const [customDir, setCustomDir] = useState<string | null>(null);
   const [existingDir, setExistingDir] = useState<string | null>(null);
+  const [kind, setKind] = useState<UserKind>("school");
   const [preset, setPreset] = useState<"teacher" | "empty">("teacher");
-  const [structure, setStructure] = useState<FolderSpec[]>(() => exampleStructure(info));
+  const [structure, setStructure] = useState<FolderSpec[]>(() => exampleStructure(info, "school"));
   const [watch, setWatch] = useState<string[]>(() =>
     [info?.downloads, info?.desktop].filter((p): p is string => !!p),
   );
@@ -36,8 +37,8 @@ export default function FirstRun() {
 
   const steps: StepKey[] =
     location === "existing"
-      ? ["location", "watch", "mode", "confirm"]
-      : ["location", "structure", "watch", "mode", "confirm"];
+      ? ["kind", "location", "watch", "mode", "confirm"]
+      : ["kind", "location", "structure", "watch", "mode", "confirm"];
   const step = steps[Math.min(stepIndex, steps.length - 1)];
 
   const baseDir =
@@ -97,6 +98,7 @@ export default function FirstRun() {
         structure: location !== "existing" && preset === "teacher" ? structure : undefined,
         watchFolders: watch,
         organizeMode: mode,
+        userKind: kind,
       });
     } catch (e) {
       setError(errorMessage(e));
@@ -127,6 +129,39 @@ export default function FirstRun() {
         </div>
 
         <div className="setup__content">
+          {step === "kind" && (
+            <>
+              <h1 className="setup__title">어디에서 쓰시나요?</h1>
+              <p className="setup__lead">
+                고른 쪽에 맞춰 예시 폴더와 파일을 알아서 나눌 때 쓰는 낱말을 준비해 드려요. 설정에서 언제든 바꿀 수 있어요.
+              </p>
+              <div className="stack-12" role="radiogroup" aria-label="쓰는 곳">
+                <ChoiceCard
+                  name="kind"
+                  checked={kind === "school"}
+                  onSelect={() => {
+                    setKind("school");
+                    setStructure(exampleStructure(info, "school"));
+                  }}
+                  icon={<School size={20} />}
+                  title="학교"
+                  description="선생님용: 업무·수업·평가·학급·생활기록부 폴더, 공문·수행평가 같은 낱말, 학년도·학기(3월·9월)"
+                />
+                <ChoiceCard
+                  name="kind"
+                  checked={kind === "general"}
+                  onSelect={() => {
+                    setKind("general");
+                    setStructure(exampleStructure(info, "general"));
+                  }}
+                  icon={<Briefcase size={20} />}
+                  title="일반(회사·개인)"
+                  description="업무·돈 관리·개인·공부·사진 폴더, 보고서·영수증·세금 같은 낱말, 연도는 달력의 해"
+                />
+              </div>
+            </>
+          )}
+
           {step === "location" && (
             <>
               <h1 className="setup__title">파일을 정리해 둘 폴더를 정해 주세요</h1>
@@ -193,13 +228,13 @@ export default function FirstRun() {
                   onSelect={() => setPreset("teacher")}
                   icon={<FolderTree size={20} />}
                   title="폴더를 정해서 시작"
-                  description="교사용 예시를 고쳐서 써요. 이름을 바꾸고, 더하고, 뺄 수 있어요."
+                  description={`${kind === "general" ? "일반" : "교사용"} 예시를 고쳐서 써요. 이름을 바꾸고, 더하고, 뺄 수 있어요.`}
                 />
                 {preset === "teacher" && (
                   <div className="setup__structure">
                     <div className="setup__structure-head">
                       <span>만들 폴더</span>
-                      <button type="button" className="btn btn--link" onClick={() => setStructure(exampleStructure(info))}>
+                      <button type="button" className="btn btn--link" onClick={() => setStructure(exampleStructure(info, kind))}>
                         예시로 되돌리기
                       </button>
                     </div>
@@ -243,6 +278,9 @@ export default function FirstRun() {
               <h1 className="setup__title">이렇게 시작할게요</h1>
               <p className="setup__lead">‘시작하기’를 누르면 정리 폴더를 만들어요. 이미 있는 폴더와 파일은 그대로 둬요.</p>
               <dl className="setup__summary">
+                <SummaryRow label="쓰는 곳" onEdit={() => goTo("kind")}>
+                  {kind === "general" ? "일반(회사·개인)" : "학교"}
+                </SummaryRow>
                 <SummaryRow label="정리 폴더" onEdit={() => goTo("location")}>
                   <span className="setup__path">{rootPreview}</span>
                   <span className="setup__sub">
@@ -325,8 +363,9 @@ function SummaryRow({
   );
 }
 
-function exampleStructure(info: SetupInfo | null): FolderSpec[] {
-  return (info?.teacherExample ?? []).map((f) => ({
+function exampleStructure(info: SetupInfo | null, kind: UserKind): FolderSpec[] {
+  const example = kind === "general" ? info?.generalExample : info?.teacherExample;
+  return (example ?? []).map((f) => ({
     name: f.name,
     children: f.children.map((c) => ({ name: c, children: [] })),
   }));

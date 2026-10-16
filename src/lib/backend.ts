@@ -30,6 +30,7 @@ import type {
   SetupRequest,
   TrashResult,
   UndoManyResult,
+  UserKind,
   WordGroup,
 } from "./types";
 
@@ -93,6 +94,12 @@ export function getSettings(): Promise<Settings> {
 export function completeSetup(request: SetupRequest): Promise<Settings> {
   if (usingMocks) return mockBackend.completeSetup(request);
   return invoke("complete_setup", { request });
+}
+
+/** 쓰는 곳 바꾸기(학교/일반). 이미 만든 폴더는 그대로. */
+export function setUserKind(kind: UserKind): Promise<Settings> {
+  if (usingMocks) return mockBackend.setUserKind(kind);
+  return invoke("set_user_kind", { kind });
 }
 
 export function setOrganizeMode(mode: OrganizeMode): Promise<Settings> {
