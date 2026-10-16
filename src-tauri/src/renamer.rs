@@ -1,9 +1,9 @@
 //! 이름 한꺼번에 바꾸기(SPEC 3-4).
 //!
 //! - 폴더를 골라 그 안 파일(하위 폴더는 고를 때만) 이름을 한꺼번에 바꾼다. 확장자는 바꾸지 않는다.
-//! - 바꾸는 방법: 틀로 새로 짓기(`{학생 이름}({번호})` 등) → 글자 바꾸기(찾아 바꾸기·앞뒤에 붙이기) 차례로.
-//! - 규칙 알아내기: 이름을 조각으로 나눠 자리별로 비교해 공통 조각·번호·학급·연도·학기를 찾고 틀을 제안한다.
-//! - 명렬표: 붙여 넣은 글을 그때그때 읽기만 하고 저장하지 않는다.
+//! - 바꾸는 방법: 첫 파일의 새 이름을 직접 적으면(엑셀 빠른 채우기처럼) 블록으로 알아듣고
+//!   ([올해][글자 "년 "][지금 이름]) 나머지 파일에도 같은 블록을 쓴다. 블록은 화면에서 직접 고칠 수 있다.
+//! - 명렬표(번호·이름 목록): 붙여 넣은 글을 그때그때 읽기만 하고 저장하지 않는다.
 //! - 실행: 덮어쓰지 않는다(겹치면 `이름 (2).ext`). 서로 이름이 엇갈려도(a→b, b→a) 임시 이름을 거쳐 안전하게.
 //!   바꾼 것은 모두 이동 기록에 같은 묶음 번호로 남아 한 번에 되돌린다. 파일을 지우는 코드는 없다.
 
@@ -214,174 +214,48 @@ fn student_number(n: u32, digits: usize) -> u32 {
     }
 }
 
-// ───────────── 규칙 알아내기 ─────────────
+// ───────────── 이름의 번호 ─────────────
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PieceInfo {
-    /// 1부터. 틀에서는 `{조각 n}`
-    pub index: usize,
-    pub kind: Kind,
-    /// 모든 파일에서 같은지
-    pub common: bool,
-    /// 첫 파일의 글자(예: "독후감")
-    pub sample: String,
+/// 이름에 든 번호(예: `05` → 적힌 그대로 "05", 값 5)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NameNumber {
+    pub raw: String,
+    pub value: u32,
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SuggestedTemplate {
-    pub label: String,
-    pub template: String,
-    /// 명렬표가 있어야 하는지
-    pub needs_roster: bool,
+fn make_number(raw: &str) -> Option<NameNumber> {
+    raw.parse::<u32>().ok().map(|v| NameNumber {
+        raw: raw.to_string(),
+        value: student_number(v, raw.len()),
+    })
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Analysis {
-    /// 가장 많은 이름 모양의 조각들
-    pub pieces: Vec<PieceInfo>,
-    /// 그 모양인 파일 수 / 전체
-    pub matching: usize,
-    pub total: usize,
-    /// 자리마다 바뀌는 번호 조각(1부터)
-    pub number_piece: Option<usize>,
-    pub suggestions: Vec<SuggestedTemplate>,
-}
-
-fn shape(t: &[Token]) -> Vec<Kind> {
-    t.iter().map(|x| x.kind).collect()
-}
-
-/// 이름들을 조각으로 나눠 자리별로 비교한다. 모양이 서로 다르면 가장 많은 모양을 기준으로.
-pub fn analyze(stems: &[&str]) -> Analysis {
-    let all: Vec<Vec<Token>> = stems.iter().map(|s| tokens(s)).collect();
-    // 가장 많은 모양(같으면 먼저 나온 것)
-    let mut counts: Vec<(Vec<Kind>, usize)> = Vec::new();
-    for t in &all {
-        let s = shape(t);
-        match counts.iter_mut().find(|(k, _)| *k == s) {
-            Some((_, n)) => *n += 1,
-            None => counts.push((s, 1)),
-        }
-    }
-    let best = counts
-        .iter()
-        .enumerate()
-        .max_by(|(ia, a), (ib, b)| a.1.cmp(&b.1).then(ib.cmp(ia)))
-        .map(|(_, (k, n))| (k.clone(), *n));
-    let Some((base, matching)) = best.filter(|(k, _)| !k.is_empty()) else {
-        return Analysis {
-            pieces: Vec::new(),
-            matching: 0,
-            total: stems.len(),
-            number_piece: None,
-            suggestions: Vec::new(),
-        };
-    };
-    let group: Vec<&Vec<Token>> = all.iter().filter(|t| shape(t) == base).collect();
-    let pieces: Vec<PieceInfo> = base
-        .iter()
-        .enumerate()
-        .map(|(i, kind)| {
-            let first = &group[0][i].text;
-            PieceInfo {
-                index: i + 1,
-                kind: *kind,
-                common: group
-                    .iter()
-                    .all(|t| t[i].text.to_lowercase() == first.to_lowercase()),
-                sample: first.clone(),
-            }
-        })
-        .collect();
-    // 번호: 파일마다 바뀌는 번호 조각(여럿이면 마지막). 파일이 하나뿐이면 마지막 번호 조각.
-    let numbers: Vec<&PieceInfo> = pieces.iter().filter(|p| p.kind == Kind::Number).collect();
-    let number_piece = numbers
-        .iter()
-        .rev()
-        .find(|p| !p.common || group.len() == 1)
-        .map(|p| p.index);
-
-    let mut suggestions = Vec::new();
-    if let Some(n) = number_piece {
-        let common_text = pieces
-            .iter()
-            .find(|p| p.kind == Kind::Text && p.common && p.index != n);
-        suggestions.push(SuggestedTemplate {
-            label: "번호로 된 이름이네요 → 학생 이름(번호)".into(),
-            template: "{학생 이름}({번호})".into(),
-            needs_roster: true,
-        });
-        if let Some(c) = common_text {
-            let class = pieces.iter().find(|p| p.kind == Kind::Class);
-            let sample: Vec<String> = pieces.iter().map(|p| p.sample.clone()).collect();
-            suggestions.push(SuggestedTemplate {
-                label: format!("‘{}’ 모양 → 번호_학생 이름_{}", sample.join("_"), c.sample),
-                template: format!("{{번호}}_{{학생 이름}}_{{조각 {}}}", c.index),
-                needs_roster: true,
-            });
-            if class.is_some() {
-                suggestions.push(SuggestedTemplate {
-                    label: format!("{}_학급_번호", c.sample),
-                    template: format!("{{조각 {}}}_{{학급}}_{{번호}}", c.index),
-                    needs_roster: false,
-                });
-            } else {
-                suggestions.push(SuggestedTemplate {
-                    label: format!("{}(번호)", c.sample),
-                    template: format!("{{조각 {}}}({{번호}})", c.index),
-                    needs_roster: false,
-                });
-            }
-        }
-    }
-    Analysis {
-        pieces,
-        matching,
-        total: stems.len(),
-        number_piece,
-        suggestions,
-    }
-}
-
-/// 이름에서 번호 읽기: 알아낸 번호 조각 → 없으면 이름의 숫자 하나(학급·연도·학기는 빼고, `5번`도 5).
-/// 숫자가 여럿이면 마지막 것.
-pub fn read_number(toks: &[Token], number_piece: Option<usize>, matches_base: bool) -> Option<u32> {
-    if let Some(i) = number_piece.filter(|_| matches_base) {
-        if let Some(t) = toks.get(i - 1).filter(|t| t.kind == Kind::Number) {
-            let digits = t.text.trim_end_matches('번').len();
-            return t.value.map(|v| student_number(v, digits));
-        }
-    }
+/// 이름의 번호: 숫자만 된 조각(연도·학급·학기 빼고)이나 `5번`, 없으면 글자에 붙은 숫자(`과제05`).
+/// 여럿이면 마지막. 학년반번호 다섯 자리(30205)는 끝 두 자리가 번호.
+pub fn name_number(stem: &str) -> Option<NameNumber> {
+    let toks = tokens(stem);
     if let Some(t) = toks.iter().rev().find(|t| t.kind == Kind::Number) {
-        let digits = t.text.trim_end_matches('번').len();
-        return t.value.map(|v| student_number(v, digits));
+        return make_number(t.text.trim_end_matches('번'));
     }
-    // 글자와 붙은 숫자(예: 과제05, 김민지5번)
     for t in toks.iter().rev().filter(|t| t.kind == Kind::Text) {
         let chars: Vec<char> = t.text.chars().collect();
         let mut end = chars.len();
         while end > 0 {
-            if chars[end - 1].is_ascii_digit() {
-                let mut start = end;
-                while start > 0 && chars[start - 1].is_ascii_digit() {
-                    start -= 1;
-                }
-                let run: String = chars[start..end].iter().collect();
-                // 연도처럼 보이는 네 자리, 학기(1학기)는 번호가 아니다
-                let after: String = chars[end..].iter().collect();
-                let year_like = run.len() == 4 && (2000..=2099).contains(&run.parse().unwrap_or(0));
-                if !year_like && !after.starts_with("학기") && !after.starts_with("학년") {
-                    if let Ok(v) = run.parse::<u32>() {
-                        return Some(student_number(v, run.len()));
-                    }
-                }
-                end = start;
-            } else {
+            if !chars[end - 1].is_ascii_digit() {
                 end -= 1;
+                continue;
             }
+            let mut start = end;
+            while start > 0 && chars[start - 1].is_ascii_digit() {
+                start -= 1;
+            }
+            let run: String = chars[start..end].iter().collect();
+            let after: String = chars[end..].iter().collect();
+            let year_like = run.len() == 4 && (2000..=2099).contains(&run.parse().unwrap_or(0));
+            if !year_like && !after.starts_with("학기") && !after.starts_with("학년") {
+                return make_number(&run);
+            }
+            end = start;
         }
     }
     None
@@ -456,48 +330,381 @@ pub fn parse_roster(text: &str) -> Roster {
     Roster { names, info }
 }
 
-// ───────────── 틀 · 글자 바꾸기 ─────────────
+// ───────────── 블록: 새 이름을 이루는 칸 ─────────────
+//
+// 사용자는 첫 파일의 새 이름을 직접 적는다(예: `고다윤` → `2026년 고다윤`).
+// 적은 이름을 첫 파일과 견줘 블록으로 알아듣고([올해][글자 "년 "][지금 이름]), 나머지 파일에 같은 블록을 쓴다.
+// 블록은 화면에서 직접 고칠 수도 있다(그때는 고친 블록을 그대로 받는다).
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NumberOptions {
-    /// true = 이름에서 읽기, false = 순서대로 매기기
-    pub from_name: bool,
-    pub start: u32,
-    /// 자릿수(0 = 자동: 이름에서 읽으면 그대로, 순서대로면 가장 큰 번호의 자릿수)
-    pub digits: u8,
+/// 새 이름을 이루는 칸 하나
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "k", rename_all = "camelCase")]
+pub enum Block {
+    /// 적은 글자 그대로(모든 파일 같게)
+    Text { text: String },
+    /// 지금 이름. `from`이 있으면 그 글자를 `to`로 바꾼다(`to`가 없으면 지움).
+    Name {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        from: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        to: Option<String>,
+    },
+    /// 지금 이름의 i번째 조각(0부터)
+    Piece { i: usize },
+    /// 올해(예: 2026)
+    Year,
+    /// 오늘 날짜(예: 2026-10-16)
+    Today,
+    /// 파일 날짜(고친 날)
+    FileDate,
+    /// 이름의 번호. `plain`이면 앞의 0을 뺀다(05 → 5).
+    Num { plain: bool },
+    /// 순서 번호(보이는 순서대로 start부터 1씩, width 자리로 0 채움)
+    Seq { start: u32, width: usize },
+    /// 명렬표에서 이름의 번호로 찾은 학생 이름
+    Student,
 }
 
-impl Default for NumberOptions {
-    fn default() -> Self {
-        NumberOptions {
-            from_name: true,
-            start: 1,
-            digits: 0,
+/// 오늘(올해·오늘 날짜 블록)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Today {
+    pub year: String,
+    pub date: String,
+}
+
+impl Today {
+    pub fn now() -> Today {
+        let now = chrono::Local::now();
+        Today {
+            year: now.format("%Y").to_string(),
+            date: now.format("%Y-%m-%d").to_string(),
         }
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Replacement {
-    pub find: String,
-    pub with: String,
+/// 이름을 지을 때 쓰는 파일 정보
+#[derive(Debug, Clone)]
+pub struct FileInfo {
+    pub name: String,
+    pub stem: String,
+    pub ext: String,
+    pub pieces: Vec<String>,
+    pub number: Option<NameNumber>,
+    /// 고친 날(YYYY-MM-DD)
+    pub date: String,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-pub struct RenameRequest {
-    /// 바꿀 파일(체크한 것, 보이는 순서대로)
-    pub files: Vec<String>,
-    /// 틀(빈 문자열 = 원래 이름 그대로 두고 글자 바꾸기만)
-    pub template: String,
-    pub number: NumberOptions,
-    pub replacements: Vec<Replacement>,
-    pub prefix: String,
-    pub suffix: String,
-    /// 붙여 넣은 명렬표(저장하지 않음)
-    pub roster: String,
+fn date_text(ms: i64) -> String {
+    use chrono::TimeZone;
+    chrono::Local
+        .timestamp_millis_opt(ms)
+        .single()
+        .map(|d| d.format("%Y-%m-%d").to_string())
+        .unwrap_or_default()
+}
+
+impl FileInfo {
+    pub fn new(name: &str, date: String) -> FileInfo {
+        let (stem, ext) = split_ext(name);
+        FileInfo {
+            name: name.to_string(),
+            stem: stem.to_string(),
+            ext: ext.to_string(),
+            pieces: tokens(stem).into_iter().map(|t| t.text).collect(),
+            number: name_number(stem),
+            date,
+        }
+    }
+
+    fn read(path: &Path) -> FileInfo {
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let date = std::fs::metadata(path)
+            .map(|m| date_text(modified_ms(&m)))
+            .unwrap_or_default();
+        FileInfo::new(&name, date)
+    }
+}
+
+fn lower_chars(s: &str) -> Vec<char> {
+    s.chars().flat_map(char::to_lowercase).collect()
+}
+
+fn is_year_text(s: &str) -> bool {
+    s.len() == 4 && all_digits(s) && (2000..=2099).contains(&s.parse().unwrap_or(0))
+}
+
+/// 첫 파일에 적은 새 이름을 블록으로 알아듣는다.
+pub fn infer(target: &str, first: &FileInfo, roster: &Roster, today: &Today) -> Vec<Block> {
+    if target.trim().is_empty() || target == first.stem {
+        return Vec::new();
+    }
+    let t: Vec<char> = target.chars().collect();
+    let s: Vec<char> = first.stem.chars().collect();
+    // 지금 이름에서 일부만 지웠거나, 대부분을 남기고 일부만 바꿨으면 → '지금 이름'에서 그 글자 지우기·바꾸기
+    if !target.contains(first.stem.as_str()) {
+        let mut p = 0;
+        while p < t.len() && p < s.len() && t[p] == s[p] {
+            p += 1;
+        }
+        let mut q = 0;
+        while q < t.len() - p && q < s.len() - p && t[t.len() - 1 - q] == s[s.len() - 1 - q] {
+            q += 1;
+        }
+        let removed: String = s[p..s.len() - q].iter().collect();
+        let inserted: String = t[p..t.len() - q].iter().collect();
+        if !removed.is_empty() && (inserted.is_empty() || (p + q) * 2 >= s.len()) {
+            return vec![Block::Name {
+                from: Some(removed),
+                to: (!inserted.is_empty()).then_some(inserted),
+            }];
+        }
+    }
+
+    // 알아볼 수 있는 값들(긴 것부터, 길이가 같으면 이 차례대로: 번호는 조각보다 먼저 — 모양이 다른 파일에도 쓸 수 있게)
+    let mut sources: Vec<(Block, String)> = Vec::new();
+    if let Some(name) = first
+        .number
+        .as_ref()
+        .and_then(|n| roster.names.get(&n.value))
+    {
+        sources.push((Block::Student, name.clone()));
+    }
+    sources.push((
+        Block::Name {
+            from: None,
+            to: None,
+        },
+        first.stem.clone(),
+    ));
+    if let Some(n) = &first.number {
+        sources.push((Block::Num { plain: false }, n.raw.clone()));
+        let plain = n.value.to_string();
+        if plain != n.raw {
+            sources.push((Block::Num { plain: true }, plain));
+        }
+    }
+    if first.pieces.len() > 1 {
+        for (i, p) in first.pieces.iter().enumerate() {
+            sources.push((Block::Piece { i }, p.clone()));
+        }
+    }
+    sources.push((Block::Year, today.year.clone()));
+    sources.push((Block::Today, today.date.clone()));
+    sources.push((Block::FileDate, first.date.clone()));
+    sources.retain(|(_, text)| !text.is_empty());
+    sources.sort_by_key(|(_, text)| std::cmp::Reverse(text.chars().count()));
+    let sources: Vec<(Block, Vec<char>)> = sources
+        .into_iter()
+        .map(|(b, text)| (b, lower_chars(&text)))
+        .collect();
+
+    let lower: Vec<char> = t.iter().flat_map(|c| c.to_lowercase()).collect();
+    // 소문자로 바꾸며 글자 수가 달라지는 드문 글자가 있으면 그냥 대소문자를 가린다
+    let hay: Vec<char> = if lower.len() == t.len() {
+        lower
+    } else {
+        t.clone()
+    };
+    let digitish = |b: &Block| {
+        matches!(
+            b,
+            Block::Year | Block::Today | Block::FileDate | Block::Num { .. }
+        )
+    };
+    let mut blocks: Vec<Block> = Vec::new();
+    let mut literal = String::new();
+    let mut i = 0;
+    'scan: while i < t.len() {
+        for (block, text) in &sources {
+            let len = text.len();
+            if i + len > t.len() || hay[i..i + len] != text[..] {
+                continue;
+            }
+            if digitish(block) {
+                let before = i > 0 && t[i - 1].is_ascii_digit();
+                let after = i + len < t.len() && t[i + len].is_ascii_digit();
+                if before || after {
+                    continue;
+                }
+            }
+            if !literal.is_empty() {
+                blocks.push(Block::Text {
+                    text: std::mem::take(&mut literal),
+                });
+            }
+            blocks.push(block.clone());
+            i += len;
+            continue 'scan;
+        }
+        literal.push(t[i]);
+        i += 1;
+    }
+    if !literal.is_empty() {
+        blocks.push(Block::Text { text: literal });
+    }
+
+    // 남은 숫자(연도 모양 빼고)는 순서 번호로: 이름의 번호를 쓰지 않았을 때 한 번만
+    if blocks.iter().any(|b| matches!(b, Block::Num { .. })) {
+        return blocks;
+    }
+    let mut out = Vec::new();
+    let mut converted = false;
+    for b in blocks {
+        let Block::Text { text } = &b else {
+            out.push(b);
+            continue;
+        };
+        if converted {
+            out.push(b);
+            continue;
+        }
+        // 마지막 숫자 덩어리
+        let chars: Vec<char> = text.chars().collect();
+        let Some(end) = chars
+            .iter()
+            .rposition(|c| c.is_ascii_digit())
+            .map(|e| e + 1)
+        else {
+            out.push(b);
+            continue;
+        };
+        let mut start = end;
+        while start > 0 && chars[start - 1].is_ascii_digit() {
+            start -= 1;
+        }
+        let run: String = chars[start..end].iter().collect();
+        if is_year_text(&run) {
+            out.push(b);
+            continue;
+        }
+        let head: String = chars[..start].iter().collect();
+        let tail: String = chars[end..].iter().collect();
+        if !head.is_empty() {
+            out.push(Block::Text { text: head });
+        }
+        out.push(Block::Seq {
+            start: run.parse().unwrap_or(1),
+            width: run.len(),
+        });
+        if !tail.is_empty() {
+            out.push(Block::Text { text: tail });
+        }
+        converted = true;
+    }
+    out
+}
+
+/// 블록으로 파일 하나의 새 이름(확장자 빼고)을 짓는다. 지을 수 없으면 그 까닭.
+pub fn render(
+    blocks: &[Block],
+    file: &FileInfo,
+    index: usize,
+    first: &FileInfo,
+    roster: &Roster,
+    today: &Today,
+    list_word: &str,
+) -> Result<String, String> {
+    let mut out = String::new();
+    for b in blocks {
+        match b {
+            Block::Text { text } => out.push_str(text),
+            Block::Name { from, to } => match from.as_deref().filter(|f| !f.is_empty()) {
+                Some(f) => out.push_str(&replace_ci(&file.stem, f, to.as_deref().unwrap_or(""))),
+                None => out.push_str(&file.stem),
+            },
+            Block::Piece { i } => {
+                if file.pieces.len() != first.pieces.len() {
+                    return Err("이름 모양이 첫 파일과 달라요".into());
+                }
+                out.push_str(file.pieces.get(*i).ok_or("이름 모양이 첫 파일과 달라요")?);
+            }
+            Block::Year => out.push_str(&today.year),
+            Block::Today => out.push_str(&today.date),
+            Block::FileDate => out.push_str(&file.date),
+            Block::Num { plain } => {
+                let n = file.number.as_ref().ok_or("이름에 번호가 없어요")?;
+                if *plain {
+                    out.push_str(&n.value.to_string());
+                } else {
+                    out.push_str(&n.raw);
+                }
+            }
+            Block::Seq { start, width } => {
+                let n = start.saturating_add(index as u32);
+                out.push_str(&format!("{n:0width$}"));
+            }
+            Block::Student => {
+                let n = file
+                    .number
+                    .as_ref()
+                    .ok_or(format!("이름에 번호가 없어 {list_word}에서 찾을 수 없어요"))?;
+                if roster.names.is_empty() {
+                    return Err(format!("{list_word}를 붙여 넣어야 해요"));
+                }
+                let name = roster
+                    .names
+                    .get(&n.value)
+                    .ok_or(format!("{list_word}에 {}번이 없어요", n.value))?;
+                out.push_str(name);
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// 블록을 화면에 보여 줄 모양(첫 파일 기준): 종류 이름과 값
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BlockView {
+    pub label: String,
+    pub value: String,
+}
+
+fn view(b: &Block, first: &FileInfo, roster: &Roster, today: &Today, list_word: &str) -> BlockView {
+    let v = |label: &str, value: String| BlockView {
+        label: label.to_string(),
+        value,
+    };
+    match b {
+        Block::Text { text } => v("글자", format!("“{text}”")),
+        Block::Name { from, to } => match from.as_deref().filter(|f| !f.is_empty()) {
+            Some(f) => match to.as_deref().filter(|t| !t.is_empty()) {
+                Some(t) => v("지금 이름", format!("‘{f}’ → ‘{t}’")),
+                None => v("지금 이름", format!("‘{f}’ 지움")),
+            },
+            None => v("지금 이름", first.stem.clone()),
+        },
+        Block::Piece { i } => v(
+            &format!("이름 조각 {}", i + 1),
+            first.pieces.get(*i).cloned().unwrap_or_default(),
+        ),
+        Block::Year => v("올해", today.year.clone()),
+        Block::Today => v("오늘 날짜", today.date.clone()),
+        Block::FileDate => v("파일 날짜", first.date.clone()),
+        Block::Num { plain } => v(
+            "이름의 번호",
+            match &first.number {
+                Some(n) if *plain => n.value.to_string(),
+                Some(n) => n.raw.clone(),
+                None => "없음".into(),
+            },
+        ),
+        Block::Seq { start, width } => v(
+            "순서 번호",
+            format!("{start:0width$}, {} …", start.saturating_add(1)),
+        ),
+        Block::Student => v(
+            &format!("{list_word}의 이름"),
+            first
+                .number
+                .as_ref()
+                .and_then(|n| roster.names.get(&n.value).cloned())
+                .unwrap_or_else(|| format!("{list_word} 필요")),
+        ),
+    }
 }
 
 /// 대소문자 무시로 `hay`가 `needle`로 시작하면 그만큼의 바이트 수
@@ -548,89 +755,22 @@ pub fn tidy(s: &str) -> String {
         .to_string()
 }
 
-fn uses_slot(template: &str, slot: &str) -> bool {
-    template.contains(&format!("{{{slot}}}"))
-}
-
-/// 파일 하나를 틀에 맞춰 지을 때 쓰는 값
-struct FileCtx<'a> {
-    stem: &'a str,
-    name: &'a str,
-    toks: Vec<Token>,
-    matches_base: bool,
-    number: Option<String>,
-    student: Option<&'a str>,
-    modified: i64,
-}
-
-fn date_text(ms: i64) -> String {
-    use chrono::TimeZone;
-    chrono::Local
-        .timestamp_millis_opt(ms)
-        .single()
-        .map(|d| d.format("%Y-%m-%d").to_string())
-        .unwrap_or_default()
-}
-
-/// 틀 채우기. 쓸 수 없으면 그 까닭.
-fn render(template: &str, ctx: &FileCtx) -> Result<String, String> {
-    let mut out = String::new();
-    let mut rest = template;
-    while let Some(open) = rest.find('{') {
-        out.push_str(&rest[..open]);
-        let after = &rest[open + 1..];
-        let Some(close) = after.find('}') else {
-            out.push_str(&rest[open..]);
-            rest = "";
-            break;
-        };
-        let slot = after[..close].trim();
-        let value: String = match slot {
-            "원래 이름" => ctx.stem.to_string(),
-            "번호" => ctx.number.clone().ok_or("이름에서 번호를 찾지 못했어요")?,
-            "학생 이름" => match (&ctx.number, ctx.student) {
-                (_, Some(s)) => s.to_string(),
-                (None, None) => return Err("이름에서 번호를 찾지 못했어요".into()),
-                (Some(n), None) => {
-                    return Err(format!("명렬표에 {}번이 없어요", n.trim_start_matches('0')))
-                }
-            },
-            "연도" => naming::find_year(ctx.name)
-                .map(|y| y.to_string())
-                .unwrap_or_default(),
-            "학기" => naming::find_term(ctx.name)
-                .map(|t| format!("{t}학기"))
-                .unwrap_or_default(),
-            "학급" => naming::find_class(ctx.name, false)
-                .map(|c| c.folder_name())
-                .unwrap_or_default(),
-            "날짜" => date_text(ctx.modified),
-            other => match other
-                .strip_prefix("조각")
-                .map(str::trim)
-                .and_then(|n| n.parse::<usize>().ok())
-            {
-                Some(n) => {
-                    if !ctx.matches_base {
-                        return Err("이름 모양이 다른 파일이에요".into());
-                    }
-                    ctx.toks
-                        .get(n.wrapping_sub(1))
-                        .map(|t| t.text.clone())
-                        .ok_or("이름 모양이 다른 파일이에요")?
-                }
-                // 모르는 칸은 글자 그대로
-                None => format!("{{{}}}", &after[..close]),
-            },
-        };
-        out.push_str(&value);
-        rest = &after[close + 1..];
-    }
-    out.push_str(rest);
-    Ok(out)
-}
-
 // ───────────── 미리보기 ─────────────
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct RenameRequest {
+    /// 바꿀 파일(체크한 것, 보이는 순서대로)
+    pub files: Vec<String>,
+    /// 첫 파일에 적은 새 이름(확장자 빼고)
+    pub example: String,
+    /// 블록을 직접 고쳤으면 그 블록(없으면 `example`로 알아듣는다)
+    pub blocks: Option<Vec<Block>>,
+    /// 붙여 넣은 명렬표(저장하지 않음)
+    pub roster: String,
+    /// 화면에서 부르는 이름: "명렬표" / "번호·이름 목록"
+    pub list_word: String,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -658,10 +798,30 @@ pub struct PreviewRow {
     pub note: Option<String>,
 }
 
+/// 첫 파일(블록 메뉴에 값을 보여 줄 때 씀)
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FirstFile {
+    pub name: String,
+    pub stem: String,
+    pub ext: String,
+    /// 이름의 번호(적힌 그대로)
+    pub number: Option<String>,
+    pub file_date: String,
+    pub today: String,
+    pub year: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Preview {
-    pub analysis: Analysis,
+    pub blocks: Vec<Block>,
+    pub views: Vec<BlockView>,
+    pub first: Option<FirstFile>,
+    /// 안내 한 줄(예: 학생 이름이면 명렬표를 붙여 넣으세요)
+    pub hint: Option<String>,
+    /// 명렬표 칸을 열어야 하는지
+    pub open_roster: bool,
     pub roster: RosterInfo,
     pub rows: Vec<PreviewRow>,
     /// 실제로 바뀌는 파일 수
@@ -682,77 +842,101 @@ fn split_ext(name: &str) -> (&str, &str) {
     (stem, &name[stem.len()..])
 }
 
+/// 학생 이름처럼 보이는 글자(한글 2~4자)
+fn looks_like_person(text: &str) -> Option<String> {
+    let core: String = text
+        .chars()
+        .filter(|c| !matches!(c, '(' | ')' | '_' | ' ' | '-'))
+        .collect();
+    let n = core.chars().count();
+    ((2..=4).contains(&n) && core.chars().all(|c| ('가'..='힣').contains(&c))).then_some(core)
+}
+
 /// 바꿀 이름을 모두 정한다(디스크는 읽기만).
-pub fn plan(req: &RenameRequest) -> Preview {
+pub fn plan(req: &RenameRequest, today: &Today) -> Preview {
+    let list_word = if req.list_word.trim().is_empty() {
+        "명렬표"
+    } else {
+        req.list_word.trim()
+    };
     let paths: Vec<PathBuf> = req
         .files
         .iter()
         .take(MAX_FILES)
         .map(PathBuf::from)
         .collect();
-    let names: Vec<String> = paths
-        .iter()
-        .map(|p| {
-            p.file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_default()
-        })
-        .collect();
-    let stems: Vec<&str> = names.iter().map(|n| naming::stem(n)).collect();
-    let analysis = analyze(&stems);
-    let base: Vec<Kind> = analysis.pieces.iter().map(|p| p.kind).collect();
+    let infos: Vec<FileInfo> = paths.iter().map(|p| FileInfo::read(p)).collect();
     let roster = parse_roster(&req.roster);
-    let template = req.template.trim();
-    let wants_number = uses_slot(template, "번호") || uses_slot(template, "학생 이름");
+    let Some(first) = infos.first() else {
+        return Preview {
+            blocks: Vec::new(),
+            views: Vec::new(),
+            first: None,
+            hint: None,
+            open_roster: false,
+            roster: roster.info,
+            rows: Vec::new(),
+            changes: 0,
+        };
+    };
+    let blocks = match &req.blocks {
+        Some(b) => b.clone(),
+        None => infer(&req.example, first, &roster, today),
+    };
+    let views = blocks
+        .iter()
+        .map(|b| view(b, first, &roster, today, list_word))
+        .collect();
 
-    // 번호(순서대로면 체크한 순서)
-    let count = paths.len() as u32;
-    let last = req.number.start.saturating_add(count.saturating_sub(1));
-    let width = match req.number.digits {
-        0 if req.number.from_name => 1,
-        0 => last.to_string().len(),
-        d => d as usize,
+    // 안내: 학생 이름 블록인데 명렬표가 없거나, 학생 이름처럼 보이는 글자 + 번호
+    let has_student = blocks.iter().any(|b| matches!(b, Block::Student));
+    let has_number = blocks
+        .iter()
+        .any(|b| matches!(b, Block::Num { .. } | Block::Seq { .. }));
+    let person = blocks.iter().find_map(|b| match b {
+        Block::Text { text } => looks_like_person(text),
+        _ => None,
+    });
+    let (hint, open_roster) = if has_student && roster.names.is_empty() {
+        (
+            Some(format!(
+                "학생 이름은 {list_word}에서 번호로 찾아요. 아래에 {list_word}를 붙여 넣으세요."
+            )),
+            true,
+        )
+    } else if let (Some(p), true, Some(n), true) = (
+        person,
+        has_number,
+        first.number.as_ref(),
+        roster.names.is_empty(),
+    ) {
+        (
+            Some(format!(
+                "‘{p}’이(가) {}번 학생 이름이라면 {list_word}를 붙여 넣으세요. 다른 파일도 {list_word}에서 이름을 찾아 넣어요.",
+                n.value
+            )),
+            true,
+        )
+    } else {
+        (None, false)
     };
 
     // 1) 파일마다 새 이름(겹침은 아직 안 봄)
     let mut rows: Vec<PreviewRow> = Vec::new();
-    for (i, path) in paths.iter().enumerate() {
-        let name = &names[i];
-        let (stem, ext) = split_ext(name);
-        let toks = tokens(stem);
-        let matches_base = !base.is_empty() && shape(&toks) == base;
-        let value = if req.number.from_name {
-            read_number(&toks, analysis.number_piece, matches_base)
-        } else {
-            Some(req.number.start + i as u32)
-        };
-        let ctx = FileCtx {
-            stem,
-            name,
-            matches_base,
-            number: value.map(|v| format!("{v:0width$}")),
-            student: value.and_then(|v| roster.names.get(&v)).map(String::as_str),
-            toks,
-            modified: std::fs::metadata(path)
-                .map(|m| modified_ms(&m))
-                .unwrap_or(0),
-        };
+    for (i, (path, info)) in paths.iter().zip(&infos).enumerate() {
         let mut row = PreviewRow {
             path: path.to_string_lossy().into_owned(),
-            old_name: name.clone(),
-            new_name: name.clone(),
+            old_name: info.name.clone(),
+            new_name: info.name.clone(),
             status: Status::Same,
             note: None,
         };
-        let built = if template.is_empty() {
-            Ok(stem.to_string())
-        } else if wants_number && value.is_none() {
-            Err("이름에서 번호를 찾지 못했어요".to_string())
-        } else {
-            render(template, &ctx)
-        };
-        let new_stem = match built {
-            Ok(s) => s,
+        if blocks.is_empty() {
+            rows.push(row);
+            continue;
+        }
+        let built = match render(&blocks, info, i, first, &roster, today, list_word) {
+            Ok(s) => tidy(&s),
             Err(note) => {
                 row.status = Status::Skip;
                 row.note = Some(note);
@@ -760,19 +944,14 @@ pub fn plan(req: &RenameRequest) -> Preview {
                 continue;
             }
         };
-        let mut s = new_stem;
-        for r in &req.replacements {
-            s = replace_ci(&s, &r.find, &r.with);
-        }
-        let s = tidy(&format!("{}{s}{}", req.prefix, req.suffix));
-        let new_name = format!("{s}{ext}");
-        if s.is_empty() {
+        let new_name = format!("{built}{}", info.ext);
+        if built.is_empty() {
             row.status = Status::Invalid;
             row.note = Some("이름이 비어 있어요".into());
         } else if let Err(e) = folders::validate_name(&new_name) {
             row.status = Status::Invalid;
             row.note = Some(e);
-        } else if new_name != *name {
+        } else if new_name != info.name {
             let full = path.with_file_name(&new_name);
             if full.to_string_lossy().encode_utf16().count() > MAX_PATH_CHARS {
                 row.status = Status::Invalid;
@@ -831,7 +1010,19 @@ pub fn plan(req: &RenameRequest) -> Preview {
         .filter(|r| matches!(r.status, Status::Rename | Status::Conflict))
         .count();
     Preview {
-        analysis,
+        blocks,
+        views,
+        first: Some(FirstFile {
+            name: first.name.clone(),
+            stem: first.stem.clone(),
+            ext: first.ext.clone(),
+            number: first.number.as_ref().map(|n| n.raw.clone()),
+            file_date: first.date.clone(),
+            today: today.date.clone(),
+            year: today.year.clone(),
+        }),
+        hint,
+        open_roster,
         roster: roster.info,
         rows,
         changes,
@@ -912,7 +1103,7 @@ pub async fn rename_list(folder: String, include_sub: bool) -> Result<FolderFile
 /// 미리보기(디스크는 읽기만). 명렬표는 저장하지 않는다.
 #[tauri::command]
 pub async fn rename_preview(request: RenameRequest) -> Result<Preview, String> {
-    Ok(plan(&request))
+    Ok(plan(&request, &Today::now()))
 }
 
 #[derive(Debug, Serialize)]
@@ -928,7 +1119,7 @@ pub struct RenameResult {
 /// 이름 바꾸기 실행: 미리보기를 다시 계산해(그사이 바뀐 것 반영) 바꾸고, 같은 묶음으로 기록한다.
 #[tauri::command]
 pub async fn rename_apply(app: AppHandle, request: RenameRequest) -> Result<RenameResult, String> {
-    let preview = plan(&request);
+    let preview = plan(&request, &Today::now());
     let plans: Vec<(PathBuf, String)> = preview
         .rows
         .iter()
@@ -1019,80 +1210,172 @@ mod tests {
     use super::*;
     use std::fs;
 
-    fn kinds(stem: &str) -> Vec<Kind> {
-        shape(&tokens(stem))
-    }
-
-    fn req(files: &[PathBuf], template: &str) -> RenameRequest {
-        RenameRequest {
-            files: files
-                .iter()
-                .map(|p| p.to_string_lossy().into_owned())
-                .collect(),
-            template: template.into(),
-            ..RenameRequest::default()
+    fn today() -> Today {
+        Today {
+            year: "2026".into(),
+            date: "2026-10-16".into(),
         }
     }
 
-    fn new_names(p: &Preview) -> Vec<String> {
-        p.rows.iter().map(|r| r.new_name.clone()).collect()
+    fn info(name: &str) -> FileInfo {
+        FileInfo::new(name, "2026-09-17".into())
+    }
+
+    fn no_roster() -> Roster {
+        parse_roster("")
+    }
+
+    fn text(t: &str) -> Block {
+        Block::Text { text: t.into() }
+    }
+
+    /// 첫 파일에 적은 이름으로 다른 파일들의 새 이름(확장자 포함)을 짓는다
+    fn apply(names: &[&str], example: &str, roster: &Roster) -> Vec<Result<String, String>> {
+        let files: Vec<FileInfo> = names.iter().map(|n| info(n)).collect();
+        let blocks = infer(example, &files[0], roster, &today());
+        files
+            .iter()
+            .enumerate()
+            .map(|(i, f)| {
+                render(&blocks, f, i, &files[0], roster, &today(), "명렬표")
+                    .map(|s| format!("{}{}", tidy(&s), f.ext))
+            })
+            .collect()
     }
 
     #[test]
-    fn splits_pieces_like_rule_cards() {
-        use Kind::*;
-        assert_eq!(kinds("독후감_3-2_05"), [Text, Class, Number]);
-        assert_eq!(
-            kinds("2027 1학기 수행평가(5번)"),
-            [Year, Term, Text, Number]
-        );
-        assert_eq!(kinds("scan_001"), [Text, Number]);
-        assert_eq!(kinds("27학년도-계획"), [Year, Text]);
-        assert_eq!(kinds("과제05"), [Text]);
-        assert_eq!(tokens("독후감_3-2_05")[2].value, Some(5));
+    fn reads_number_in_name() {
+        let n = |s: &str| name_number(s).map(|n| (n.raw, n.value));
+        assert_eq!(n("05"), Some(("05".into(), 5)));
+        assert_eq!(n("독후감_3-2_07"), Some(("07".into(), 7))); // 학급은 번호가 아님
+        assert_eq!(n("2027_과제"), None); // 연도도 아님
+        assert_eq!(n("김민지5번"), Some(("5".into(), 5)));
+        assert_eq!(n("과제05_최종"), Some(("05".into(), 5)));
+        assert_eq!(n("1학기 과제"), None);
+        assert_eq!(n("30205_독후감").map(|x| x.1), Some(5)); // 학년반번호
+                                                             // 2000~2099는 연도 모양이라 번호로 보지 않는다(사진은 순서 번호로)
+        assert_eq!(n("IMG_2041"), None);
+        assert_eq!(n("IMG_1041").map(|x| x.1), Some(1041));
     }
 
     #[test]
-    fn finds_common_piece_and_number() {
-        let stems = ["독후감_3-2_01", "독후감_3-2_02", "독후감_3-2_13", "메모"];
-        let a = analyze(&stems);
-        assert_eq!((a.matching, a.total), (3, 4));
-        assert_eq!(a.number_piece, Some(3));
-        assert!(a.pieces[0].common && a.pieces[0].sample == "독후감");
-        assert_eq!(a.pieces[1].kind, Kind::Class);
-        assert!(!a.pieces[2].common);
-        let templates: Vec<&str> = a.suggestions.iter().map(|s| s.template.as_str()).collect();
+    fn adds_year_in_front_of_student_names() {
+        // 실제로 해 본 경우: 학생 이름만 있는 파일에 "2026년 " 붙이기
+        let names = ["고다윤.pdf", "김민찬.pdf"];
+        let first = info(names[0]);
         assert_eq!(
-            templates,
+            infer("2026년 고다윤", &first, &no_roster(), &today()),
             [
-                "{학생 이름}({번호})",
-                "{번호}_{학생 이름}_{조각 1}",
-                "{조각 1}_{학급}_{번호}"
+                Block::Year,
+                text("년 "),
+                Block::Name {
+                    from: None,
+                    to: None
+                }
             ]
         );
-        // 번호만 있는 이름
-        let a = analyze(&["01", "02", "03"]);
-        assert_eq!(a.number_piece, Some(1));
-        assert_eq!(a.suggestions.len(), 1);
-        // 번호가 없으면 제안도 없음
-        assert!(analyze(&["회의록", "계획서"]).suggestions.is_empty());
-        assert!(analyze(&[]).pieces.is_empty());
+        let out = apply(&names, "2026년 고다윤", &no_roster());
+        assert_eq!(out[1].as_deref(), Ok("2026년 김민찬.pdf"));
     }
 
     #[test]
-    fn reads_number_from_name() {
-        let n = |s: &str| read_number(&tokens(s), None, false);
-        assert_eq!(n("05"), Some(5));
-        assert_eq!(n("독후감_3-2_07"), Some(7)); // 학급은 번호가 아님
-        assert_eq!(n("2027_과제"), None); // 연도도 아님
-        assert_eq!(n("김민지5번"), Some(5));
-        assert_eq!(n("과제05_최종"), Some(5));
-        assert_eq!(n("1학기 과제"), None);
-        assert_eq!(n("30205_독후감"), Some(5)); // 학년반번호
-                                                // 알아낸 번호 조각이 먼저(뒤에 다른 숫자가 있어도)
-        let t = tokens("12_독후감_2");
-        assert_eq!(read_number(&t, Some(1), true), Some(12));
-        assert_eq!(read_number(&t, Some(1), false), Some(2));
+    fn numbered_homework_with_and_without_roster() {
+        let names = ["01.hwp", "02.hwp", "03.hwp"];
+        // 명렬표가 없으면 "김민지"는 글자 그대로(모두 김민지) — 화면이 명렬표를 붙여 넣으라고 알린다
+        let blocks = infer("김민지(1)", &info(names[0]), &no_roster(), &today());
+        assert_eq!(
+            blocks,
+            [text("김민지("), Block::Num { plain: true }, text(")")]
+        );
+        // 명렬표가 있으면 번호로 이름을 찾는다
+        let roster = parse_roster("번호\t이름\n1\t김민지\n2\t이서준\n");
+        let out = apply(&names, "김민지(1)", &roster);
+        assert_eq!(out[1].as_deref(), Ok("이서준(2).hwp"));
+        assert_eq!(out[2], Err("명렬표에 3번이 없어요".into()));
+    }
+
+    #[test]
+    fn new_name_with_number_from_name_or_in_order() {
+        // 이름의 번호(001 → 1)
+        let out = apply(
+            &["scan_001.pdf", "scan_002.pdf"],
+            "가정통신문 1",
+            &no_roster(),
+        );
+        assert_eq!(out[1].as_deref(), Ok("가정통신문 2.pdf"));
+        // 앞의 0까지 그대로
+        let out = apply(
+            &["scan_001.pdf", "scan_002.pdf"],
+            "가정통신문_001",
+            &no_roster(),
+        );
+        assert_eq!(out[1].as_deref(), Ok("가정통신문_002.pdf"));
+        // 이름의 번호와 맞지 않는 숫자는 순서 번호(사진 번호 2041은 쓰지 않음)
+        let first = info("IMG_2041.jpg");
+        assert_eq!(
+            infer("제주 여행 1", &first, &no_roster(), &today()),
+            [text("제주 여행 "), Block::Seq { start: 1, width: 1 }]
+        );
+        let out = apply(
+            &["IMG_2041.jpg", "IMG_2055.jpg"],
+            "제주 여행 01",
+            &no_roster(),
+        );
+        assert_eq!(out[1].as_deref(), Ok("제주 여행 02.jpg"));
+        // 연도 모양 숫자는 순서 번호로 보지 않는다
+        let out = apply(&["a.hwp", "b.hwp"], "2025 자료", &no_roster());
+        assert_eq!(out[1].as_deref(), Ok("2025 자료.hwp"));
+    }
+
+    #[test]
+    fn deleting_or_replacing_part_of_name() {
+        let names = [
+            "회의록_최종.hwp",
+            "예산안_최종_수정.hwp",
+            "참석자 명단.xlsx",
+        ];
+        let blocks = infer("회의록", &info(names[0]), &no_roster(), &today());
+        assert_eq!(
+            blocks,
+            [Block::Name {
+                from: Some("_최종".into()),
+                to: None
+            }]
+        );
+        let out = apply(&names, "회의록", &no_roster());
+        assert_eq!(out[1].as_deref(), Ok("예산안_수정.hwp"));
+        assert_eq!(out[2].as_deref(), Ok("참석자 명단.xlsx")); // 그 글자가 없으면 그대로
+                                                               // 대부분 남기고 일부만 바꿈(대소문자 무시)
+        let out = apply(
+            &["scan_001.pdf", "SCAN_002.pdf"],
+            "통신문_001",
+            &no_roster(),
+        );
+        assert_eq!(out[1].as_deref(), Ok("통신문_002.pdf"));
+    }
+
+    #[test]
+    fn reorders_pieces_and_dates() {
+        // 조각 순서 바꾸기
+        let out = apply(
+            &["독후감_3-2_05.hwp", "독후감_3-2_06.hwp", "메모.hwp"],
+            "05_독후감",
+            &no_roster(),
+        );
+        assert_eq!(out[1].as_deref(), Ok("06_독후감.hwp"));
+        assert_eq!(out[2], Err("이름에 번호가 없어요".into()));
+        // 오늘 날짜·파일 날짜
+        let first = info("보고서.hwp");
+        assert_eq!(
+            infer("보고서_2026-10-16", &first, &no_roster(), &today())[2],
+            Block::Today
+        );
+        assert_eq!(
+            infer("2026-09-17 보고서", &first, &no_roster(), &today())[0],
+            Block::FileDate
+        );
+        // 그대로 적으면 바꾸지 않음
+        assert!(infer("보고서", &first, &no_roster(), &today()).is_empty());
     }
 
     #[test]
@@ -1116,114 +1399,91 @@ mod tests {
         assert_eq!(tidy("_최종_"), "최종");
     }
 
-    #[test]
-    fn numbered_homework_with_roster() {
-        let d = tempfile::tempdir().unwrap();
-        let files: Vec<PathBuf> = (1..=3)
-            .map(|i| {
-                let p = d.path().join(format!("{i:02}.hwp"));
-                fs::write(&p, b"x").unwrap();
+    fn req(files: &[PathBuf], example: &str) -> RenameRequest {
+        RenameRequest {
+            files: files
+                .iter()
+                .map(|p| p.to_string_lossy().into_owned())
+                .collect(),
+            example: example.into(),
+            ..RenameRequest::default()
+        }
+    }
+
+    fn new_names(p: &Preview) -> Vec<String> {
+        p.rows.iter().map(|r| r.new_name.clone()).collect()
+    }
+
+    fn files_in(dir: &Path, names: &[&str]) -> Vec<PathBuf> {
+        names
+            .iter()
+            .map(|n| {
+                let p = dir.join(n);
+                fs::write(&p, n).unwrap();
                 p
             })
-            .collect();
-        let mut r = req(&files, "{학생 이름}({번호})");
-        r.roster = "1\t김민지\n2\t이서준\n".into();
-        let p = plan(&r);
-        assert_eq!(new_names(&p), ["김민지(1).hwp", "이서준(2).hwp", "03.hwp"]);
-        assert_eq!(p.rows[2].status, Status::Skip);
-        assert_eq!(p.rows[2].note.as_deref(), Some("명렬표에 3번이 없어요"));
-        assert_eq!(p.changes, 2);
-        assert_eq!(p.roster.count, 2);
-
-        // 순서대로 번호(자동 자릿수), 원래 이름 + 글자 바꾸기
-        let mut r = req(&files, "가정통신문({번호})");
-        r.number = NumberOptions {
-            from_name: false,
-            start: 9,
-            digits: 0,
-        };
-        assert_eq!(
-            new_names(&plan(&r)),
-            [
-                "가정통신문(09).hwp",
-                "가정통신문(10).hwp",
-                "가정통신문(11).hwp"
-            ]
-        );
-        r.number.digits = 3;
-        r.template = "{번호}".into();
-        r.prefix = "과제_".into();
-        assert_eq!(new_names(&plan(&r))[0], "과제_009.hwp");
+            .collect()
     }
 
     #[test]
-    fn replacements_without_template() {
+    fn preview_hints_and_blocks_from_screen() {
         let d = tempfile::tempdir().unwrap();
-        let a = d.path().join("SCAN_001 최종.pdf");
-        fs::write(&a, b"x").unwrap();
-        let mut r = req(std::slice::from_ref(&a), "");
-        r.replacements = vec![
-            Replacement {
-                find: "scan".into(),
-                with: "가정통신문".into(),
-            },
-            Replacement {
-                find: "최종".into(),
-                with: String::new(),
-            },
-        ];
-        assert_eq!(new_names(&plan(&r)), ["가정통신문_001.pdf"]);
-        // 아무것도 안 바꾸면 그대로
-        let p = plan(&req(std::slice::from_ref(&a), ""));
-        assert_eq!(p.rows[0].status, Status::Same);
+        let files = files_in(d.path(), &["01.hwp", "02.hwp"]);
+        // 학생 이름처럼 보이는 글자 + 번호 → 명렬표를 붙여 넣으라고
+        let p = plan(&req(&files, "김민지(1)"), &today());
+        assert!(p.open_roster);
+        assert!(p.hint.as_deref().unwrap().contains("명렬표"));
+        assert_eq!(p.views[1].label, "이름의 번호");
+        // 화면에서 고친 블록을 그대로 쓴다(학생 이름 블록 + 명렬표)
+        let mut r = req(&files, "");
+        r.blocks = Some(vec![
+            Block::Student,
+            text("("),
+            Block::Num { plain: true },
+            text(")"),
+        ]);
+        r.roster = "1\t김민지\n2\t이서준".into();
+        r.list_word = "번호·이름 목록".into();
+        let p = plan(&r, &today());
+        assert_eq!(new_names(&p), ["김민지(1).hwp", "이서준(2).hwp"]);
+        assert_eq!(p.views[0].label, "번호·이름 목록의 이름");
+        assert!(!p.open_roster);
+        // 명렬표 없이 학생 이름 블록이면 안내 + 건너뜀
+        r.roster.clear();
+        let p = plan(&r, &today());
+        assert!(p.open_roster);
+        assert_eq!(p.rows[0].status, Status::Skip);
         assert_eq!(p.changes, 0);
+        // 그대로 적으면 모두 그대로
+        let p = plan(&req(&files, "01"), &today());
+        assert!(p.rows.iter().all(|r| r.status == Status::Same));
     }
 
     #[test]
     fn conflicts_get_numbers_and_bad_names_are_skipped() {
         let d = tempfile::tempdir().unwrap();
-        let mk = |n: &str| {
-            let p = d.path().join(n);
-            fs::write(&p, n).unwrap();
-            p
-        };
-        let a = mk("a.hwp");
-        let b = mk("b.hwp");
-        mk("과제.hwp"); // 바꾸지 않는 파일
-        let p = plan(&req(&[a.clone(), b.clone()], "과제"));
+        let files = files_in(d.path(), &["a.hwp", "b.hwp"]);
+        fs::write(d.path().join("과제.hwp"), b"x").unwrap(); // 바꾸지 않는 파일
+                                                             // 모든 파일을 같은 이름으로 → (2) (3)
+        let mut r = req(&files, "");
+        r.blocks = Some(vec![text("과제")]);
+        let p = plan(&r, &today());
         assert_eq!(new_names(&p), ["과제 (2).hwp", "과제 (3).hwp"]);
         assert!(p.rows.iter().all(|r| r.status == Status::Conflict));
-        // 이름이 비거나 쓸 수 없는 글자
-        let p = plan(&req(&[a.clone(), b.clone()], "{학급}"));
-        assert_eq!(p.rows[0].status, Status::Invalid);
-        let p = plan(&req(std::slice::from_ref(&a), "a:b"));
-        assert_eq!(p.rows[0].status, Status::Invalid);
+        // 쓸 수 없는 글자
+        r.blocks = Some(vec![text("a:b")]);
+        assert_eq!(plan(&r, &today()).rows[0].status, Status::Invalid);
         // 비켜 가는 파일의 이름은 쓸 수 있다(a→b, b→c)
-        let mut r = req(&[a.clone(), b.clone()], "");
-        let rep = |f: &str, w: &str| Replacement {
-            find: f.into(),
-            with: w.into(),
-        };
-        r.replacements = vec![rep("b", "c"), rep("a", "b")];
-        let p = plan(&r);
-        assert_eq!(new_names(&p), ["b.hwp", "c.hwp"]);
-        assert!(p.rows.iter().all(|r| r.status == Status::Rename));
-    }
-
-    #[test]
-    fn pieces_skip_files_of_other_shapes() {
-        let d = tempfile::tempdir().unwrap();
-        let files: Vec<PathBuf> = ["독후감_3-2_01.hwp", "독후감_3-2_02.hwp", "메모.hwp"]
-            .iter()
-            .map(|n| {
-                let p = d.path().join(n);
-                fs::write(&p, b"x").unwrap();
-                p
-            })
-            .collect();
-        let p = plan(&req(&files, "{번호}_{조각 1}"));
-        assert_eq!(new_names(&p)[..2], ["1_독후감.hwp", "2_독후감.hwp"]);
-        assert_eq!(p.rows[2].status, Status::Skip);
+        r.blocks = Some(vec![Block::Name {
+            from: Some("b".into()),
+            to: Some("c".into()),
+        }]);
+        let p = plan(&req(&files[1..], ""), &today());
+        assert!(p.rows.iter().all(|r| r.status == Status::Same));
+        let mut r2 = req(&files, "");
+        r2.blocks = Some(vec![Block::Seq { start: 0, width: 1 }]);
+        // a→0, b→1: 서로 겹치지 않음
+        assert_eq!(new_names(&plan(&r2, &today())), ["0.hwp", "1.hwp"]);
     }
 
     #[test]
@@ -1240,7 +1500,6 @@ mod tests {
         assert_eq!(fs::read_to_string(&b).unwrap(), "A");
         // 임시 파일이 남지 않는다
         assert_eq!(fs::read_dir(d.path()).unwrap().count(), 2);
-        // 되돌리기 = 바뀐 경로 → 원래 이름
         let back: Vec<(PathBuf, String)> = done
             .iter()
             .map(|x| {
@@ -1272,9 +1531,9 @@ mod tests {
                 p
             })
             .collect();
-        let mut r = req(&files, "{학생 이름}({번호})");
+        let mut r = req(&files, "학생A(1)");
         r.roster = roster;
-        let p = plan(&r);
+        let p = plan(&r, &today());
         assert_eq!(p.changes, 30);
         let plans: Vec<(PathBuf, String)> = p
             .rows
