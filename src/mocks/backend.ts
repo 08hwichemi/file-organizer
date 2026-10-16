@@ -1169,7 +1169,7 @@ const renameFolders = new Map<string, RenameFile[]>();
 const renameBatches = new Map<number, { file: RenameFile; from: string }[]>();
 let renameBatch = 0;
 
-/** 고른 폴더마다 다른 예시: 학생 이름 · 번호 과제 · 스캔 · ‘최종’ 문서 · 사진 */
+/** 고른 폴더마다 다른 예시: 학생 이름 · 번호 과제 · 스캔 · ‘최종’ 문서 · 사진 · 면접 자료(학과 조각 지우기) */
 const RENAME_SAMPLES: { date: string; names: string[]; sub?: string[] }[] = [
   { date: "2026-09-17", names: ["고다윤.pdf", "김민찬.pdf", "김서한.pdf", "김찬혁.pdf", "김태우.pdf", "민건희.pdf", "민정우.pdf"] },
   {
@@ -1180,6 +1180,10 @@ const RENAME_SAMPLES: { date: string; names: string[]; sub?: string[] }[] = [
   { date: "2026-10-15", names: ["scan_001.pdf", "scan_002.pdf", "scan_003.pdf", "scan_004.pdf", "scan_005.pdf"] },
   { date: "2026-09-03", names: ["회의록_최종.hwp", "계획서_최종.hwp", "예산안_최종_수정.hwp", "참석자 명단.xlsx"] },
   { date: "2025-07-21", names: ["IMG_2041.jpg", "IMG_2042.jpg", "IMG_2055.jpg", "IMG_2060.jpg", "IMG_2071.jpg"] },
+  {
+    date: "2026-10-16",
+    names: ["면접자료_김태우_신소재공학.pdf", "면접자료_민정우_화학공학.pdf", "면접자료_안현진_바이오메디컬화학공학.pdf", "면접자료_양시훈_화학공학.pdf"],
+  },
 ];
 
 function mockRenameFolder(folder: string): RenameFile[] {
@@ -1278,9 +1282,27 @@ function mockFileInfo(path: string): MockFile {
 
 const MOCK_TODAY = { year: "2026", date: "2026-10-16" };
 
-function mockInfer(target: string, F: MockFile, roster: Map<number, string>): Block[] {
+// 일부만 지운 것은 "글자 지우기"와 "조각만 남기기" 두 가지로 읽힌다 → 더 많은 파일이 바뀌는 쪽(renamer.rs infer_all)
+function mockInferAll(target: string, infos: MockFile[], roster: Map<number, string>, word: string): Block[] {
+  const F = infos[0];
+  const edit = mockInfer(target, F, roster);
+  if (edit.length !== 1 || edit[0].k !== "name" || !edit[0].from) return edit;
+  const scan = mockInfer(target, F, roster, false);
+  const changed = (blocks: Block[]) =>
+    infos.filter((G, i) => {
+      try {
+        const s = tidyName(mockRender(blocks, G, i, F, roster, word));
+        return s !== "" && s !== G.stem;
+      } catch {
+        return false;
+      }
+    }).length;
+  return changed(scan) > changed(edit) ? scan : edit;
+}
+
+function mockInfer(target: string, F: MockFile, roster: Map<number, string>, edit = true): Block[] {
   if (!target.trim() || target === F.stem) return [];
-  if (!target.includes(F.stem)) {
+  if (edit && !target.includes(F.stem)) {
     let p = 0;
     while (p < target.length && p < F.stem.length && target[p] === F.stem[p]) p++;
     let q = 0;
@@ -1393,7 +1415,7 @@ function mockPlan(req: RenameRequest): RenamePreview {
   const infos = req.files.map(mockFileInfo);
   const F = infos[0];
   if (!F) return { blocks: [], views: [], first: null, hint: null, openRoster: false, roster: roster.info, rows: [], changes: 0 };
-  const blocks = req.blocks ?? mockInfer(req.example, F, roster.names);
+  const blocks = req.blocks ?? mockInferAll(req.example, infos, roster.names, word);
   const views = blocks.map((b) => mockView(b, F, roster.names, word));
   const hasStudent = blocks.some((b) => b.k === "student");
   const hasNumber = blocks.some((b) => b.k === "num" || b.k === "seq");

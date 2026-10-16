@@ -436,33 +436,81 @@ fn is_year_text(s: &str) -> bool {
     s.len() == 4 && all_digits(s) && (2000..=2099).contains(&s.parse().unwrap_or(0))
 }
 
-/// 첫 파일에 적은 새 이름을 블록으로 알아듣는다.
-pub fn infer(target: &str, first: &FileInfo, roster: &Roster, today: &Today) -> Vec<Block> {
+/// 첫 파일에 적은 새 이름을 블록으로 알아듣는다(첫 파일만 보고 — 테스트에서 알아듣는 모양을 볼 때).
+#[cfg(test)]
+fn infer(target: &str, first: &FileInfo, roster: &Roster, today: &Today) -> Vec<Block> {
     if target.trim().is_empty() || target == first.stem {
         return Vec::new();
     }
+    edit_guess(target, first).unwrap_or_else(|| scan_guess(target, first, roster, today))
+}
+
+/// 파일 전체를 보고 알아듣는다. 일부만 지운 것은 두 가지로 읽힌다:
+/// `면접자료_김태우_신소재공학` → `면접자료_김태우`는 "‘_신소재공학’ 글자 지우기"도, "첫·둘째 조각만 남기기"도 된다.
+/// 학과처럼 파일마다 다른 조각을 지운 것이면 글자 지우기로는 첫 파일만 바뀌므로, 더 많은 파일이 바뀌는 쪽을 고른다
+/// (같으면 글자 지우기: `_최종`처럼 같은 글자를 지운 경우).
+pub fn infer_all(
+    target: &str,
+    files: &[FileInfo],
+    roster: &Roster,
+    today: &Today,
+    list_word: &str,
+) -> Vec<Block> {
+    let Some(first) = files.first() else {
+        return Vec::new();
+    };
+    if target.trim().is_empty() || target == first.stem {
+        return Vec::new();
+    }
+    let scan = scan_guess(target, first, roster, today);
+    let Some(edit) = edit_guess(target, first) else {
+        return scan;
+    };
+    let changed = |blocks: &[Block]| {
+        files
+            .iter()
+            .enumerate()
+            .filter(|(i, f)| {
+                render(blocks, f, *i, first, roster, today, list_word)
+                    .is_ok_and(|s| !tidy(&s).is_empty() && tidy(&s) != f.stem)
+            })
+            .count()
+    };
+    if changed(&scan) > changed(&edit) {
+        scan
+    } else {
+        edit
+    }
+}
+
+/// 지금 이름에서 일부만 지웠거나, 대부분을 남기고 일부만 바꿨으면 → '지금 이름'에서 그 글자 지우기·바꾸기
+fn edit_guess(target: &str, first: &FileInfo) -> Option<Vec<Block>> {
+    if target.contains(first.stem.as_str()) {
+        return None;
+    }
     let t: Vec<char> = target.chars().collect();
     let s: Vec<char> = first.stem.chars().collect();
-    // 지금 이름에서 일부만 지웠거나, 대부분을 남기고 일부만 바꿨으면 → '지금 이름'에서 그 글자 지우기·바꾸기
-    if !target.contains(first.stem.as_str()) {
-        let mut p = 0;
-        while p < t.len() && p < s.len() && t[p] == s[p] {
-            p += 1;
-        }
-        let mut q = 0;
-        while q < t.len() - p && q < s.len() - p && t[t.len() - 1 - q] == s[s.len() - 1 - q] {
-            q += 1;
-        }
-        let removed: String = s[p..s.len() - q].iter().collect();
-        let inserted: String = t[p..t.len() - q].iter().collect();
-        if !removed.is_empty() && (inserted.is_empty() || (p + q) * 2 >= s.len()) {
-            return vec![Block::Name {
-                from: Some(removed),
-                to: (!inserted.is_empty()).then_some(inserted),
-            }];
-        }
+    let mut p = 0;
+    while p < t.len() && p < s.len() && t[p] == s[p] {
+        p += 1;
     }
+    let mut q = 0;
+    while q < t.len() - p && q < s.len() - p && t[t.len() - 1 - q] == s[s.len() - 1 - q] {
+        q += 1;
+    }
+    let removed: String = s[p..s.len() - q].iter().collect();
+    let inserted: String = t[p..t.len() - q].iter().collect();
+    (!removed.is_empty() && (inserted.is_empty() || (p + q) * 2 >= s.len())).then(|| {
+        vec![Block::Name {
+            from: Some(removed),
+            to: (!inserted.is_empty()).then_some(inserted),
+        }]
+    })
+}
 
+/// 적은 이름을 앞에서부터 읽으며 지금 이름의 조각·번호·날짜 등과 같은 부분을 블록으로 바꾼다.
+fn scan_guess(target: &str, first: &FileInfo, roster: &Roster, today: &Today) -> Vec<Block> {
+    let t: Vec<char> = target.chars().collect();
     // 알아볼 수 있는 값들(긴 것부터, 길이가 같으면 이 차례대로: 번호는 조각보다 먼저 — 모양이 다른 파일에도 쓸 수 있게)
     let mut sources: Vec<(Block, String)> = Vec::new();
     if let Some(name) = first
@@ -881,7 +929,7 @@ pub fn plan(req: &RenameRequest, today: &Today) -> Preview {
     };
     let blocks = match &req.blocks {
         Some(b) => b.clone(),
-        None => infer(&req.example, first, &roster, today),
+        None => infer_all(&req.example, &infos, &roster, today, list_word),
     };
     let views = blocks
         .iter()
@@ -1232,7 +1280,7 @@ mod tests {
     /// 첫 파일에 적은 이름으로 다른 파일들의 새 이름(확장자 포함)을 짓는다
     fn apply(names: &[&str], example: &str, roster: &Roster) -> Vec<Result<String, String>> {
         let files: Vec<FileInfo> = names.iter().map(|n| info(n)).collect();
-        let blocks = infer(example, &files[0], roster, &today());
+        let blocks = infer_all(example, &files, roster, &today(), "명렬표");
         files
             .iter()
             .enumerate()
@@ -1352,6 +1400,23 @@ mod tests {
             &no_roster(),
         );
         assert_eq!(out[1].as_deref(), Ok("통신문_002.pdf"));
+    }
+
+    #[test]
+    fn deleting_a_piece_that_differs_per_file() {
+        // 학과처럼 파일마다 다른 조각을 지우면 그 조각 자리를 지운다(글자 ‘_신소재공학’만 지우는 게 아니라)
+        let names = [
+            "면접자료_김태우_신소재공학.pdf",
+            "면접자료_민정우_화학공학.pdf",
+            "면접자료_안현진_바이오메디컬화학공학.pdf",
+        ];
+        let out = apply(&names, "면접자료_김태우", &no_roster());
+        assert_eq!(out[0].as_deref(), Ok("면접자료_김태우.pdf"));
+        assert_eq!(out[1].as_deref(), Ok("면접자료_민정우.pdf"));
+        assert_eq!(out[2].as_deref(), Ok("면접자료_안현진.pdf"));
+        // 가운데 조각(이름)을 지워도
+        let out = apply(&names, "면접자료_신소재공학", &no_roster());
+        assert_eq!(out[1].as_deref(), Ok("면접자료_화학공학.pdf"));
     }
 
     #[test]
