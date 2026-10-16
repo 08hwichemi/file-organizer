@@ -23,6 +23,7 @@ notify = "8"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 trash = "5.2.9"
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 
 [profile.release]
 codegen-units = 1

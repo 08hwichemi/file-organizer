@@ -63,3 +63,34 @@
   font-size: 13px;
   color: var(--color-text-sub);
 }
+
+.settings__note {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-faint);
+  color: var(--color-accent-hover);
+  font-size: 13px;
+}
+
+.settings__terms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+}
+
+.settings__term {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.settings__term select {
+  min-width: 96px;
+  padding: 0 10px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-size: 14px;
+}

@@ -1,7 +1,7 @@
 import { useDraggable } from "@dnd-kit/core";
-import { Download, Trash2 } from "lucide-react";
+import { ArrowRight, Download, Trash2, Wand2 } from "lucide-react";
 import { formatAgo } from "../lib/format";
-import { friendlyName, samePath, type KnownFolders } from "../lib/paths";
+import { displayPath, friendlyName, samePath, type KnownFolders } from "../lib/paths";
 import type { InboxItem } from "../lib/types";
 import FileBadge from "./FileBadge";
 import "./InboxFileList.css";
@@ -21,6 +21,13 @@ interface Props {
   importing: boolean;
   /** 고른 파일을 휴지통으로 */
   onTrash: () => void;
+  /** 추천 위치에 넣기(줄의 [넣기]) */
+  onAccept: (paths: string[]) => void;
+  /** [자동 분류]: 지금 보이는 파일을 이름·형식으로 나누기(미리보기 뒤) */
+  onClassify: (paths: string[]) => void;
+  root: string | null;
+  separator: string;
+  busy: boolean;
 }
 
 export const ALL_TAB = "all";
@@ -73,6 +80,18 @@ export default function InboxFileList(props: Props) {
             </button>
           ))}
         </div>
+        {visible.length > 0 && (
+          <button
+            type="button"
+            className="ifiles__accept-all"
+            onClick={() => props.onClassify(visible.map((i) => i.path))}
+            disabled={props.busy}
+            title="파일 이름과 형식을 보고 폴더로 나눠요(먼저 보여 드리고 확인하면 넣어요)"
+          >
+            <Wand2 size={14} aria-hidden="true" />
+            자동 분류
+          </button>
+        )}
       </div>
 
       {visible.length > 0 &&
@@ -117,6 +136,11 @@ export default function InboxFileList(props: Props) {
               checked={selected.has(item.path)}
               dimmed={!!props.dragging?.includes(item.path)}
               onToggle={() => onToggle(item.path)}
+              suggestion={
+                item.suggestion ? displayPath(props.root, item.suggestion.destDir, props.separator) : null
+              }
+              onAccept={() => props.onAccept([item.path])}
+              busy={props.busy}
             />
           ))}
         </ul>
@@ -139,12 +163,19 @@ function FileRow({
   checked,
   dimmed,
   onToggle,
+  suggestion,
+  onAccept,
+  busy,
 }: {
   item: InboxItem;
   source: string;
   checked: boolean;
   dimmed: boolean;
   onToggle: () => void;
+  /** 추천 위치(보여 줄 경로) */
+  suggestion: string | null;
+  onAccept: () => void;
+  busy: boolean;
 }) {
   const { attributes, listeners, setNodeRef } = useDraggable({ id: item.path, data: { item } });
   return (
@@ -173,14 +204,42 @@ function FileRow({
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       />
-      <FileBadge name={item.name} size={36} />
-      <div className="ifiles__text">
-        <div className="ifiles__name" title={item.name}>
-          {item.name}
+      <div className="ifiles__main">
+        <div className="ifiles__top">
+          <FileBadge name={item.name} size={36} />
+          <div className="ifiles__text">
+            <div className="ifiles__name" title={item.name}>
+              {item.name}
+            </div>
+            <div className="ifiles__meta">
+              {source} · {formatAgo(item.addedAt)}
+            </div>
+          </div>
         </div>
-        <div className="ifiles__meta">
-          {source} · {formatAgo(item.addedAt)}
-        </div>
+        {suggestion ? (
+          <div className="ifiles__sug">
+            <span className="ifiles__sug-path" title={`추천 위치: ${suggestion}`}>
+              <ArrowRight size={12} aria-hidden="true" />
+              <span>{suggestion}</span>
+            </span>
+            <button
+              type="button"
+              className="ifiles__sug-put"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAccept();
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              disabled={busy}
+              aria-label={`${item.name} 추천 위치에 넣기`}
+            >
+              넣기
+            </button>
+          </div>
+        ) : (
+          <div className="ifiles__nosug">추천 없음 · 오른쪽 폴더로 끌어다 놓으세요</div>
+        )}
       </div>
     </li>
   );

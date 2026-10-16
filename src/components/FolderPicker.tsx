@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronRight, FolderPlus, Search, X } from "lucide-react";
 import { createFolder, errorMessage, listFolders, searchFolders } from "../lib/backend";
-import { baseName, parentPath, trailFor, type Crumb } from "../lib/paths";
+import { baseName, parentPath, samePath, trailFor, type Crumb } from "../lib/paths";
 import type { FolderEntry, FolderMatch } from "../lib/types";
 import FolderIcon from "./FolderIcon";
 import PathBar from "./PathBar";
@@ -15,13 +15,15 @@ interface Props {
   onSelect: (path: string) => void;
   /** 이 값이 바뀌면 그 폴더가 보이도록 상위 폴더를 연다(최근 넣은 곳·검색 결과 고를 때). */
   reveal: string | null;
+  /** 추천 위치(그 폴더 칸에 "추천" 표시) */
+  recommended?: string | null;
 }
 
 /**
  * 팝업의 폴더 창(SPEC 3-1 ④). 탐색기처럼 폴더 아이콘 격자, 한 줄 4개.
  * 한 번 누르면 선택, 두 번 누르거나 › 를 누르면 안으로. 돋보기 = 폴더 이름 검색. 마지막 칸 = 새 폴더.
  */
-export default function FolderPicker({ root, separator, selected, onSelect, reveal }: Props) {
+export default function FolderPicker({ root, separator, selected, onSelect, reveal, recommended }: Props) {
   const [trail, setTrail] = useState<Crumb[]>([{ name: baseName(root), path: root }]);
   const [folders, setFolders] = useState<FolderEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -199,6 +201,11 @@ export default function FolderPicker({ root, separator, selected, onSelect, reve
                         {f.name}
                       </span>
                     </button>
+                    {recommended && samePath(recommended, f.path) && (
+                      <span className="picker__badge" aria-label="추천">
+                        추천
+                      </span>
+                    )}
                     {f.folderCount > 0 && (
                       <button
                         type="button"

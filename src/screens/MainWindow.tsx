@@ -1,4 +1,4 @@
-import { Inbox, Settings as SettingsIcon } from "lucide-react";
+import { Inbox, ListChecks, Settings as SettingsIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import FolderIcon from "../components/FolderIcon";
 import UpdateBanner from "../components/UpdateBanner";
@@ -7,11 +7,13 @@ import { friendlyName } from "../lib/paths";
 import { useAppStore, type Page } from "../store/useAppStore";
 import { startUpdateChecks } from "../store/useUpdateStore";
 import InboxPage from "./InboxPage";
+import RulesPage from "./RulesPage";
 import SettingsPage from "./SettingsPage";
 import "./MainWindow.css";
 
 const MENU: { page: Page; label: string; Icon: typeof Inbox }[] = [
   { page: "inbox", label: "정리함", Icon: Inbox },
+  { page: "rules", label: "정리 규칙", Icon: ListChecks },
   { page: "settings", label: "설정", Icon: SettingsIcon },
 ];
 
@@ -62,14 +64,22 @@ export default function MainWindow() {
         <div className="sidebar__status" title={`지켜볼 폴더: ${watching}`}>
           <div className="sidebar__status-title">
             <span className="sidebar__dot" aria-hidden="true" />
-            <span>{settings?.organizeMode === "manual" ? "모아 두고 나중에 정리" : "바로 물어보기"}</span>
+            <span>
+              {settings?.placeMode === "classify"
+                ? "자동 분류"
+                : settings?.organizeMode === "manual"
+                  ? "모아 두고 나중에 정리"
+                  : settings?.placeMode === "auto"
+                    ? "규칙대로 바로 정리"
+                    : "바로 물어보기"}
+            </span>
           </div>
           <div className="sidebar__status-text">지켜볼 폴더: {watching}</div>
         </div>
       </nav>
       <main className="main-window__content">
         <UpdateBanner />
-        {page === "inbox" ? <InboxPage /> : <SettingsPage />}
+        {page === "inbox" ? <InboxPage /> : page === "rules" ? <RulesPage /> : <SettingsPage />}
       </main>
     </div>
   );

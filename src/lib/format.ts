@@ -53,3 +53,11 @@ export function fileBadge(name: string): Badge {
   const [bg, fg] = BADGE_COLORS[FAMILY[ext] ?? ""] ?? ["#EEF0F2", "#3D434B"];
   return { label: ext.slice(0, 4) || "파일", bg, fg };
 }
+
+/** 조사 '로/으로': 받침이 없거나 ㄹ이면 '로'. "공문" → "공문으로", "1학기" → "1학기로" */
+export function withRo(word: string): string {
+  const code = word.charCodeAt(word.length - 1) - 0xac00;
+  if (code < 0 || code > 11171) return `${word}로`;
+  const final = code % 28;
+  return final === 0 || final === 8 ? `${word}로` : `${word}으로`;
+}

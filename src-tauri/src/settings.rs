@@ -17,7 +17,20 @@ pub enum OrganizeMode {
     Manual,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+/// 규칙에 맞는 파일을 어떻게 할지(SPEC 4장 "추천과 자동 이동").
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PlaceMode {
+    /// 추천 위치를 먼저 보여 주기만 한다.
+    #[default]
+    Suggest,
+    /// 팝업 없이 추천 위치로 바로 옮기고 알린다(되돌리기 가능).
+    Auto,
+    /// 규칙이 없어도 이름·형식으로 알아서 나눈다(SPEC 4-1). 나누지 못한 파일은 정리함에.
+    Classify,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Settings {
     /// 처음 실행 설정을 마쳤는지.
@@ -27,6 +40,44 @@ pub struct Settings {
     /// 새 파일을 지켜볼 폴더(바로 아래 파일만).
     pub watch_folders: Vec<String>,
     pub organize_mode: OrganizeMode,
+    pub place_mode: PlaceMode,
+    /// 1학기·2학기가 시작하는 달(학년도·학기 계산, 기본 3월·9월)
+    pub first_term_month: u32,
+    pub second_term_month: u32,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        let months = crate::naming::TermMonths::default();
+        Settings {
+            setup_done: false,
+            root_folder: None,
+            watch_folders: Vec::new(),
+            organize_mode: OrganizeMode::default(),
+            place_mode: PlaceMode::default(),
+            first_term_month: months.first,
+            second_term_month: months.second,
+        }
+    }
+}
+
+impl Settings {
+    pub fn term_months(&self) -> crate::naming::TermMonths {
+        let m = crate::naming::TermMonths {
+            first: self.first_term_month,
+            second: self.second_term_month,
+        };
+        if valid_term_months(m.first, m.second) {
+            m
+        } else {
+            crate::naming::TermMonths::default()
+        }
+    }
+}
+
+/// 1학기가 2학기보다 먼저 시작해야 한다(1~12월).
+pub fn valid_term_months(first: u32, second: u32) -> bool {
+    (1..=12).contains(&first) && (1..=12).contains(&second) && first < second
 }
 
 pub fn load(conn: &Connection) -> Result<Settings, String> {
@@ -64,6 +115,9 @@ mod tests {
             root_folder: Some("C:\\정리 폴더".into()),
             watch_folders: vec!["C:\\Downloads".into()],
             organize_mode: OrganizeMode::Manual,
+            place_mode: PlaceMode::Auto,
+            first_term_month: 3,
+            second_term_month: 8,
         };
         save(&conn, &s).unwrap();
         assert_eq!(load(&conn).unwrap(), s);
@@ -77,6 +131,22 @@ mod tests {
         assert!(s.setup_done);
         assert_eq!(s.organize_mode, OrganizeMode::Ask);
         assert!(s.watch_folders.is_empty());
+        // 5단계 전에 저장한 설정: 추천만, 3월·9월
+        assert_eq!(s.place_mode, PlaceMode::Suggest);
+        assert_eq!((s.first_term_month, s.second_term_month), (3, 9));
+    }
+
+    #[test]
+    fn broken_term_months_fall_back() {
+        let s = Settings {
+            first_term_month: 9,
+            second_term_month: 3,
+            ..Settings::default()
+        };
+        assert_eq!(s.term_months(), crate::naming::TermMonths::default());
+        assert!(valid_term_months(3, 8));
+        assert!(!valid_term_months(0, 9));
+        assert!(!valid_term_months(3, 13));
     }
 
     #[test]

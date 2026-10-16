@@ -1,4 +1,4 @@
-//! SQLite 저장소(SPEC 8장). 설정·규칙·이동 기록·정리함을 `data.db` 하나에 둔다.
+//! SQLite 저장소(SPEC 8장). 설정·규칙·이동 기록·정리함·휴지통 기록을 `data.db` 하나에 둔다.
 //! 표 구조가 바뀔 때마다 `migrate`에 단계를 추가하고 `user_version`을 올린다.
 
 use rusqlite::{params, Connection, OptionalExtension};
@@ -60,6 +60,28 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
                  restored_at   INTEGER
              );
              PRAGMA user_version = 3;",
+        )?;
+    }
+    if version < 4 {
+        // 정리 규칙(SPEC 4장). 지운 규칙은 되돌릴 수 있게 deleted_at만 남긴다.
+        // miss_*: 추천과 다른 같은 폴더를 연속으로 고른 횟수("규칙을 바꿀까요?")
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS rules (
+                 id          INTEGER PRIMARY KEY,
+                 position    INTEGER NOT NULL,
+                 words       TEXT    NOT NULL,
+                 extensions  TEXT    NOT NULL,
+                 source_dir  TEXT,
+                 dest_dir    TEXT    NOT NULL,
+                 split       INTEGER NOT NULL,
+                 miss_streak INTEGER NOT NULL DEFAULT 0,
+                 miss_dir    TEXT,
+                 created_at  INTEGER NOT NULL,
+                 deleted_at  INTEGER
+             );
+             -- 규칙마다 넣은 횟수를 셀 때(추천을 찾을 때마다 규칙 목록을 읽는다)
+             CREATE INDEX IF NOT EXISTS moves_rule ON moves(rule);
+             PRAGMA user_version = 4;",
         )?;
     }
     Ok(())

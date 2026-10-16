@@ -15,12 +15,23 @@ pub struct MoveRecord {
 }
 
 pub fn record(conn: &Connection, original: &Path, moved: &Path) -> rusqlite::Result<i64> {
+    record_with_rule(conn, original, moved, None)
+}
+
+/// 규칙(추천)대로 넣은 이동이면 그 규칙 번호도 남긴다.
+pub fn record_with_rule(
+    conn: &Connection,
+    original: &Path,
+    moved: &Path,
+    rule: Option<i64>,
+) -> rusqlite::Result<i64> {
     conn.execute(
-        "INSERT INTO moves (original_path, moved_path, moved_at) VALUES (?1, ?2, ?3)",
+        "INSERT INTO moves (original_path, moved_path, moved_at, rule) VALUES (?1, ?2, ?3, ?4)",
         params![
             original.to_string_lossy(),
             moved.to_string_lossy(),
-            crate::db::now_ms()
+            crate::db::now_ms(),
+            rule.map(|r| r.to_string())
         ],
     )?;
     Ok(conn.last_insert_rowid())
