@@ -127,6 +127,7 @@ pub fn run(req: &SetupRequest) -> Result<Settings, String> {
         root_folder: Some(root_str),
         watch_folders: req.watch_folders.clone(),
         organize_mode: req.organize_mode,
+        ..Settings::default()
     })
 }
 

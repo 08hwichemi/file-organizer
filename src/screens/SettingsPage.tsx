@@ -1,23 +1,30 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Check } from "lucide-react";
+import { Check, Lightbulb, Zap } from "lucide-react";
+import ChoiceCard from "../components/ChoiceCard";
 import FolderPane, { type Toast } from "../components/FolderPane";
 import ModeChoice from "../components/ModeChoice";
 import WatchFolderEditor from "../components/WatchFolderEditor";
 import { errorMessage, getAppInfo } from "../lib/backend";
-import type { OrganizeMode } from "../lib/types";
+import type { OrganizeMode, PlaceMode } from "../lib/types";
 import { useAppStore } from "../store/useAppStore";
 import { useUpdateStore } from "../store/useUpdateStore";
 import "./SettingsPage.css";
+
+type SavedKey = "mode" | "watch" | "place" | "term";
+
+const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
 // 설정(SPEC 3-3). 바꾸면 바로 저장한다. 나머지 항목은 6단계에서 늘어난다.
 export default function SettingsPage() {
   const settings = useAppStore((s) => s.settings);
   const saveMode = useAppStore((s) => s.setOrganizeMode);
   const saveWatch = useAppStore((s) => s.setWatchFolders);
+  const savePlace = useAppStore((s) => s.setPlaceMode);
+  const saveTerm = useAppStore((s) => s.setTermMonths);
   const known = useAppStore((s) => s.setupInfo);
   const [watchDraft, setWatchDraft] = useState<string[]>(settings?.watchFolders ?? []);
-  const [saved, setSaved] = useState<"mode" | "watch" | null>(null);
-  const [errors, setErrors] = useState<{ mode?: string; watch?: string }>({});
+  const [saved, setSaved] = useState<SavedKey | null>(null);
+  const [errors, setErrors] = useState<Partial<Record<SavedKey, string>>>({});
   const [version, setVersion] = useState<string | null>(null);
   const [folderToast, setFolderToast] = useState<Toast | null>(null);
   const savedTimer = useRef<number>();
@@ -31,7 +38,7 @@ export default function SettingsPage() {
 
   if (!settings) return null;
 
-  const flashSaved = (which: "mode" | "watch") => {
+  const flashSaved = (which: SavedKey) => {
     setSaved(which);
     window.clearTimeout(savedTimer.current);
     savedTimer.current = window.setTimeout(() => setSaved(null), 2000);
@@ -45,6 +52,27 @@ export default function SettingsPage() {
       flashSaved("mode");
     } catch (e) {
       setErrors((prev) => ({ ...prev, mode: errorMessage(e) }));
+    }
+  };
+
+  const changePlace = async (mode: PlaceMode) => {
+    if (mode === settings.placeMode) return;
+    try {
+      await savePlace(mode);
+      setErrors((e) => ({ ...e, place: undefined }));
+      flashSaved("place");
+    } catch (e) {
+      setErrors((prev) => ({ ...prev, place: errorMessage(e) }));
+    }
+  };
+
+  const changeTerm = async (first: number, second: number) => {
+    try {
+      await saveTerm(first, second);
+      setErrors((e) => ({ ...e, term: undefined }));
+      flashSaved("term");
+    } catch (e) {
+      setErrors((prev) => ({ ...prev, term: errorMessage(e) }));
     }
   };
 
@@ -69,6 +97,77 @@ export default function SettingsPage() {
 
       <Section title="새 파일이 생기면" saved={saved === "mode"} error={errors.mode}>
         <ModeChoice value={settings.organizeMode} onChange={changeMode} />
+      </Section>
+
+      <Section
+        title="정리 방식"
+        description="정리 규칙에 맞는 파일을 어떻게 할지 골라요. 규칙에 맞지 않는 파일은 위의 방식대로 물어보거나 정리함에 모아요."
+        saved={saved === "place"}
+        error={errors.place}
+      >
+        <div className="stack-12" role="radiogroup" aria-label="정리 방식">
+          <ChoiceCard
+            name="place-mode"
+            checked={settings.placeMode === "suggest"}
+            onSelect={() => void changePlace("suggest")}
+            icon={<Lightbulb size={20} />}
+            title="추천만"
+            description="팝업에 추천 위치를 골라 둔 채로 물어봐요. ‘넣기’만 누르면 돼요."
+          />
+          <ChoiceCard
+            name="place-mode"
+            checked={settings.placeMode === "auto"}
+            onSelect={() => void changePlace("auto")}
+            icon={<Zap size={20} />}
+            title="바로 정리"
+            description="규칙에 맞는 파일은 묻지 않고 바로 넣은 뒤, 화면 오른쪽 아래에 알려 드려요. 잘못 넣었으면 그 자리에서 되돌릴 수 있어요."
+          />
+        </div>
+        {settings.organizeMode === "manual" && (
+          <p className="settings__note">
+            지금은 ‘모아 두고 나중에 정리’라서 새 파일은 모두 정리함으로 가요. 정리함의 ‘추천대로 모두’로 한꺼번에 넣을 수
+            있어요.
+          </p>
+        )}
+      </Section>
+
+      <Section
+        title="학년도·학기"
+        description={`규칙이 연도·학기 폴더를 나눌 때, 파일 이름에 연도·학기가 없으면 오늘 날짜로 정해요. ${termRule(
+          settings.firstTermMonth,
+          settings.secondTermMonth,
+        )}`}
+        saved={saved === "term"}
+        error={errors.term}
+      >
+        <div className="settings__terms">
+          <label className="settings__term">
+            <span>1학기 시작</span>
+            <select
+              value={settings.firstTermMonth}
+              onChange={(e) => void changeTerm(Number(e.target.value), settings.secondTermMonth)}
+            >
+              {MONTHS.map((m) => (
+                <option key={m} value={m} disabled={m >= settings.secondTermMonth}>
+                  {m}월
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="settings__term">
+            <span>2학기 시작</span>
+            <select
+              value={settings.secondTermMonth}
+              onChange={(e) => void changeTerm(settings.firstTermMonth, Number(e.target.value))}
+            >
+              {MONTHS.map((m) => (
+                <option key={m} value={m} disabled={m <= settings.firstTermMonth}>
+                  {m}월
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       </Section>
 
       <Section
@@ -102,6 +201,14 @@ export default function SettingsPage() {
       </Section>
     </div>
   );
+}
+
+/** "3~8월은 1학기, 9~12월은 2학기, 1~2월은 전 학년도 2학기예요." */
+function termRule(first: number, second: number): string {
+  const range = (a: number, b: number) => (a === b ? `${a}월` : `${a}~${b}월`);
+  const parts = [`${range(first, second - 1)}은 1학기`, `${range(second, 12)}은 2학기`];
+  if (first > 1) parts.push(`${range(1, first - 1)}은 전 학년도 2학기`);
+  return `${parts.join(", ")}예요.`;
 }
 
 function Section({

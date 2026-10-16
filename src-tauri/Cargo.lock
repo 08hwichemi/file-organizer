@@ -812,6 +812,7 @@ dependencies = [
 name = "file-organizer"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "notify",
  "rusqlite",
  "serde",

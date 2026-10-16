@@ -227,7 +227,116 @@
 .popup__done {
   flex: 1;
   min-height: 0;
-  padding: 22px 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px 20px 4px;
+  overflow-y: auto;
+}
+
+.popup__done-rule {
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--color-accent-hover);
+  font-weight: 500;
+}
+
+/* 추천 위치(시안: 파란 폴더 + "추천 위치 · 이름의 ‘수행평가’ 규칙") */
+.popup__suggest {
+  flex-shrink: 0;
+  padding: 0 20px 12px;
+}
+
+.popup__suggest-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1.5px solid #d9e3f7;
+  border-radius: var(--radius-md);
+  background: var(--color-accent-faint);
+  color: var(--color-text);
+  text-align: left;
+}
+
+.popup__suggest-btn--on {
+  border-color: var(--color-accent);
+}
+
+.popup__suggest-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.popup__suggest-label {
+  overflow: hidden;
+  color: var(--color-accent);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.popup__suggest-path {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.popup__target-new {
+  color: var(--color-text-sub);
+}
+
+/* "바로 정리"로 옮긴 파일 목록 */
+.popup__auto {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  list-style: none;
+}
+
+.popup__auto-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.popup__auto-item + .popup__auto-item {
+  border-top: 1px solid var(--color-line-soft);
+}
+
+.popup__auto-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.popup__auto-text .popup__done-name {
+  margin-top: 0;
+}
+
+.popup__auto-meta {
+  margin-top: 2px;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--color-text-sub);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.popup__auto-more {
+  margin: -8px 0 0;
+  font-size: 12.5px;
+  color: var(--color-text-sub);
 }
 
 .popup__done-row {

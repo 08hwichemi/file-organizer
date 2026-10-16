@@ -4,14 +4,19 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { mockBackend, mockEvents } from "../mocks/backend";
 import type {
   AppInfo,
+  DestSegment,
   FolderEntry,
   FolderMatch,
   InboxItem,
   OrganizeMode,
   PendingFile,
+  PlaceMode,
   PopupState,
   PutOutcome,
   PutResult,
+  Rule,
+  RuleInput,
+  RuleView,
   Settings,
   SetupInfo,
   SetupRequest,
@@ -76,6 +81,17 @@ export function setOrganizeMode(mode: OrganizeMode): Promise<Settings> {
 export function setWatchFolders(folders: string[]): Promise<Settings> {
   if (usingMocks) return mockBackend.setWatchFolders(folders);
   return invoke("set_watch_folders", { folders });
+}
+
+export function setPlaceMode(mode: PlaceMode): Promise<Settings> {
+  if (usingMocks) return mockBackend.setPlaceMode(mode);
+  return invoke("set_place_mode", { mode });
+}
+
+/** 1학기·2학기가 시작하는 달 */
+export function setTermMonths(first: number, second: number): Promise<Settings> {
+  if (usingMocks) return mockBackend.setTermMonths(first, second);
+  return invoke("set_term_months", { first, second });
 }
 
 export function listFolders(path: string): Promise<FolderEntry[]> {
@@ -176,6 +192,61 @@ export function restoreDeleted(deletionIds: number[]): Promise<UndoManyResult> {
 export function listInbox(): Promise<InboxItem[]> {
   if (usingMocks) return mockBackend.listInbox();
   return invoke("list_inbox");
+}
+
+/** "바로 정리" 알림 닫기 */
+export function dismissAuto(moveIds: number[]): Promise<void> {
+  if (usingMocks) return mockBackend.dismissAuto(moveIds);
+  return invoke("dismiss_auto", { moveIds });
+}
+
+/** 추천 위치에 넣기(정리함) */
+export function putSuggested(paths: string[]): Promise<PutOutcome[]> {
+  if (usingMocks) return mockBackend.putSuggested(paths);
+  return invoke("put_suggested", { paths });
+}
+
+export function listRules(): Promise<RuleView[]> {
+  if (usingMocks) return mockBackend.listRules();
+  return invoke("list_rules");
+}
+
+/** 폴더를 정리 폴더 아래 단계별로(나눌 수 있는 연도·학기·학급 폴더 표시) */
+export function describeDest(destDir: string): Promise<DestSegment[]> {
+  if (usingMocks) return mockBackend.describeDest(destDir);
+  return invoke("describe_dest", { destDir });
+}
+
+export function createRule(input: RuleInput): Promise<Rule> {
+  if (usingMocks) return mockBackend.createRule(input);
+  return invoke("create_rule", { input });
+}
+
+export function updateRule(id: number, input: RuleInput): Promise<Rule> {
+  if (usingMocks) return mockBackend.updateRule(id, input);
+  return invoke("update_rule", { id, input });
+}
+
+export function deleteRule(id: number): Promise<void> {
+  if (usingMocks) return mockBackend.deleteRule(id);
+  return invoke("delete_rule", { id });
+}
+
+export function restoreRule(id: number): Promise<void> {
+  if (usingMocks) return mockBackend.restoreRule(id);
+  return invoke("restore_rule", { id });
+}
+
+/** 규칙 순서 한 칸 위·아래로 */
+export function moveRule(id: number, up: boolean): Promise<boolean> {
+  if (usingMocks) return mockBackend.moveRule(id, up);
+  return invoke("move_rule", { id, up });
+}
+
+/** "규칙을 바꿀까요?" 답: destDir가 있으면 그 폴더로 바꾸고, null이면 그대로 둔다 */
+export function answerRuleChange(id: number, destDir: string | null): Promise<void> {
+  if (usingMocks) return mockBackend.answerRuleChange(id, destDir);
+  return invoke("answer_rule_change", { id, destDir });
 }
 
 /** 폴더 고르기 창. 취소하면 null. */

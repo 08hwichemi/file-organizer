@@ -1,0 +1,155 @@
+.rules {
+  max-width: 1080px;
+}
+
+.rules__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.rules__new {
+  flex-shrink: 0;
+  min-height: var(--control-height-main);
+}
+
+.rules__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  list-style: none;
+  overflow: hidden;
+}
+
+.rules__item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+}
+
+.rules__item + .rules__item {
+  border-top: 1px solid var(--color-line-soft);
+}
+
+.rules__item--missing {
+  background: #fdf6f5;
+}
+
+.rules__num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-bg);
+  color: var(--color-text-sub);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rules__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rules__cond {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+.rules__dest {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13.5px;
+  color: var(--color-text-strong);
+}
+
+.rules__dest svg {
+  flex-shrink: 0;
+}
+
+.rules__dest span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rules__meta {
+  font-size: 12.5px;
+  color: var(--color-text-sub);
+}
+
+.rules__missing {
+  color: var(--color-danger);
+  font-weight: 500;
+}
+
+.rules__actions {
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.rules__delete {
+  color: var(--color-danger);
+}
+
+.rules__empty {
+  padding: 40px 24px;
+  border: 1px dashed var(--color-line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  text-align: center;
+}
+
+.rules__empty-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.rules__empty p {
+  max-width: 520px;
+  margin: 8px auto 0;
+  font-size: 13.5px;
+  color: var(--color-text-sub);
+}
+
+.rules__toast {
+  position: sticky;
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: #1f2328;
+  color: #ffffff;
+  font-size: 13.5px;
+}
+
+.rules__toast-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.rules__undo {
+  min-height: 32px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: #a9c2f5;
+  font-size: 13.5px;
+  font-weight: 600;
+}

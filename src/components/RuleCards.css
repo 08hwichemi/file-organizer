@@ -1,0 +1,127 @@
+/* 시안 popup.dc.html의 규칙 만들기 카드 */
+.rule-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+}
+
+.rule-card--done {
+  gap: 6px;
+  border-color: #cfe5d8;
+  background: #f3faf6;
+}
+
+.rule-card__title {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+.rule-card__title--done {
+  color: var(--color-success);
+}
+
+.rule-card__sub {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--color-text-sub);
+}
+
+.rule-card--done .rule-card__sub {
+  margin-top: 0;
+  font-size: 12.5px;
+}
+
+.rule-card__line {
+  font-size: 13px;
+}
+
+/* 단어 칩은 버튼 줄이 아니라 단어 묶음이라 여러 줄로 놓일 수 있다 */
+.rule-card__words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rule-card__word {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 17px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.rule-card__word:hover {
+  background: var(--color-surface-sub);
+}
+
+.rule-card__word--on,
+.rule-card__word--on:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.rule-card__check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.rule-card__check input {
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.rule-card__preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 9px;
+  background: var(--color-surface-sub);
+  font-size: 13px;
+}
+
+.rule-card__preview > div {
+  display: flex;
+  gap: 10px;
+}
+
+.rule-card__preview dt {
+  flex-shrink: 0;
+  width: 40px;
+  color: var(--color-text-sub);
+}
+
+.rule-card__preview dd {
+  min-width: 0;
+  margin: 0;
+  font-weight: 500;
+}
+
+.rule-card__example dd {
+  color: var(--color-text-sub);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+
+.rule-card__actions {
+  justify-content: flex-end;
+}
+
+.rule-card__actions .btn {
+  min-height: 40px;
+}

@@ -1,7 +1,7 @@
 import { useDraggable } from "@dnd-kit/core";
-import { Download, Trash2 } from "lucide-react";
+import { ArrowRight, Download, Trash2 } from "lucide-react";
 import { formatAgo } from "../lib/format";
-import { friendlyName, samePath, type KnownFolders } from "../lib/paths";
+import { displayPath, friendlyName, samePath, type KnownFolders } from "../lib/paths";
 import type { InboxItem } from "../lib/types";
 import FileBadge from "./FileBadge";
 import "./InboxFileList.css";
@@ -21,6 +21,11 @@ interface Props {
   importing: boolean;
   /** 고른 파일을 휴지통으로 */
   onTrash: () => void;
+  /** 추천 위치에 넣기(줄의 [넣기], 위의 [추천대로 모두]) */
+  onAccept: (paths: string[]) => void;
+  root: string | null;
+  separator: string;
+  busy: boolean;
 }
 
 export const ALL_TAB = "all";
@@ -42,6 +47,7 @@ export default function InboxFileList(props: Props) {
   ];
   const visible = tab === ALL_TAB ? items : items.filter((i) => samePath(i.sourceDir, tab));
   const allVisibleSelected = visible.length > 0 && visible.every((i) => selected.has(i.path));
+  const suggested = visible.filter((i) => i.suggestion);
 
   const importButton = (
     <button
@@ -73,6 +79,17 @@ export default function InboxFileList(props: Props) {
             </button>
           ))}
         </div>
+        {suggested.length > 0 && (
+          <button
+            type="button"
+            className="ifiles__accept-all"
+            onClick={() => props.onAccept(suggested.map((i) => i.path))}
+            disabled={props.busy}
+            title={`추천 위치가 있는 파일 ${suggested.length}개를 한꺼번에 넣어요`}
+          >
+            추천대로 모두
+          </button>
+        )}
       </div>
 
       {visible.length > 0 &&
@@ -117,6 +134,11 @@ export default function InboxFileList(props: Props) {
               checked={selected.has(item.path)}
               dimmed={!!props.dragging?.includes(item.path)}
               onToggle={() => onToggle(item.path)}
+              suggestion={
+                item.suggestion ? displayPath(props.root, item.suggestion.destDir, props.separator) : null
+              }
+              onAccept={() => props.onAccept([item.path])}
+              busy={props.busy}
             />
           ))}
         </ul>
@@ -139,12 +161,19 @@ function FileRow({
   checked,
   dimmed,
   onToggle,
+  suggestion,
+  onAccept,
+  busy,
 }: {
   item: InboxItem;
   source: string;
   checked: boolean;
   dimmed: boolean;
   onToggle: () => void;
+  /** 추천 위치(보여 줄 경로) */
+  suggestion: string | null;
+  onAccept: () => void;
+  busy: boolean;
 }) {
   const { attributes, listeners, setNodeRef } = useDraggable({ id: item.path, data: { item } });
   return (
@@ -173,14 +202,42 @@ function FileRow({
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       />
-      <FileBadge name={item.name} size={36} />
-      <div className="ifiles__text">
-        <div className="ifiles__name" title={item.name}>
-          {item.name}
+      <div className="ifiles__main">
+        <div className="ifiles__top">
+          <FileBadge name={item.name} size={36} />
+          <div className="ifiles__text">
+            <div className="ifiles__name" title={item.name}>
+              {item.name}
+            </div>
+            <div className="ifiles__meta">
+              {source} · {formatAgo(item.addedAt)}
+            </div>
+          </div>
         </div>
-        <div className="ifiles__meta">
-          {source} · {formatAgo(item.addedAt)}
-        </div>
+        {suggestion ? (
+          <div className="ifiles__sug">
+            <span className="ifiles__sug-path" title={`추천 위치: ${suggestion}`}>
+              <ArrowRight size={12} aria-hidden="true" />
+              <span>{suggestion}</span>
+            </span>
+            <button
+              type="button"
+              className="ifiles__sug-put"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAccept();
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              disabled={busy}
+              aria-label={`${item.name} 추천 위치에 넣기`}
+            >
+              넣기
+            </button>
+          </div>
+        ) : (
+          <div className="ifiles__nosug">추천 없음 · 오른쪽 폴더로 끌어다 놓으세요</div>
+        )}
       </div>
     </li>
   );

@@ -9,8 +9,10 @@ mod folders;
 mod history;
 mod inbox;
 mod mover;
+mod naming;
 mod popup;
 mod recycle;
+mod rules;
 mod settings;
 mod setup;
 mod watcher;
@@ -39,6 +41,7 @@ pub fn run() {
                 db: Mutex::new(conn),
                 watcher,
                 pending: Mutex::new(VecDeque::new()),
+                auto_moved: Mutex::new(Vec::new()),
             };
             state.apply_watch_folders(&current);
             app.manage(state);
@@ -85,6 +88,18 @@ pub fn run() {
             commands::defer_file,
             commands::hide_popup,
             commands::list_inbox,
+            commands::set_place_mode,
+            commands::set_term_months,
+            commands::dismiss_auto,
+            commands::put_suggested,
+            commands::list_rules,
+            commands::describe_dest,
+            commands::create_rule,
+            commands::update_rule,
+            commands::delete_rule,
+            commands::restore_rule,
+            commands::move_rule,
+            commands::answer_rule_change,
         ])
         .run(tauri::generate_context!())
         .expect("파일 정리 도우미를 시작하지 못했습니다");

@@ -9,11 +9,18 @@ export interface AppInfo {
 /** 새 파일이 생겼을 때: ask = 바로 물어보기(팝업), manual = 정리함에 모아 두기 */
 export type OrganizeMode = "ask" | "manual";
 
+/** 규칙에 맞는 파일: suggest = 추천만(팝업에서 골라 둠), auto = 바로 정리(묻지 않고 옮기고 알림) */
+export type PlaceMode = "suggest" | "auto";
+
 export interface Settings {
   setupDone: boolean;
   rootFolder: string | null;
   watchFolders: string[];
   organizeMode: OrganizeMode;
+  placeMode: PlaceMode;
+  /** 1학기·2학기가 시작하는 달(기본 3·9) */
+  firstTermMonth: number;
+  secondTermMonth: number;
 }
 
 export interface ExampleFolder {
@@ -70,16 +77,94 @@ export interface PendingFile {
   size: number;
 }
 
+/** 정리 규칙(SPEC 4장): 조건 → 저장 위치 */
+export interface Rule {
+  id: number;
+  /** 파일 이름에 모두 들어 있어야 하는 단어 */
+  words: string[];
+  /** 확장자(소문자, 점 없이). 비면 아무 형식 */
+  extensions: string[];
+  /** 이 폴더에서 온 파일만 */
+  sourceDir: string | null;
+  destDir: string;
+  /** 연도·학기·학급 폴더를 파일마다 나눌지 */
+  split: boolean;
+  /** 이 규칙으로 넣은 횟수 */
+  used: number;
+}
+
+export interface RuleInput {
+  words: string[];
+  extensions: string[];
+  sourceDir: string | null;
+  destDir: string;
+  split: boolean;
+}
+
+/** 저장 위치 한 단계. template = 나눌 수 있는 폴더의 자리표시 모양(예: "[연도]") */
+export interface DestSegment {
+  name: string;
+  template: string | null;
+}
+
+export interface RuleView extends Rule {
+  segments: DestSegment[];
+  /** 저장 위치 폴더가 없어졌는지 */
+  missing: boolean;
+}
+
+/** 추천 위치 */
+export interface Suggestion {
+  rule: Rule;
+  destDir: string;
+  /** 이미 있는 폴더인지(없으면 넣을 때 만든다) */
+  exists: boolean;
+  /** 지금 있는 가장 깊은 폴더 */
+  reveal: string;
+}
+
+/** "바로 정리"로 옮긴 파일 */
+export interface AutoMoved {
+  moveId: number;
+  name: string;
+  destDir: string;
+  rule: Rule;
+}
+
 export interface PopupState {
   current: PendingFile | null;
   /** 지금 파일 말고 기다리는 파일 수 */
   remaining: number;
+  suggestion: Suggestion | null;
+  autoMoved: AutoMoved[];
+}
+
+/** 넣은 뒤 "다음에도 여기에?" 카드 */
+export interface RuleDraft {
+  words: string[];
+  preselected: string[];
+  destDir: string;
+  segments: DestSegment[];
+  /** 예: "2028년 2학기" */
+  exampleLabel: string;
+  exampleSegments: string[];
+}
+
+/** "규칙을 바꿀까요?" */
+export interface RuleChange {
+  rule: Rule;
+  oldDir: string;
+  newDir: string;
 }
 
 export interface PutResult {
   moveId: number;
   movedPath: string;
   destDir: string;
+  /** 추천(규칙)대로 넣었으면 그 규칙 */
+  rule: Rule | null;
+  change: RuleChange | null;
+  draft: RuleDraft | null;
 }
 
 export interface InboxItem {
@@ -89,6 +174,7 @@ export interface InboxItem {
   sourceDir: string;
   addedAt: number;
   size: number;
+  suggestion: Suggestion | null;
 }
 
 /** 여러 파일 넣기 결과(파일마다) */
