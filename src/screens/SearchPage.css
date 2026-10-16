@@ -114,27 +114,168 @@
   padding: 8px 18px 0;
 }
 
-.finder__list {
+/* 찾은 파일: 탐색기의 "자세히" 보기처럼 열 제목(누르면 정렬) + 한 줄씩. 제목 줄은 내려도 위에 남는다. */
+.finder__table {
+  --finder-cols: minmax(0, 2.6fr) minmax(0, 1.4fr) 152px 104px 72px;
   flex: 1;
   min-height: 0;
+  overflow: auto;
+  scroll-padding-top: 38px;
+  container-type: inline-size;
+}
+
+.finder__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: var(--finder-cols);
+  align-items: stretch;
+  padding: 0 6px;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-surface);
+}
+
+/* 열 제목 칸: 제목(누르면 정렬) + 오른쪽 끝의 선(끌면 너비, 두 번 누르면 내용에 맞춤) */
+.finder__thc {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  border-right: 1px solid var(--color-line-soft);
+}
+
+.finder__thc:last-child {
+  border-right: 0;
+}
+
+.finder__resize {
+  position: absolute;
+  top: 0;
+  right: -5px;
+  z-index: 2;
+  width: 9px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.finder__resize::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 4px;
+  width: 1px;
+  background: transparent;
+}
+
+.finder__resize:hover::after,
+.is-col-resizing .finder__resize::after {
+  background: var(--color-accent);
+}
+
+body.is-col-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.finder__th {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 10px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-sub);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+}
+
+button.finder__th:hover {
+  background: var(--color-surface-sub);
+  color: var(--color-text);
+}
+
+.finder__th--on {
+  color: var(--color-accent-hover);
+  font-weight: 700;
+}
+
+.finder__th--size {
+  justify-content: flex-end;
+}
+
+.finder__list {
   margin: 0;
-  padding: 6px;
-  overflow-y: auto;
+  padding: 4px 6px 6px;
   list-style: none;
 }
 
 .finder__row {
-  display: flex;
+  display: grid;
+  grid-template-columns: var(--finder-cols);
   align-items: center;
-  gap: 11px;
-  min-width: 0;
-  padding: 8px 10px;
+  min-height: 44px;
   border-radius: var(--radius-sm);
   cursor: default;
 }
 
 .finder__row--on {
   background: var(--color-accent-faint);
+}
+
+.finder__td {
+  min-width: 0;
+  padding: 0 10px;
+  overflow: hidden;
+  font-size: 12.5px;
+  color: var(--color-text-sub);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finder__td--name {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  overflow: visible;
+}
+
+.finder__td--size {
+  text-align: right;
+}
+
+.finder__td--dir {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finder__dir {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.finder__badge {
+  flex-shrink: 0;
+  width: 38px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 700;
 }
 
 .finder__text {
@@ -144,14 +285,17 @@
 
 .finder__name {
   overflow: hidden;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 500;
+  color: var(--color-text);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* 이름 아래 위치: 좁은 창에서만(위치 칸을 숨길 때) */
 .finder__meta {
-  margin-top: 2px;
+  display: none;
+  margin-top: 1px;
   overflow: hidden;
   font-size: 12px;
   color: var(--color-text-sub);
@@ -160,7 +304,7 @@
 }
 
 .finder__rule {
-  margin-left: 6px;
+  flex-shrink: 0;
   padding: 0 6px;
   border-radius: 4px;
   background: var(--color-accent-soft);
@@ -169,18 +313,45 @@
   font-weight: 600;
 }
 
-/* 고른 줄에만 [위치] [열기] */
-.finder__actions {
+/* 고른 줄에만 [위치] [열기](이름 칸 오른쪽, 이름은 그만큼 줄여 보여 줌) */
+.finder__row .finder__actions {
+  display: none;
   flex-shrink: 0;
-  visibility: hidden;
 }
 
 .finder__row--on .finder__actions {
-  visibility: visible;
+  display: flex;
 }
 
 .finder__actions .btn {
+  padding: 0 10px;
   font-size: 12.5px;
+}
+
+/* 열 너비를 직접 바꾼 뒤: 탐색기처럼 그 너비 그대로, 넓으면 표 안에서 옆으로 내려 본다 */
+.finder__table--sized .finder__head,
+.finder__table--sized .finder__list {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* 좁은 창(너비를 바꾸지 않았을 때): 위치·유형 칸을 숨기고 위치는 이름 아래에 */
+@container (max-width: 800px) {
+  .finder__table:not(.finder__table--sized) .finder__head,
+  .finder__table:not(.finder__table--sized) .finder__row {
+    grid-template-columns: minmax(0, 1fr) 150px 70px;
+  }
+
+  .finder__table:not(.finder__table--sized) .finder__thc--dir,
+  .finder__table:not(.finder__table--sized) .finder__thc--type,
+  .finder__table:not(.finder__table--sized) .finder__td--dir,
+  .finder__table:not(.finder__table--sized) .finder__td--type {
+    display: none;
+  }
+
+  .finder__table:not(.finder__table--sized) .finder__meta {
+    display: block;
+  }
 }
 
 .finder__empty {

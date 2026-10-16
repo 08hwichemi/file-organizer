@@ -71,3 +71,31 @@ export function formatDate(ms: number, now = new Date()): string {
   if (d.getFullYear() === now.getFullYear()) return `${d.getMonth() + 1}월 ${d.getDate()}일`;
   return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}.`;
 }
+
+/** 탐색기의 "수정한 날짜"처럼: "2026-10-16 오후 8:53" */
+export function formatDateTime(ms: number): string {
+  const d = new Date(ms);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const h = d.getHours();
+  const half = h < 12 ? "오전" : "오후";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${half} ${h12}:${pad(d.getMinutes())}`;
+}
+
+const TYPE_NAMES: Record<string, string> = {
+  HWP: "한글 문서", HWPX: "한글 문서",
+  DOC: "Word 문서", DOCX: "Word 문서",
+  XLS: "Excel 워크시트", XLSX: "Excel 워크시트", XLSM: "Excel 워크시트", CSV: "CSV 파일",
+  PPT: "PowerPoint", PPTX: "PowerPoint",
+  PDF: "PDF 문서", TXT: "텍스트 문서",
+  JPG: "JPG 이미지", JPEG: "JPG 이미지", PNG: "PNG 이미지", GIF: "GIF 이미지", HEIC: "HEIC 이미지", WEBP: "WEBP 이미지",
+  ZIP: "압축 파일", "7Z": "압축 파일", ALZ: "압축 파일", EGG: "압축 파일",
+  MP4: "동영상", MOV: "동영상", MP3: "소리 파일", EXE: "프로그램",
+};
+
+/** 탐색기의 "유형"처럼: "PDF 문서", "한글 문서", 모르는 것은 "ZIP 파일" */
+export function typeName(name: string): string {
+  const ext = splitName(name)[1].slice(1).toUpperCase();
+  if (!ext) return "파일";
+  return TYPE_NAMES[ext] ?? `${ext} 파일`;
+}

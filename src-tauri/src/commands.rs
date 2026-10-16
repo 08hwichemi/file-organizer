@@ -284,7 +284,7 @@ pub struct AppInfo {
 #[tauri::command]
 pub fn app_info(app: AppHandle) -> AppInfo {
     AppInfo {
-        name: "파일 정리 도우미",
+        name: "AutoFolder",
         version: app.package_info().version.to_string(),
         os: std::env::consts::OS,
     }

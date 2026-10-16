@@ -1,5 +1,18 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Briefcase, Check, Lightbulb, RotateCcw, School, Wand2, Zap } from "lucide-react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  Briefcase,
+  Check,
+  FolderTree,
+  Info,
+  Lightbulb,
+  RotateCcw,
+  School,
+  Search,
+  SlidersHorizontal,
+  Wand2,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 import ChoiceCard from "../components/ChoiceCard";
 import Dialog from "../components/Dialog";
 import FavoriteSettings from "../components/FavoriteSettings";
@@ -8,7 +21,7 @@ import ModeChoice from "../components/ModeChoice";
 import WatchFolderEditor from "../components/WatchFolderEditor";
 import { errorMessage, getAppInfo, getSearchInfo, pickFolder } from "../lib/backend";
 import type { OrganizeMode, PlaceMode, SearchInfo } from "../lib/types";
-import { useAppStore } from "../store/useAppStore";
+import { useAppStore, type SettingsTab } from "../store/useAppStore";
 import { useUpdateStore } from "../store/useUpdateStore";
 import terms from "../../src-tauri/resources/TERMS.txt?raw";
 import thirdParty from "../../src-tauri/resources/THIRD_PARTY.txt?raw";
@@ -34,9 +47,22 @@ const WAIT_CHOICES = [0, 5, 10, 20, 30];
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
+/** 설정을 네 갈래로 나눠 탭으로 보여 준다(한 화면에 다 있으면 너무 길어서 — 사용자 요청) */
+const TABS: { key: SettingsTab; label: string; Icon: LucideIcon }[] = [
+  { key: "organize", label: "정리 방식", Icon: SlidersHorizontal },
+  { key: "folders", label: "폴더", Icon: FolderTree },
+  { key: "search", label: "파일 검색", Icon: Search },
+  { key: "app", label: "프로그램", Icon: Info },
+];
+
+/** 지금 보이는 탭(Section이 자기 탭일 때만 그려지게) */
+const TabContext = createContext<SettingsTab>("organize");
+
 // 설정(SPEC 3-3). 바꾸면 바로 저장한다.
 export default function SettingsPage() {
   const settings = useAppStore((s) => s.settings);
+  const tab = useAppStore((s) => s.settingsTab);
+  const setTab = useAppStore((s) => s.setSettingsTab);
   const redoSetup = useAppStore((s) => s.redoSetup);
   const saveMode = useAppStore((s) => s.setOrganizeMode);
   const saveWatch = useAppStore((s) => s.setWatchFolders);
@@ -148,10 +174,27 @@ export default function SettingsPage() {
   };
 
   return (
+    <TabContext.Provider value={tab}>
     <div className="page settings">
       <h1 className="page__title">설정</h1>
 
-      <Section
+      <div className="settings__tabs" role="tablist" aria-label="설정 갈래">
+        {TABS.map(({ key, label, Icon }) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={tab === key}
+            className={`settings__tab${tab === key ? " settings__tab--on" : ""}`}
+            onClick={() => setTab(key)}
+          >
+            <Icon size={16} aria-hidden="true" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <Section tab="organize"
         title="쓰는 곳"
         description="자동 분류 낱말(고친 적 없을 때)과 연도를 정하는 방식이 달라져요. 이미 만든 폴더는 그대로 둬요."
         saved={saved === "kind"}
@@ -177,11 +220,11 @@ export default function SettingsPage() {
         </div>
       </Section>
 
-      <Section title="새 파일이 생기면" saved={saved === "mode"} error={errors.mode}>
+      <Section tab="organize" title="새 파일이 생기면" saved={saved === "mode"} error={errors.mode}>
         <ModeChoice value={settings.organizeMode} onChange={changeMode} />
       </Section>
 
-      <Section
+      <Section tab="organize"
         title="정리 방식"
         description="새 파일을 얼마나 알아서 정리할지 골라요. 무엇을 기준으로 나누는지는 왼쪽 ‘정리 규칙’에서 보고 고칠 수 있어요."
         saved={saved === "place"}
@@ -244,7 +287,7 @@ export default function SettingsPage() {
       </Section>
 
       {settings.userKind !== "general" && (
-      <Section
+      <Section tab="organize"
         title="학년도·학기"
         description={`규칙이 연도·학기 폴더를 나눌 때, 파일 이름에 연도·학기가 없으면 오늘 날짜로 정해요. ${termRule(
           settings.firstTermMonth,
@@ -285,7 +328,7 @@ export default function SettingsPage() {
 
       )}
 
-      <Section
+      <Section tab="folders"
         title="지켜볼 폴더"
         description="골라 둔 폴더에 바로 저장되는 파일만 봐요."
         saved={saved === "watch"}
@@ -294,7 +337,7 @@ export default function SettingsPage() {
         <WatchFolderEditor known={known} value={watchDraft} onChange={changeWatch} />
       </Section>
 
-      <Section
+      <Section tab="folders"
         title="정리 폴더"
         description="정리 폴더 안의 폴더를 만들고, 이름을 바꾸고, 옮기고, 지울 수 있어요. 폴더에 마우스를 올리면 나오는 ⋯ 를 누르세요. 지운 폴더는 휴지통으로 가요."
         saved={saved === "root"}
@@ -319,7 +362,7 @@ export default function SettingsPage() {
       </Section>
 
       {settings.rootFolder && (
-        <Section
+        <Section tab="folders"
           title="자주 쓰는 폴더"
           description="정리함에서 파일을 고르고 숫자 키 1~6을 누르면 이 폴더에 들어가요. 고르지 않은 칸은 많이 넣은 폴더부터 자동으로 채워요."
           saved={saved === "fav"}
@@ -334,7 +377,7 @@ export default function SettingsPage() {
         </Section>
       )}
 
-      <Section
+      <Section tab="search"
         title="파일 검색"
         description="왼쪽 메뉴의 ‘파일 검색’에서 찾아요. 단축키를 누르면 다른 프로그램을 쓰다가도 바로 이 창의 검색 화면이 열려요."
         saved={saved === "search" || saved === "scope"}
@@ -382,7 +425,7 @@ export default function SettingsPage() {
         {searchInfo && <p className="settings__note settings__note--plain">{searchStatus(searchInfo, settings.searchWholePc)}</p>}
       </Section>
 
-      <Section title="자동 실행" saved={saved === "autostart"} error={errors.autostart}>
+      <Section tab="app" title="자동 실행" saved={saved === "autostart"} error={errors.autostart}>
         <label className="settings__toggle">
           <input
             type="checkbox"
@@ -399,11 +442,11 @@ export default function SettingsPage() {
         </label>
       </Section>
 
-      <Section title="업데이트" description="새 버전이 나오면 프로그램이 알아서 알려 드려요(켤 때와 하루에 한 번 확인).">
+      <Section tab="app" title="업데이트" description="새 버전이 나오면 프로그램이 알아서 알려 드려요(켤 때와 하루에 한 번 확인).">
         <UpdateRow version={version} />
       </Section>
 
-      <Section
+      <Section tab="app"
         title="처음 설정 다시 하기"
         description="처음 켰을 때 고른 것(쓰는 곳, 정리 폴더, 예시 폴더, 지켜볼 폴더, 새 파일 알림 방식)을 한 번에 다시 골라요. 지금 설정이 골라진 채로 열리고, 정리 규칙·자동 분류 단어·기록과 폴더·파일은 그대로 둬요."
       >
@@ -415,10 +458,11 @@ export default function SettingsPage() {
         </div>
       </Section>
 
-      <Section title="정보">
+      <Section tab="app" title="정보">
         <div className="settings__about">
           <div className="settings__about-text">
-            <strong>파일 정리 도우미</strong>
+            <strong>AutoFolder</strong>
+            <span className="settings__toggle-desc">새 파일 자동 정리 · 예전 이름 "파일 정리 도우미"</span>
             <span className="settings__about-line">
               {version ? `버전 ${version}` : "버전 확인 중"} · 만든 사람 이용휘(화학 교사)
             </span>
@@ -503,6 +547,7 @@ export default function SettingsPage() {
         </Dialog>
       )}
     </div>
+    </TabContext.Provider>
   );
 }
 
@@ -515,18 +560,22 @@ function termRule(first: number, second: number): string {
 }
 
 function Section({
+  tab,
   title,
   description,
   saved,
   error,
   children,
 }: {
+  /** 이 칸이 있는 탭 */
+  tab: SettingsTab;
   title: string;
   description?: string;
   saved?: boolean;
   error?: string;
   children: ReactNode;
 }) {
+  if (useContext(TabContext) !== tab) return null;
   return (
     <section className="settings__section">
       <div className="settings__head">

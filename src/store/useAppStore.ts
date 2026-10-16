@@ -5,6 +5,8 @@ import type { OrganizeMode, PlaceMode, Settings, SetupInfo, SetupRequest, UserKi
 /** redo = 설정에서 "처음 설정 다시 하기"를 연 상태(취소하면 ready로) */
 type Status = "loading" | "setup" | "redo" | "ready" | "error";
 export type Page = "inbox" | "search" | "rename" | "rules" | "settings";
+/** 설정 화면의 탭: 정리 방식 · 폴더 · 파일 검색 · 프로그램 */
+export type SettingsTab = "organize" | "folders" | "search" | "app";
 
 interface AppState {
   status: Status;
@@ -13,6 +15,8 @@ interface AppState {
   setupInfo: SetupInfo | null;
   loadError: string | null;
   page: Page;
+  /** 설정 화면에서 보고 있는 탭(다른 화면에 갔다 와도 그대로) */
+  settingsTab: SettingsTab;
   /** 파일 검색 입력 칸에 초점을 줄 때마다 1씩 늘린다(단축키·트레이로 열었을 때) */
   searchFocus: number;
 
@@ -32,6 +36,9 @@ interface AppState {
   setSearchWholePc: (enabled: boolean) => Promise<void>;
   setUserKind: (kind: UserKind) => Promise<void>;
   goTo: (page: Page) => void;
+  /** 설정 화면의 그 탭으로 */
+  openSettings: (tab: SettingsTab) => void;
+  setSettingsTab: (tab: SettingsTab) => void;
   /** 파일 검색 화면으로 가서 입력 칸에 초점 */
   openSearch: () => void;
 }
@@ -42,6 +49,7 @@ export const useAppStore = create<AppState>((set) => ({
   setupInfo: null,
   loadError: null,
   page: "inbox",
+  settingsTab: "organize",
   searchFocus: 0,
 
   async load() {
@@ -116,6 +124,14 @@ export const useAppStore = create<AppState>((set) => ({
 
   goTo(page) {
     set({ page });
+  },
+
+  openSettings(tab) {
+    set({ page: "settings", settingsTab: tab });
+  },
+
+  setSettingsTab(tab) {
+    set({ settingsTab: tab });
   },
 
   openSearch() {

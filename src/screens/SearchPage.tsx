@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FolderOpen, Search, X } from "lucide-react";
-import FileBadge from "../components/FileBadge";
+import { ArrowDown, ArrowUp, FolderOpen, Search, X } from "lucide-react";
 import {
   errorMessage,
   getSearchInfo,
@@ -10,7 +9,7 @@ import {
   revealPath,
   searchFiles,
 } from "../lib/backend";
-import { formatDate, formatSize } from "../lib/format";
+import { fileBadge, formatDateTime, formatSize, typeName } from "../lib/format";
 import { displayPath } from "../lib/paths";
 import type { SearchResponse, SearchSort } from "../lib/types";
 import { useAppStore } from "../store/useAppStore";
@@ -21,22 +20,54 @@ const ALL = "";
 // 다른 화면에 갔다 와도 검색어가 그대로 남게
 let lastQuery = "";
 
-const SORTS: { value: SearchSort; label: string }[] = [
-  { value: "best", label: "이름에 맞는 것 먼저" },
-  { value: "newest", label: "최근 수정한 것부터" },
-  { value: "oldest", label: "오래된 것부터" },
-  { value: "nameAsc", label: "이름 가나다순" },
-  { value: "nameDesc", label: "이름 역순" },
-  { value: "largest", label: "큰 파일부터" },
-  { value: "smallest", label: "작은 파일부터" },
+/**
+ * 탐색기처럼 열 제목을 누르면 정렬. 누를 때마다 [처음 방향] → [거꾸로] → 기본 순서(이름에 맞는 것 먼저).
+ * 처음 방향: 이름·유형은 가나다순, 날짜는 최근 것부터, 크기는 큰 것부터(탐색기와 같게).
+ */
+type Column = "name" | "modified" | "type" | "size";
+const COLUMNS: { key: Column; label: string; first: SearchSort; second: SearchSort; firstText: string; secondText: string }[] = [
+  { key: "name", label: "이름", first: "nameAsc", second: "nameDesc", firstText: "가나다순", secondText: "역순" },
+  { key: "modified", label: "수정한 날짜", first: "newest", second: "oldest", firstText: "최근 것부터", secondText: "오래된 것부터" },
+  { key: "type", label: "유형", first: "typeAsc", second: "typeDesc", firstText: "가나다순", secondText: "역순" },
+  { key: "size", label: "크기", first: "largest", second: "smallest", firstText: "큰 것부터", secondText: "작은 것부터" },
 ];
+/** 위로 화살표 = 작은 값(가·오래된·작은)부터 */
+const ASCENDING: SearchSort[] = ["nameAsc", "oldest", "typeAsc", "smallest"];
+const ALL_SORTS: SearchSort[] = ["best", ...COLUMNS.flatMap((c) => [c.first, c.second])];
 const SORT_KEY = "finder.sort";
+
+/** 표의 열(왼쪽부터). 위치 열은 정렬하지 않는다. */
+type ColKey = "name" | "dir" | "modified" | "type" | "size";
+type Widths = Record<ColKey, number>;
+const COL_ORDER: ColKey[] = ["name", "dir", "modified", "type", "size"];
+const MIN_WIDTH: Widths = { name: 140, dir: 80, modified: 96, type: 72, size: 56 };
+const MAX_WIDTH = 1000;
+const WIDTHS_KEY = "finder.columns";
+
+/** 직접 바꾼 열 너비(없으면 창에 맞춰 나눠 쓴다) */
+function savedWidths(): Widths | null {
+  try {
+    const v = JSON.parse(window.localStorage.getItem(WIDTHS_KEY) ?? "null") as Partial<Widths> | null;
+    if (!v || !COL_ORDER.every((k) => typeof v[k] === "number" && v[k]! > 0)) return null;
+    return v as Widths;
+  } catch {
+    return null;
+  }
+}
+
+function storeWidths(w: Widths) {
+  try {
+    window.localStorage.setItem(WIDTHS_KEY, JSON.stringify(w));
+  } catch {
+    // 기억하지 못해도 이번에는 그대로 쓴다
+  }
+}
 
 /** 고른 정렬은 이 PC에 기억해 둔다(다음에 켜도 그대로) */
 function savedSort(): SearchSort {
   try {
     const v = window.localStorage.getItem(SORT_KEY);
-    return SORTS.some((s) => s.value === v) ? (v as SearchSort) : "best";
+    return ALL_SORTS.includes(v as SearchSort) ? (v as SearchSort) : "best";
   } catch {
     return "best";
   }
@@ -65,7 +96,7 @@ export default function SearchPage() {
   const settings = useAppStore((s) => s.settings);
   const sep = useAppStore((s) => s.setupInfo?.separator ?? "\\");
   const focusToken = useAppStore((s) => s.searchFocus);
-  const goTo = useAppStore((s) => s.goTo);
+  const openSettings = useAppStore((s) => s.openSettings);
   const root = settings?.rootFolder ?? null;
 
   const [query, setQuery] = useState(lastQuery);
@@ -76,6 +107,8 @@ export default function SearchPage() {
   const [term, setTerm] = useState(ALL);
   const [klass, setKlass] = useState(ALL);
   const [sort, setSort] = useState<SearchSort>(savedSort);
+  const [widths, setWidths] = useState<Widths | null>(savedWidths);
+  const tableRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -107,6 +140,76 @@ export default function SearchPage() {
     const timer = window.setTimeout(() => run(query), 120);
     return () => window.clearTimeout(timer);
   }, [query, sort, run]);
+
+  /** 지금 보이는 열 너비(처음 끌 때: 창에 맞춰 나눠 쓰던 너비에서 시작) */
+  const measure = (): Widths => {
+    const out = { ...MIN_WIDTH };
+    for (const key of COL_ORDER) {
+      const el = tableRef.current?.querySelector<HTMLElement>(`.finder__head [data-col="${key}"]`);
+      const w = el?.getBoundingClientRect().width ?? 0;
+      out[key] = Math.max(MIN_WIDTH[key], Math.round(w > 0 ? w : 120));
+    }
+    return out;
+  };
+
+  // 탐색기처럼: 열 제목 사이 선을 끌어 너비 바꾸기
+  const startResize = (key: ColKey, e: React.PointerEvent<HTMLElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const handle = e.currentTarget;
+    const base = widths ?? measure();
+    const startX = e.clientX;
+    let latest = base;
+    handle.setPointerCapture(e.pointerId);
+    document.body.classList.add("is-col-resizing");
+    const move = (ev: PointerEvent) => {
+      const w = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH[key], Math.round(base[key] + ev.clientX - startX)));
+      latest = { ...base, [key]: w };
+      setWidths(latest);
+    };
+    const end = () => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", end);
+      handle.removeEventListener("pointercancel", end);
+      document.body.classList.remove("is-col-resizing");
+      setWidths(latest);
+      storeWidths(latest);
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", end);
+    handle.addEventListener("pointercancel", end);
+  };
+
+  // 선을 두 번 누르면 그 열에서 가장 긴 내용에 맞춘다(탐색기와 같게)
+  const autoFit = (key: ColKey) => {
+    const table = tableRef.current;
+    if (!table) return;
+    const PAD = 22; // 칸 안쪽 여백(좌우) + 여유
+    let need = 0;
+    const head = table.querySelector<HTMLElement>(`.finder__head [data-col="${key}"] .finder__th`);
+    if (head) {
+      const inner = Array.from(head.children).reduce((sum, el) => sum + el.getBoundingClientRect().width, 0);
+      need = inner + PAD + 6;
+    }
+    table.querySelectorAll<HTMLElement>(`.finder__list [data-col="${key}"]`).forEach((cell) => {
+      let w: number;
+      if (key === "name") {
+        const name = cell.querySelector<HTMLElement>(".finder__name");
+        w = (name?.scrollWidth ?? 0) + 38 + 9 + PAD; // 형식 배지 + 간격
+      } else if (key === "dir") {
+        const dir = cell.querySelector<HTMLElement>(".finder__dir");
+        const rule = cell.querySelector<HTMLElement>(".finder__rule");
+        w = (dir?.scrollWidth ?? 0) + (rule ? rule.scrollWidth + 6 : 0) + PAD;
+      } else {
+        w = cell.scrollWidth + 2;
+      }
+      need = Math.max(need, w);
+    });
+    const next = { ...(widths ?? measure()), [key]: Math.min(MAX_WIDTH, Math.max(MIN_WIDTH[key], Math.ceil(need))) };
+    setWidths(next);
+    storeWidths(next);
+  };
 
   const changeSort = (v: SearchSort) => {
     setSort(v);
@@ -243,25 +346,17 @@ export default function SearchPage() {
           <span className="finder__scope">
             {scopeText(response, progress)}
             {onlyFolders && (
-              <button type="button" className="finder__link" onClick={() => goTo("settings")}>
+              <button type="button" className="finder__link" onClick={() => openSettings("search")}>
                 범위 바꾸기
               </button>
             )}
           </span>
           <div className="finder__filters">
-            <select
-              className={`finder__select${sort !== "best" ? " finder__select--on" : ""}`}
-              aria-label="정렬"
-              title="정렬"
-              value={sort}
-              onChange={(e) => changeSort(e.target.value as SearchSort)}
-            >
-              {SORTS.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
+            {sort !== "best" && (
+              <button type="button" className="finder__link" onClick={() => changeSort("best")}>
+                기본 순서로
+              </button>
+            )}
             {hasFilters && (
               <>
               <FilterSelect label="연도" value={year} onChange={setYear}>
@@ -293,41 +388,107 @@ export default function SearchPage() {
         {error && <p className="finder__error error-text">{error}</p>}
 
         {hits.length > 0 && (
-          <ul className="finder__list" ref={listRef} role="listbox" aria-label="찾은 파일">
-            {hits.map((h, i) => (
-              <li
-                key={h.path}
-                data-index={i}
-                role="option"
-                aria-selected={i === active}
-                className={`finder__row${i === active ? " finder__row--on" : ""}`}
-                onMouseMove={() => setActive(i)}
-                onDoubleClick={() => void act("open", h.path)}
-              >
-                <FileBadge name={h.name} size={34} />
-                <div className="finder__text">
-                  <div className="finder__name" title={h.name}>
-                    {h.name}
+          <div
+            ref={tableRef}
+            className={`finder__table${widths ? " finder__table--sized" : ""}`}
+            style={widths ? ({ "--finder-cols": COL_ORDER.map((k) => `${widths[k]}px`).join(" ") } as React.CSSProperties) : undefined}
+          >
+            <div className="finder__head" role="presentation">
+              {COL_ORDER.map((key) => {
+                const c = COLUMNS.find((col) => col.key === key);
+                const resize = (
+                  <span
+                    className="finder__resize"
+                    aria-hidden="true"
+                    title="끌어서 너비 바꾸기 · 두 번 누르면 내용에 맞춤"
+                    onPointerDown={(e) => startResize(key, e)}
+                    onClick={(e) => e.stopPropagation()}
+                    onDoubleClick={() => autoFit(key)}
+                  />
+                );
+                // 위치 열은 정렬 없이 제목만
+                if (!c) {
+                  return (
+                    <div key={key} className={`finder__thc finder__thc--${key}`} data-col={key}>
+                      <span className="finder__th">위치</span>
+                      {resize}
+                    </div>
+                  );
+                }
+                const on = sort === c.first || sort === c.second;
+                const next = sort === c.first ? c.second : sort === c.second ? "best" : c.first;
+                const nextText = next === "best" ? "기본 순서로" : next === c.first ? c.firstText : c.secondText;
+                return (
+                  <div key={key} className={`finder__thc finder__thc--${key}`} data-col={key}>
+                    <button
+                      type="button"
+                      className={`finder__th finder__th--${key}${on ? " finder__th--on" : ""}`}
+                      onClick={() => changeSort(next)}
+                      title={`${c.label}: ${nextText}`}
+                      aria-label={`${c.label}${on ? `(${sort === c.first ? c.firstText : c.secondText})` : ""}. 누르면 ${nextText}`}
+                    >
+                      <span className="finder__th-label">{c.label}</span>
+                      {on &&
+                        (ASCENDING.includes(sort) ? (
+                          <ArrowUp size={13} aria-hidden="true" />
+                        ) : (
+                          <ArrowDown size={13} aria-hidden="true" />
+                        ))}
+                    </button>
+                    {resize}
                   </div>
-                  <div className="finder__meta" title={h.dir}>
-                    {displayPath(root, h.dir, sep)}
-                    {h.modified > 0 && ` · ${formatDate(h.modified)}`}
-                    {` · ${formatSize(h.size)}`}
-                    {h.rule && <span className="finder__rule">‘{h.rule}’ 규칙</span>}
-                  </div>
-                </div>
-                <div className="button-row finder__actions">
-                  <button type="button" className="btn" onClick={() => void act("reveal", h.path)} title="위치 열기(Ctrl+Enter)">
-                    <FolderOpen size={15} aria-hidden="true" />
-                    위치
-                  </button>
-                  <button type="button" className="btn btn--accent" onClick={() => void act("open", h.path)} title="열기(Enter)">
-                    열기
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+                );
+              })}
+            </div>
+            <ul className="finder__list" ref={listRef} role="listbox" aria-label="찾은 파일">
+              {hits.map((h, i) => {
+                const badge = fileBadge(h.name);
+                const where = displayPath(root, h.dir, sep);
+                return (
+                  <li
+                    key={h.path}
+                    data-index={i}
+                    role="option"
+                    aria-selected={i === active}
+                    className={`finder__row${i === active ? " finder__row--on" : ""}`}
+                    onMouseMove={() => setActive(i)}
+                    onDoubleClick={() => void act("open", h.path)}
+                  >
+                    <div className="finder__td finder__td--name" data-col="name">
+                      <span className="finder__badge" style={{ background: badge.bg, color: badge.fg }} aria-hidden="true">
+                        {badge.label}
+                      </span>
+                      <div className="finder__text">
+                        <div className="finder__name" title={h.name}>
+                          {h.name}
+                        </div>
+                        {/* 좁은 창에서는 위치 칸 대신 이름 아래에 */}
+                        <div className="finder__meta" title={h.dir}>
+                          {where}
+                        </div>
+                      </div>
+                      <div className="button-row finder__actions">
+                        <button type="button" className="btn" onClick={() => void act("reveal", h.path)} title="위치 열기(Ctrl+Enter)">
+                          <FolderOpen size={15} aria-hidden="true" />
+                          위치
+                        </button>
+                        <button type="button" className="btn btn--accent" onClick={() => void act("open", h.path)} title="열기(Enter)">
+                          열기
+                        </button>
+                      </div>
+                    </div>
+                    <div className="finder__td finder__td--dir" data-col="dir" title={h.dir}>
+                      <span className="finder__dir">{where}</span>
+                      {h.rule && <span className="finder__rule">‘{h.rule}’ 규칙</span>}
+                    </div>
+                    <div className="finder__td finder__td--modified" data-col="modified">{h.modified > 0 ? formatDateTime(h.modified) : ""}</div>
+                    <div className="finder__td finder__td--type" data-col="type">{typeName(h.name)}</div>
+                    <div className="finder__td finder__td--size" data-col="size">{formatSize(h.size)}</div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         )}
 
         {hits.length === 0 && (

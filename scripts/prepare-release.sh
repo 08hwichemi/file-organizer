@@ -20,7 +20,7 @@ if [ ! -f "$SRC.sig" ]; then
   exit 1
 fi
 
-NAME="file-organizer_${VERSION}_x64-setup.exe"
+NAME="AutoFolder_${VERSION}_x64-setup.exe"
 mkdir -p "$OUT"
 cp "$SRC" "$OUT/$NAME"
 cp "$SRC.sig" "$OUT/$NAME.sig"

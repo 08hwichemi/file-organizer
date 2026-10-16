@@ -609,7 +609,7 @@ let pickCount = 0;
 let nextId = 100;
 
 export const mockBackend = {
-  appInfo: () => delay<AppInfo>({ name: "파일 정리 도우미", version: "0.1.0", os: "browser" }),
+  appInfo: () => delay<AppInfo>({ name: "AutoFolder", version: "0.1.0", os: "browser" }),
   setupInfo: () => delay(setupInfo),
   getSettings: () => delay({ ...settings }),
 
@@ -964,6 +964,9 @@ export const mockBackend = {
     const all = source === "folders" ? mockSearchFiles() : [...mockSearchFiles(), ...mockPcFiles()];
     // 정렬한 뒤 자른다(finder.rs·search.rs find_sorted와 같게)
     const byName = (a: SearchHit, b: SearchHit) => a.name.localeCompare(b.name, "ko", { numeric: true, sensitivity: "base" });
+    const ext = (n: string) => (n.lastIndexOf(".") > 0 ? n.slice(n.lastIndexOf(".") + 1) : "");
+    const byType = (a: SearchHit, b: SearchHit) =>
+      ext(a.name).localeCompare(ext(b.name), "ko", { numeric: true, sensitivity: "base" }) || byName(a, b);
     const nameHit = (h: SearchHit) => terms.every((t) => h.name.toLowerCase().includes(t));
     const order: Record<SearchSort, (a: SearchHit, b: SearchHit) => number> = {
       best: (a, b) => Number(nameHit(b)) - Number(nameHit(a)) || b.modified - a.modified,
@@ -973,6 +976,8 @@ export const mockBackend = {
       nameDesc: (a, b) => byName(b, a),
       largest: (a, b) => b.size - a.size,
       smallest: (a, b) => a.size - b.size,
+      typeAsc: (a, b) => byType(a, b),
+      typeDesc: (a, b) => byType(b, a),
     };
     const hits = all
       .filter((h) => terms.every((t) => h.path.toLowerCase().includes(t)))
