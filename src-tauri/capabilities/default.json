@@ -1,11 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "메인 창·팝업 창·검색 창에 허용하는 기본 권한",
+  "description": "메인 창·팝업 창에 허용하는 기본 권한",
   "windows": [
     "main",
-    "popup",
-    "search"
+    "popup"
   ],
   "permissions": [
     "core:default",

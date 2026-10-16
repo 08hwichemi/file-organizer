@@ -31,6 +31,8 @@ pub struct AppState {
     pub index: Mutex<crate::search::Index>,
     /// 자체 색인을 읽는 중
     pub indexing: AtomicBool,
+    /// 자체 색인을 최신으로 맞추는 감시
+    pub live: crate::finder::Live,
     /// 검색 단축키를 등록하지 못했을 때 그 까닭(설정 화면에 보여 줌)
     pub shortcut_error: Mutex<Option<String>>,
 }

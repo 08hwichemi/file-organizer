@@ -24,19 +24,6 @@
         "create": false
       },
       {
-        "label": "search",
-        "title": "파일 검색",
-        "width": 680,
-        "height": 500,
-        "resizable": false,
-        "decorations": false,
-        "alwaysOnTop": true,
-        "skipTaskbar": true,
-        "visible": false,
-        "center": true,
-        "create": false
-      },
-      {
         "label": "popup",
         "title": "새 파일",
         "width": 460,

@@ -6,23 +6,26 @@ import FavoriteSettings from "../components/FavoriteSettings";
 import FolderPane, { type Toast } from "../components/FolderPane";
 import ModeChoice from "../components/ModeChoice";
 import WatchFolderEditor from "../components/WatchFolderEditor";
-import { errorMessage, getAppInfo, getSearchInfo, pickFolder, showSearch } from "../lib/backend";
-import type { EverythingState, OrganizeMode, PlaceMode, SearchInfo } from "../lib/types";
+import { errorMessage, getAppInfo, getSearchInfo, pickFolder } from "../lib/backend";
+import type { OrganizeMode, PlaceMode, SearchInfo } from "../lib/types";
 import { useAppStore } from "../store/useAppStore";
 import { useUpdateStore } from "../store/useUpdateStore";
 import "./SettingsPage.css";
 
-type SavedKey = "mode" | "watch" | "place" | "term" | "wait" | "root" | "fav" | "autostart" | "search";
+type SavedKey = "mode" | "watch" | "place" | "term" | "wait" | "root" | "fav" | "autostart" | "search" | "scope";
 
 /** 검색 단축키로 고를 수 있는 것("" = 쓰지 않음) */
 const SHORTCUTS = ["Alt+Space", "Ctrl+Alt+F", "Ctrl+Shift+Space", ""];
 
-const EVERYTHING_TEXT: Record<EverythingState, string> = {
-  ready: "Everything이 켜져 있어요. PC 전체에서 찾아요.",
-  notRunning: "Everything이 꺼져 있거나 설치되어 있지 않아요. 정리 폴더와 지켜볼 폴더에서만 찾아요.",
-  noDll: "Everything 연결 파일이 설치에서 빠졌어요. 정리 폴더와 지켜볼 폴더에서만 찾아요.",
-  unsupported: "이 환경에서는 Everything을 쓸 수 없어요. 정리 폴더와 지켜볼 폴더에서만 찾아요.",
-};
+/** 지금 무엇으로 찾는지(설정 화면 아래 한 줄) */
+function searchStatus(info: SearchInfo, wholePc: boolean): string {
+  const count = (n: number) => n.toLocaleString("ko-KR");
+  if (info.everything === "ready") return "Everything이 켜져 있어 Everything으로 찾아요(가장 빨라요).";
+  if (wholePc && info.indexing) return `PC 전체를 읽는 중이에요(파일 ${count(info.indexed)}개). 다 읽을 때까지는 정리 폴더와 지켜볼 폴더에서 찾아요.`;
+  if (wholePc && info.wholePc) return `PC 전체의 파일 ${count(info.indexed)}개에서 찾아요.`;
+  if (wholePc) return "파일 검색을 처음 열 때 PC 전체를 읽기 시작해요.";
+  return `정리 폴더와 지켜볼 폴더의 파일 ${count(info.indexed)}개에서 찾아요.`;
+}
 
 /** "응답이 없으면 n초 뒤" 고를 수 있는 값(0 = 끔) */
 const WAIT_CHOICES = [0, 5, 10, 20, 30];
@@ -42,6 +45,8 @@ export default function SettingsPage() {
   const saveRoot = useAppStore((s) => s.setRootFolder);
   const [newRoot, setNewRoot] = useState<string | null>(null);
   const saveShortcut = useAppStore((s) => s.setSearchShortcut);
+  const saveWholePc = useAppStore((s) => s.setSearchWholePc);
+  const openSearch = useAppStore((s) => s.openSearch);
   const [searchInfo, setSearchInfo] = useState<SearchInfo | null>(null);
   const known = useAppStore((s) => s.setupInfo);
   const [watchDraft, setWatchDraft] = useState<string[]>(settings?.watchFolders ?? []);
@@ -296,10 +301,30 @@ export default function SettingsPage() {
 
       <Section
         title="파일 검색"
-        description="단축키를 누르면 어디서든 검색창이 떠요. 왼쪽 메뉴의 ‘파일 검색’이나 트레이 메뉴로도 열 수 있어요."
-        saved={saved === "search"}
-        error={errors.search ?? searchInfo?.shortcutError ?? undefined}
+        description="왼쪽 메뉴의 ‘파일 검색’에서 찾아요. 단축키를 누르면 다른 프로그램을 쓰다가도 바로 이 창의 검색 화면이 열려요."
+        saved={saved === "search" || saved === "scope"}
+        error={errors.search ?? errors.scope ?? searchInfo?.shortcutError ?? undefined}
       >
+        <label className="settings__toggle">
+          <input
+            type="checkbox"
+            checked={settings.searchWholePc}
+            onChange={(e) =>
+              void save("scope", async () => {
+                await saveWholePc(e.target.checked);
+                setSearchInfo(await getSearchInfo().catch(() => null));
+              })
+            }
+          />
+          <span>
+            <strong>PC 전체에서 찾기</strong>
+            <span className="settings__toggle-desc">
+              Everything을 깔지 않아도 이 프로그램이 PC의 파일 목록을 직접 읽어 찾아요(Windows·프로그램 폴더 같은
+              시스템 폴더는 빼요). 처음 읽을 때는 몇 분 걸릴 수 있지만, 컴퓨터가 느려지지 않게 뒤에서 천천히 읽어요.
+              끄면 정리 폴더와 지켜볼 폴더에서만 찾아요.
+            </span>
+          </span>
+        </label>
         <div className="settings__search button-row">
           <label className="settings__wait">
             <span>단축키</span>
@@ -315,15 +340,11 @@ export default function SettingsPage() {
             </select>
           </label>
           <span className="popup__spacer" />
-          <button type="button" className="btn" onClick={() => void showSearch()}>
-            검색창 열기
+          <button type="button" className="btn" onClick={openSearch}>
+            파일 검색 열기
           </button>
         </div>
-        {searchInfo && (
-          <p className={`settings__note${searchInfo.everything === "ready" ? "" : " settings__note--plain"}`}>
-            {EVERYTHING_TEXT[searchInfo.everything]}
-          </p>
-        )}
+        {searchInfo && <p className="settings__note settings__note--plain">{searchStatus(searchInfo, settings.searchWholePc)}</p>}
       </Section>
 
       <Section title="자동 실행" saved={saved === "autostart"} error={errors.autostart}>

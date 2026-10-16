@@ -30,8 +30,10 @@ export interface Settings {
   waitSeconds: number;
   /** 자주 쓰는 폴더 1~6 직접 고른 것(null = 자동) */
   pinnedFavorites: (string | null)[];
-  /** 파일 검색창 단축키("" = 쓰지 않음) */
+  /** 파일 검색 단축키("" = 쓰지 않음) */
   searchShortcut: string;
+  /** 파일 검색 범위: PC 전체(true, 기본) / 정리 폴더와 지켜볼 폴더만(false) */
+  searchWholePc: boolean;
 }
 
 /** Everything: ready = PC 전체 검색, notRunning = 설치·실행 안 됨, noDll = SDK 빠짐, unsupported = Windows 아님 */
@@ -51,16 +53,27 @@ export interface SearchHit {
   rule: string | null;
 }
 
+/** 어디서 찾았는지: everything = Everything(PC 전체), pc = 이 프로그램이 읽은 PC 전체, folders = 정리 폴더·지켜볼 폴더 */
+export type SearchSource = "everything" | "pc" | "folders";
+
 export interface SearchResponse {
-  /** everything = PC 전체, index = 정리 폴더·지켜볼 폴더 */
-  source: "everything" | "index";
+  source: SearchSource;
   everything: EverythingState;
+  /** 설정에서 PC 전체를 골랐는지 */
+  wantWholePc: boolean;
+  /** 파일 목록을 읽는 중인지 */
   indexing: boolean;
+  /** 읽은 파일 수(읽는 중이면 지금까지) */
+  indexed: number;
   hits: SearchHit[];
 }
 
 export interface SearchInfo {
   everything: EverythingState;
+  /** 이 프로그램이 읽은 목록이 PC 전체인지 */
+  wholePc: boolean;
+  indexing: boolean;
+  indexed: number;
   shortcutError: string | null;
 }
 

@@ -27,6 +27,7 @@ import type {
   SearchHit,
   SearchInfo,
   SearchResponse,
+  SearchSource,
   SetupInfo,
   SetupRequest,
   TrashResult,
@@ -99,6 +100,7 @@ let settings: Settings = startReady
       waitSeconds: params.get("wait") ? Number(params.get("wait")) : 0,
       pinnedFavorites: [],
       searchShortcut: "Alt+Space",
+      searchWholePc: true,
     }
   : {
       setupDone: false,
@@ -112,6 +114,7 @@ let settings: Settings = startReady
       waitSeconds: params.get("wait") ? Number(params.get("wait")) : 0,
       pinnedFavorites: [],
       searchShortcut: "Alt+Space",
+      searchWholePc: true,
     };
 
 const trees = new Map<string, MockFolder>(startReady ? [[readyRoot, teacherTree()]] : []);
@@ -490,6 +493,51 @@ function checkRule(input: RuleInput): RuleInput | string {
 
 let autoMoved: AutoMoved[] = [];
 
+/** 가짜 "PC 전체 읽기": ?indexing=1이면 검색 화면을 연 뒤 몇 초 동안 읽는 중 */
+const MOCK_INDEX_MS = 4000;
+const MOCK_PC_FILES = 184_302;
+let indexStartedAt: number | null = null;
+
+function mockIndexState(): { wholePc: boolean; indexing: boolean; indexed: number } {
+  if (!settings.searchWholePc) return { wholePc: false, indexing: false, indexed: 1_240 };
+  if (params.get("indexing") === "1") {
+    const elapsed = indexStartedAt === null ? 0 : Date.now() - indexStartedAt;
+    if (elapsed < MOCK_INDEX_MS) {
+      return { wholePc: false, indexing: true, indexed: Math.round((MOCK_PC_FILES * elapsed) / MOCK_INDEX_MS) };
+    }
+  }
+  return { wholePc: true, indexing: false, indexed: MOCK_PC_FILES };
+}
+
+/** 정리 폴더 밖(PC 전체에서만 보이는) 가짜 파일 */
+function mockPcFiles(): SearchHit[] {
+  const day = 86_400_000;
+  const rows: [string, string, number][] = [
+    [`${HOME}\\Documents\\예전 자료\\2025`, "2025_2학기_수행평가_채점기준.hwp", 400],
+    [`${HOME}\\Documents\\예전 자료\\2025`, "2025_학급운영계획.hwp", 420],
+    [`${HOME}\\Downloads\\받은 파일`, "가정통신문_수학여행 안내.pdf", 12],
+    [`${HOME}\\OneDrive\\학교`, "3-2_상담 기록.xlsx", 30],
+    ["D:\\자료\\연수", "2026 교원 연수 이수증.pdf", 200],
+    ["D:\\자료\\수업", "1학기 수업 계획서.hwpx", 210],
+  ];
+  return rows.map(([dir, name, ago]) => {
+    const year = name.match(/20\d\d/)?.[0];
+    const term = name.match(/([12])학기/)?.[1];
+    const klass = name.match(/\d-\d/)?.[0];
+    return {
+      path: dir + SEP + name,
+      name,
+      dir,
+      size: 52_000,
+      modified: Date.now() - ago * day,
+      year: year ? Number(year) : null,
+      term: term ? Number(term) : null,
+      class: klass ?? null,
+      rule: null,
+    };
+  });
+}
+
 /** 검색용 가짜 파일: 가짜 폴더마다 파일 이름을 만들어 둔다 */
 function mockSearchFiles(): SearchHit[] {
   const root = settings.rootFolder;
@@ -866,32 +914,48 @@ export const mockBackend = {
   },
 
   // ---------- 파일 검색(가짜 폴더의 파일 이름을 만들어 찾는다) ----------
+  // ?indexing=1 이면 처음 몇 초 동안 "PC 전체를 읽는 중"(그동안은 정리 폴더에서만)을 흉내 낸다.
   searchFiles(query: string) {
     const everything: EverythingState = params.get("everything") === "1" ? "ready" : "notRunning";
-    const source = everything === "ready" ? ("everything" as const) : ("index" as const);
+    const index = mockIndexState();
+    const source: SearchSource = everything === "ready" ? "everything" : index.wholePc ? "pc" : "folders";
+    const base = { source, everything, wantWholePc: settings.searchWholePc, indexing: index.indexing, indexed: index.indexed };
     const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-    if (terms.length === 0) return delay<SearchResponse>({ source, everything, indexing: false, hits: [] });
-    const hits = mockSearchFiles()
+    if (terms.length === 0) return delay<SearchResponse>({ ...base, hits: [] });
+    const all = source === "folders" ? mockSearchFiles() : [...mockSearchFiles(), ...mockPcFiles()];
+    const hits = all
       .filter((h) => terms.every((t) => h.path.toLowerCase().includes(t)))
       .sort((a, b) => b.modified - a.modified)
       .slice(0, 200);
-    return delay<SearchResponse>({ source, everything, indexing: false, hits });
+    return delay<SearchResponse>({ ...base, hits });
   },
 
-  showSearch() {
-    if (params.get("window") !== "search") window.open("/?window=search", "_blank", "width=680,height=500");
+  prepareSearch() {
+    if (params.get("indexing") === "1" && indexStartedAt === null) {
+      indexStartedAt = Date.now();
+      window.setTimeout(() => mockEvents.emit("search-indexed"), MOCK_INDEX_MS + 50);
+    }
     return delay(undefined);
   },
 
-  hideSearch: () => delay(undefined),
+  setSearchWholePc(enabled: boolean) {
+    settings = { ...settings, searchWholePc: enabled };
+    return delay({ ...settings });
+  },
+
   openPath: (path: string) => (path.includes("없는") ? fail("파일을 찾을 수 없어요.") : delay(undefined)),
   revealPath: (_path: string) => delay(undefined),
 
-  searchInfo: () =>
-    delay<SearchInfo>({
+  searchInfo: () => {
+    const index = mockIndexState();
+    return delay<SearchInfo>({
       everything: params.get("everything") === "1" ? "ready" : "notRunning",
+      wholePc: index.wholePc,
+      indexing: index.indexing,
+      indexed: index.indexed,
       shortcutError: null,
-    }),
+    });
+  },
 
   setSearchShortcut(shortcut: string) {
     settings = { ...settings, searchShortcut: shortcut };
