@@ -1,33 +1,37 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
-import { FolderPlus } from "lucide-react";
+import { ArrowRightLeft, FolderPlus, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { createFolder, errorMessage, listFolders, onBackendEvent } from "../lib/backend";
 import { baseName, trailFor, type Crumb } from "../lib/paths";
 import type { FolderEntry } from "../lib/types";
+import FolderActions, { type FolderAction } from "./FolderActions";
 import FolderIcon from "./FolderIcon";
 import PathBar from "./PathBar";
-import "./InboxFolderPane.css";
+import "./FolderPane.css";
 
+/** 폴더 칸 아래 알림. undo가 있으면 "되돌리기" 버튼이 붙는다. */
 export interface Toast {
   message: string;
-  /** 되돌릴 수 있는 이동들(없으면 되돌리기 버튼 없음) */
-  moveIds: number[];
+  /** 되돌리기. 끝나면 보여 줄 문장을 돌려준다. */
+  undo?: () => Promise<string>;
 }
 
 interface Props {
   root: string;
   separator: string;
-  /** 선택한 파일 수(있으면 폴더마다 "여기에 넣기") */
-  selectedCount: number;
-  dragging: boolean;
-  favorites: string[];
-  onPut: (destDir: string) => void;
+  /** 선택한 파일 수(있으면 폴더마다 "여기에 넣기") — 정리함에서만 */
+  selectedCount?: number;
+  dragging?: boolean;
+  favorites?: string[];
+  onPut?: (destDir: string) => void;
   /** 이 값이 바뀌면 그 폴더를 연다(자주 쓰는 폴더 누를 때) */
-  jumpTo: { path: string; n: number } | null;
-  onJump: (path: string) => void;
+  jumpTo?: { path: string; n: number } | null;
+  onJump?: (path: string) => void;
   toast: Toast | null;
-  onUndo: () => void;
-  busy: boolean;
+  onToast: (toast: Toast | null) => void;
+  busy?: boolean;
+  /** 이름표(화면 읽기 프로그램용) */
+  label?: string;
 }
 
 /** 놓을 곳을 알려 주는 데이터(dnd-kit droppable의 data) */
@@ -36,11 +40,16 @@ export interface DropData {
 }
 
 /**
- * 정리함 오른쪽 폴더 칸(SPEC 3-2): 경로 + 자주 쓰는 폴더(숫자 키) + 폴더 아이콘 격자(누르면 안으로).
- * 파일을 끌어 폴더 위에 놓거나, 파일을 고른 뒤 "여기에 넣기"를 누르면 그 폴더에 들어간다.
+ * 탐색기처럼 폴더 아이콘 격자(정리함 오른쪽 칸, 설정의 폴더 구성).
+ * - 경로 + 자주 쓰는 폴더(숫자 키) + 폴더 격자(누르면 안으로) + 새 폴더
+ * - 폴더마다 ⋯ 메뉴: 이름 바꾸기 · 다른 폴더로 옮기기 · 휴지통으로 보내기(모두 되돌리기 가능)
+ * - 정리함: 파일을 끌어 폴더 위에 놓거나, 파일을 고른 뒤 "여기에 넣기"
  */
-export default function InboxFolderPane(props: Props) {
-  const { root, separator, selectedCount, dragging, favorites, onPut } = props;
+export default function FolderPane(props: Props) {
+  const { root, separator, selectedCount = 0, dragging = false, favorites = [], onPut } = props;
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [action, setAction] = useState<{ kind: FolderAction; folder: FolderEntry } | null>(null);
+  const [undoing, setUndoing] = useState(false);
   const [trail, setTrail] = useState<Crumb[]>([{ name: baseName(root), path: root }]);
   const [folders, setFolders] = useState<FolderEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +73,14 @@ export default function InboxFolderPane(props: Props) {
     };
   }, [current.path, reloadKey]);
 
+  // 메뉴 바깥을 누르면 닫는다
+  useEffect(() => {
+    if (!menuFor) return;
+    const close = () => setMenuFor(null);
+    window.addEventListener("pointerdown", close);
+    return () => window.removeEventListener("pointerdown", close);
+  }, [menuFor]);
+
   useEffect(() => {
     if (!props.jumpTo) return;
     const t = trailFor(root, props.jumpTo.path, separator);
@@ -81,15 +98,29 @@ export default function InboxFolderPane(props: Props) {
     }
   };
 
+  const undo = async () => {
+    const t = props.toast;
+    if (!t?.undo || undoing) return;
+    setUndoing(true);
+    try {
+      props.onToast({ message: await t.undo() });
+    } catch (e) {
+      props.onToast({ message: errorMessage(e) });
+    } finally {
+      setUndoing(false);
+      setReloadKey((k) => k + 1);
+    }
+  };
+
   return (
-    <section className="ifold" aria-label="정리 폴더">
+    <section className="ifold" aria-label={props.label ?? "정리 폴더"}>
       <div className="ifold__bar">
         <PathBar trail={trail} onGo={(i) => setTrail((t) => t.slice(0, i + 1))}>
           {selectedCount > 0 && trail.length > 1 && (
             <button
               type="button"
               className="btn btn--accent ifold__here"
-              onClick={() => onPut(current.path)}
+              onClick={() => onPut?.(current.path)}
               disabled={props.busy}
             >
               이 폴더에 넣기
@@ -107,7 +138,7 @@ export default function InboxFolderPane(props: Props) {
               path={path}
               index={i + 1}
               dragging={dragging}
-              onClick={() => props.onJump(path)}
+              onClick={() => props.onJump?.(path)}
             />
           ))}
         </div>
@@ -144,9 +175,16 @@ export default function InboxFolderPane(props: Props) {
             folder={f}
             selectedCount={selectedCount}
             dragging={dragging}
-            busy={props.busy}
+            busy={!!props.busy}
+            canPut={!!onPut}
+            menuOpen={menuFor === f.path}
+            onMenu={() => setMenuFor((m) => (m === f.path ? null : f.path))}
+            onAction={(kind) => {
+              setMenuFor(null);
+              setAction({ kind, folder: f });
+            }}
             onOpen={() => setTrail((t) => [...t, { name: f.name, path: f.path }])}
-            onPut={() => onPut(f.path)}
+            onPut={() => onPut?.(f.path)}
           />
         ))}
         <li>
@@ -167,12 +205,26 @@ export default function InboxFolderPane(props: Props) {
       {props.toast && (
         <div className="ifold__toast" role="status">
           <span className="ifold__toast-text">{props.toast.message}</span>
-          {props.toast.moveIds.length > 0 && (
-            <button type="button" className="ifold__undo" onClick={props.onUndo} disabled={props.busy}>
+          {props.toast.undo && (
+            <button type="button" className="ifold__undo" onClick={() => void undo()} disabled={undoing}>
               되돌리기
             </button>
           )}
         </div>
+      )}
+
+      {action && (
+        <FolderActions
+          action={action.kind}
+          folder={action.folder}
+          root={root}
+          separator={separator}
+          onClose={() => setAction(null)}
+          onDone={(done) => {
+            props.onToast(done);
+            setReloadKey((k) => k + 1);
+          }}
+        />
       )}
     </section>
   );
@@ -183,6 +235,10 @@ function FolderTile({
   selectedCount,
   dragging,
   busy,
+  canPut,
+  menuOpen,
+  onMenu,
+  onAction,
   onOpen,
   onPut,
 }: {
@@ -190,15 +246,46 @@ function FolderTile({
   selectedCount: number;
   dragging: boolean;
   busy: boolean;
+  canPut: boolean;
+  menuOpen: boolean;
+  onMenu: () => void;
+  onAction: (kind: FolderAction) => void;
   onOpen: () => void;
   onPut: () => void;
 }) {
+  const menuRef = useRef<HTMLDivElement>(null);
   const { setNodeRef, isOver } = useDroppable({
     id: `tile:${folder.path}`,
     data: { path: folder.path } satisfies DropData,
   });
   return (
     <li ref={setNodeRef} className={`ifold__tile${isOver ? " ifold__tile--target" : ""}`}>
+      <button
+        type="button"
+        className="ifold__more"
+        aria-label={`${folder.name} 폴더 메뉴`}
+        aria-expanded={menuOpen}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={onMenu}
+      >
+        <MoreHorizontal size={16} />
+      </button>
+      {menuOpen && (
+        <div ref={menuRef} className="ifold__menu" role="menu" onPointerDown={(e) => e.stopPropagation()}>
+          <button type="button" role="menuitem" onClick={() => onAction("rename")}>
+            <Pencil size={15} aria-hidden="true" />
+            이름 바꾸기
+          </button>
+          <button type="button" role="menuitem" onClick={() => onAction("move")}>
+            <ArrowRightLeft size={15} aria-hidden="true" />
+            다른 폴더로 옮기기
+          </button>
+          <button type="button" role="menuitem" className="ifold__menu-danger" onClick={() => onAction("trash")}>
+            <Trash2 size={15} aria-hidden="true" />
+            휴지통으로 보내기
+          </button>
+        </div>
+      )}
       <button type="button" className="ifold__open" onClick={onOpen} aria-label={`${folder.name} 폴더 열기`}>
         <FolderIcon tone={isOver ? "blue" : "yellow"} />
         <span className="ifold__name" title={folder.name}>
@@ -208,7 +295,7 @@ function FolderTile({
       <div className="ifold__meta">
         {isOver ? (
           <span className="ifold__drop">놓으면 여기로</span>
-        ) : selectedCount > 0 && !dragging ? (
+        ) : canPut && selectedCount > 0 && !dragging ? (
           <button type="button" className="ifold__put" onClick={onPut} disabled={busy}>
             여기에 넣기
           </button>

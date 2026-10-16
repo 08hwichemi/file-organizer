@@ -10,6 +10,7 @@ mod history;
 mod inbox;
 mod mover;
 mod popup;
+mod recycle;
 mod settings;
 mod setup;
 mod watcher;
@@ -76,6 +77,11 @@ pub fn run() {
             commands::put_files,
             commands::import_existing,
             commands::favorite_folders,
+            commands::rename_folder,
+            commands::move_folder,
+            commands::trash_folder,
+            commands::trash_files,
+            commands::restore_deleted,
             commands::defer_file,
             commands::hide_popup,
             commands::list_inbox,

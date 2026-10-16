@@ -1,5 +1,5 @@
 import { useDraggable } from "@dnd-kit/core";
-import { Download } from "lucide-react";
+import { Download, Trash2 } from "lucide-react";
 import { formatAgo } from "../lib/format";
 import { friendlyName, samePath, type KnownFolders } from "../lib/paths";
 import type { InboxItem } from "../lib/types";
@@ -19,6 +19,8 @@ interface Props {
   dragging: string[] | null;
   onImport: () => void;
   importing: boolean;
+  /** 고른 파일을 휴지통으로 */
+  onTrash: () => void;
 }
 
 export const ALL_TAB = "all";
@@ -74,6 +76,15 @@ export default function InboxFileList(props: Props) {
         (selected.size > 0 ? (
           <div className="ifiles__bar ifiles__bar--sel">
             <span className="ifiles__bar-text">{selected.size}개 선택됨 · ‘여기에 넣기’나 숫자 키로 넣어요</span>
+            <button
+              type="button"
+              className="ifiles__bar-btn ifiles__bar-btn--icon"
+              onClick={props.onTrash}
+              aria-label="고른 파일을 휴지통으로"
+              title="고른 파일을 휴지통으로(되돌리기 가능)"
+            >
+              <Trash2 size={15} />
+            </button>
             <button type="button" className="ifiles__bar-btn" onClick={onClear}>
               선택 해제
             </button>

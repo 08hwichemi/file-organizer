@@ -88,7 +88,7 @@
 }
 
 .ifiles__bar-btn {
-  min-height: 30px;
+  min-height: var(--control-height);
   padding: 0 10px;
   border: 1px solid var(--color-line-strong);
   border-radius: 7px;
@@ -188,4 +188,13 @@
   margin-bottom: 8px;
   font-size: 13px;
   color: var(--color-text-sub);
+}
+
+.ifiles__bar-btn--icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height);
+  padding: 0;
+  color: var(--color-danger);
 }

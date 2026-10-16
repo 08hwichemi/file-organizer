@@ -51,6 +51,23 @@ pub fn mark_undone(conn: &Connection, id: i64) -> rusqlite::Result<()> {
     Ok(())
 }
 
+/// 폴더 이름을 바꾸거나 옮긴 뒤, 그 안으로 옮겼던 기록의 경로도 바꿔 되돌리기가 계속 되게 한다.
+pub fn rewrite_folder_prefix(conn: &Connection, old: &Path, new: &Path) -> rusqlite::Result<usize> {
+    let sep = std::path::MAIN_SEPARATOR;
+    let old_prefix = format!("{}{sep}", old.to_string_lossy());
+    let new_prefix = format!("{}{sep}", new.to_string_lossy());
+    conn.execute(
+        "UPDATE moves SET moved_path = ?2 || substr(moved_path, ?3)
+         WHERE substr(moved_path, 1, ?4) = ?1",
+        params![
+            old_prefix,
+            new_prefix,
+            old_prefix.chars().count() as i64 + 1,
+            old_prefix.chars().count() as i64
+        ],
+    )
+}
+
 /// 최근에 파일을 넣은 폴더(되돌린 이동 제외), 새것부터, 중복 없이.
 pub fn recent_destinations(conn: &Connection, limit: usize) -> rusqlite::Result<Vec<String>> {
     let mut stmt = conn.prepare(
@@ -146,5 +163,28 @@ mod tests {
             ["/r/업무", "/r/학급", "/r/평가"]
         );
         assert_eq!(frequent_destinations(&conn, 1).unwrap(), ["/r/업무"]);
+    }
+
+    #[test]
+    fn rewrite_prefix_after_folder_rename() {
+        let conn = db::open_in_memory().unwrap();
+        let sep = std::path::MAIN_SEPARATOR;
+        let old = format!("{sep}r{sep}수업");
+        let inside = format!("{old}{sep}1학기{sep}a.hwp");
+        let similar = format!("{old}자료{sep}b.hwp");
+        let a = record(&conn, Path::new("/d/a"), Path::new(&inside)).unwrap();
+        let b = record(&conn, Path::new("/d/b"), Path::new(&similar)).unwrap();
+        let n = rewrite_folder_prefix(
+            &conn,
+            Path::new(&old),
+            Path::new(&format!("{sep}r{sep}수업 자료")),
+        )
+        .unwrap();
+        assert_eq!(n, 1);
+        assert_eq!(
+            get(&conn, a).unwrap().unwrap().moved_path,
+            format!("{sep}r{sep}수업 자료{sep}1학기{sep}a.hwp")
+        );
+        assert_eq!(get(&conn, b).unwrap().unwrap().moved_path, similar);
     }
 }

@@ -1,0 +1,136 @@
+.structure {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.structure__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+}
+
+.structure__item {
+  padding: 8px 10px 8px 12px;
+}
+
+.structure__item + .structure__item {
+  border-top: 1px solid var(--color-line-soft);
+}
+
+.structure__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.structure__name {
+  flex: 1;
+  min-width: 0;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.structure__name:hover {
+  border-color: var(--color-line);
+}
+
+.structure__name:focus {
+  border-color: var(--color-accent);
+  outline: none;
+  background: var(--color-surface);
+}
+
+.structure__add-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  padding: 0 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-sub);
+  font-size: 12.5px;
+}
+
+.structure__add-sub:hover {
+  color: var(--color-accent);
+  border-color: var(--color-accent-line);
+}
+
+.structure__remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height);
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-sub);
+}
+
+.structure__remove:hover {
+  background: var(--color-surface-sub);
+  color: var(--color-danger);
+}
+
+.structure__children {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 0 2px 34px;
+}
+
+.structure__chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-height);
+  padding-left: 4px;
+  border: 1px solid var(--color-line);
+  border-radius: 18px;
+  background: var(--color-surface-sub);
+}
+
+.structure__chip input {
+  min-height: 30px;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+}
+
+.structure__chip:focus-within {
+  border-color: var(--color-accent);
+  background: var(--color-surface);
+}
+
+.structure__chip button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  min-height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-sub);
+}
+
+.structure__chip button:hover {
+  color: var(--color-danger);
+}
+
+.structure__add {
+  align-self: flex-start;
+}

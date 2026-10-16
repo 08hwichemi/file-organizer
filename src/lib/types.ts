@@ -33,9 +33,17 @@ export interface SetupInfo {
 /** empty = 빈 정리 폴더, teacher = 교사용 예시 폴더, existing = 쓰던 폴더 그대로 */
 export type FolderPreset = "empty" | "teacher" | "existing";
 
+/** 처음 설정에서 고친 폴더 구성 */
+export interface FolderSpec {
+  name: string;
+  children: FolderSpec[];
+}
+
 export interface SetupRequest {
   baseDir: string;
   preset: FolderPreset;
+  /** preset이 teacher일 때 만들 폴더(없으면 교사용 예시 그대로) */
+  structure?: FolderSpec[];
   watchFolders: string[];
   organizeMode: OrganizeMode;
 }
@@ -92,5 +100,10 @@ export interface PutOutcome {
 
 export interface UndoManyResult {
   restored: number;
+  errors: string[];
+}
+
+export interface TrashResult {
+  deletionIds: number[];
   errors: string[];
 }
