@@ -27,6 +27,12 @@ pub struct AppState {
     /// 일시 정지(트레이·메인 창). 정지 중 들어온 파일은 팝업 없이 정리함으로(SPEC 5장).
     /// 프로그램을 다시 켜면 풀린다.
     pub paused: AtomicBool,
+    /// 파일 검색 자체 색인(Everything을 쓸 수 없을 때)
+    pub index: Mutex<crate::search::Index>,
+    /// 자체 색인을 읽는 중
+    pub indexing: AtomicBool,
+    /// 검색 단축키를 등록하지 못했을 때 그 까닭(설정 화면에 보여 줌)
+    pub shortcut_error: Mutex<Option<String>>,
 }
 
 impl AppState {

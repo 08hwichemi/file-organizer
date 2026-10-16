@@ -74,6 +74,11 @@ jobs:
           npm version "$VERSION" --no-git-tag-version
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
+      - name: Everything SDK 받기(파일 검색용, 못 받아도 계속)
+        if: steps.ready.outputs.ok == 'true'
+        shell: pwsh
+        run: ./scripts/fetch-everything-sdk.ps1
+
       - name: 설치 파일 만들기(업데이트 서명 포함)
         if: steps.ready.outputs.ok == 'true'
         run: npm run tauri build

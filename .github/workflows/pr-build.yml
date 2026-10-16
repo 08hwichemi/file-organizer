@@ -77,6 +77,10 @@ jobs:
       - name: 화면 의존성 설치
         run: npm ci
 
+      - name: Everything SDK 받기(파일 검색용, 못 받아도 계속)
+        shell: pwsh
+        run: ./scripts/fetch-everything-sdk.ps1
+
       # PR용 설치 파일은 업데이트 서명 없이 만든다(서명 키는 배포 때만 씀).
       - name: 설치 파일 만들기 (NSIS)
         run: npm run tauri build -- --config src-tauri/tauri.pr.conf.json

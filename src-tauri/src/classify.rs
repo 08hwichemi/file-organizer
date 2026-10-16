@@ -470,6 +470,7 @@ mod tests {
             dest_dir: root.join("개인").to_string_lossy().into_owned(),
             split: false,
             used: 0,
+            any_word: false,
         };
         let c = classifier(&root, vec![rule]);
         let (r, dir) = reason_and_dir(&c, "회의록.hwp").unwrap();

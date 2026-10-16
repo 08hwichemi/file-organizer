@@ -5,6 +5,7 @@ import { baseName, displayPath, friendlyName, samePath, type KnownFolders } from
 import { parseExtensions, segmentsLabel, splitKinds } from "../lib/rules";
 import type { DestSegment, RuleView } from "../lib/types";
 import Dialog from "./Dialog";
+import WordMatchChoice from "./WordMatchChoice";
 import FolderPicker from "./FolderPicker";
 import "./RuleEditor.css";
 
@@ -22,6 +23,7 @@ interface Props {
 /** 규칙 만들기·고치기 창(SPEC 4장): 이름 단어 · 확장자 · 출처 → 넣을 폴더(연도·학기 나누기) */
 export default function RuleEditor({ rule, root, separator, known, watchFolders, onClose, onSaved }: Props) {
   const [words, setWords] = useState<string[]>(rule?.words ?? []);
+  const [anyWord, setAnyWord] = useState(rule?.anyWord ?? false);
   const [wordDraft, setWordDraft] = useState("");
   const [exts, setExts] = useState(rule?.extensions.join(", ") ?? "");
   const [source, setSource] = useState(rule?.sourceDir ?? "");
@@ -65,8 +67,10 @@ export default function RuleEditor({ rule, root, separator, known, watchFolders,
     if (!dest || busy) return;
     setBusy(true);
     setError(null);
+    const allWords = withDraft(wordDraft);
     const input = {
-      words: withDraft(wordDraft),
+      words: allWords,
+      anyWord: anyWord && allWords.length > 1,
       extensions: parseExtensions(exts),
       sourceDir: source || null,
       destDir: dest,
@@ -140,7 +144,18 @@ export default function RuleEditor({ rule, root, separator, known, watchFolders,
               onBlur={addWord}
             />
           </div>
-          <p className="rule-edit__hint">단어를 적고 Enter. 여러 개면 모두 들어 있는 파일만 맞아요.</p>
+          {words.length > 1 ? (
+            <>
+              <WordMatchChoice anyWord={anyWord} onChange={setAnyWord} />
+              <p className="rule-edit__hint">
+                {anyWord
+                  ? "적은 단어 중 하나라도 이름에 있으면 맞아요."
+                  : "적은 단어가 이름에 모두 들어 있어야 맞아요."}
+              </p>
+            </>
+          ) : (
+            <p className="rule-edit__hint">단어를 적고 Enter. 여러 개를 적을 수 있어요.</p>
+          )}
         </div>
 
         <div className="rule-edit__pair">

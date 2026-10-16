@@ -150,3 +150,16 @@
   font-size: 13px;
   color: var(--color-text-sub);
 }
+
+.settings__search {
+  align-items: center;
+}
+
+.settings__search .popup__spacer {
+  flex: 1;
+}
+
+.settings__note--plain {
+  background: var(--color-surface-sub);
+  color: var(--color-text-sub);
+}

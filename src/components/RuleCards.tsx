@@ -4,6 +4,7 @@ import { withRo } from "../lib/format";
 import { baseName, displayPath } from "../lib/paths";
 import { ruleCondition, ruleName, segmentsLabel, splitKinds } from "../lib/rules";
 import type { Rule, RuleChange, RuleDraft } from "../lib/types";
+import WordMatchChoice from "./WordMatchChoice";
 import "./RuleCards.css";
 
 interface DraftProps {
@@ -20,6 +21,7 @@ interface DraftProps {
  */
 export function RuleDraftCard({ draft, root, separator, onSkip }: DraftProps) {
   const [chosen, setChosen] = useState<string[]>(draft.preselected);
+  const [anyWord, setAnyWord] = useState(false);
   const kinds = splitKinds(draft.segments);
   const [split, setSplit] = useState(kinds !== "");
   const [saved, setSaved] = useState<Rule | null>(null);
@@ -30,7 +32,7 @@ export function RuleDraftCard({ draft, root, separator, onSkip }: DraftProps) {
   const useSplit = split && kinds !== "";
   const dest = useSplit ? segmentsLabel(rootName, draft.segments, true) : displayPath(root, draft.destDir, separator);
   const condition =
-    chosen.length === 0 ? "기준 단어를 하나 이상 골라 주세요" : ruleCondition({ words: chosen, extensions: [], sourceDir: null }, null);
+    chosen.length === 0 ? "기준 단어를 하나 이상 골라 주세요" : ruleCondition({ words: chosen, anyWord: anyWord && chosen.length > 1, extensions: [], sourceDir: null }, null);
 
   const toggle = (w: string) => setChosen((c) => (c.includes(w) ? c.filter((x) => x !== w) : [...c, w]));
 
@@ -41,7 +43,16 @@ export function RuleDraftCard({ draft, root, separator, onSkip }: DraftProps) {
     try {
       // 고른 순서가 아니라 이름에 나온 순서로
       const words = draft.words.filter((w) => chosen.includes(w));
-      setSaved(await createRule({ words, extensions: [], sourceDir: null, destDir: draft.destDir, split: useSplit }));
+      setSaved(
+        await createRule({
+          words,
+          anyWord: anyWord && words.length > 1,
+          extensions: [],
+          sourceDir: null,
+          destDir: draft.destDir,
+          split: useSplit,
+        }),
+      );
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -89,6 +100,7 @@ export function RuleDraftCard({ draft, root, separator, onSkip }: DraftProps) {
       ) : (
         <div className="rule-card__sub">이름에서 고를 단어가 없어요. ‘정리 규칙’에서 확장자로 규칙을 만들 수 있어요.</div>
       )}
+      {chosen.length > 1 && <WordMatchChoice anyWord={anyWord} onChange={setAnyWord} />}
       {kinds !== "" && (
         <label className="rule-card__check">
           <input type="checkbox" checked={split} onChange={(e) => setSplit(e.target.checked)} />

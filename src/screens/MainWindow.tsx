@@ -1,8 +1,8 @@
-import { Inbox, ListChecks, Pause, Play, Settings as SettingsIcon } from "lucide-react";
+import { Inbox, ListChecks, Pause, Play, Search, Settings as SettingsIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import FolderIcon from "../components/FolderIcon";
 import UpdateBanner from "../components/UpdateBanner";
-import { getStatus, listInbox, onBackendEvent, setPaused } from "../lib/backend";
+import { getStatus, listInbox, onBackendEvent, setPaused, showSearch } from "../lib/backend";
 import { friendlyName } from "../lib/paths";
 import { useAppStore, type Page } from "../store/useAppStore";
 import { startUpdateChecks } from "../store/useUpdateStore";
@@ -11,8 +11,10 @@ import RulesPage from "./RulesPage";
 import SettingsPage from "./SettingsPage";
 import "./MainWindow.css";
 
-const MENU: { page: Page; label: string; Icon: typeof Inbox }[] = [
+// "search"는 화면이 아니라 따로 뜨는 검색창을 연다.
+const MENU: { page: Page | "search"; label: string; Icon: typeof Inbox }[] = [
   { page: "inbox", label: "정리함", Icon: Inbox },
+  { page: "search", label: "파일 검색", Icon: Search },
   { page: "rules", label: "정리 규칙", Icon: ListChecks },
   { page: "settings", label: "설정", Icon: SettingsIcon },
 ];
@@ -70,9 +72,9 @@ export default function MainWindow() {
             key={p}
             type="button"
             className={`sidebar__item${page === p ? " sidebar__item--on" : ""}`}
-            title={label}
+            title={p === "search" && settings?.searchShortcut ? `${label} (${settings.searchShortcut})` : label}
             aria-current={page === p ? "page" : undefined}
-            onClick={() => goTo(p)}
+            onClick={() => (p === "search" ? void showSearch() : goTo(p))}
           >
             <Icon size={18} aria-hidden="true" />
             <span className="sidebar__label">{label}</span>

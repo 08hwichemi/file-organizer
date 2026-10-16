@@ -1,6 +1,5 @@
-//! 트레이 아이콘(SPEC 3-3): 열기 · 정리함(개수) · 일시 정지/다시 시작 · 끄기.
+//! 트레이 아이콘(SPEC 3-3): 열기 · 정리함(개수) · 파일 검색 · 일시 정지/다시 시작 · 끄기.
 //! 아이콘을 누르면 메인 창을 연다. 창 X는 끄지 않고 숨긴다(lib.rs) — 감시는 트레이에서 계속된다.
-//! 검색(Alt+Space)은 7단계에서 메뉴에 더한다.
 
 use crate::commands::{AppState, EVENT_STATUS_CHANGED};
 use crate::inbox;
@@ -21,10 +20,11 @@ pub struct TrayItems {
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "열기", true, None::<&str>)?;
     let inbox = MenuItem::with_id(app, "inbox", "정리함", true, None::<&str>)?;
+    let search = MenuItem::with_id(app, "search", "파일 검색", true, None::<&str>)?;
     let pause = MenuItem::with_id(app, "pause", "일시 정지", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "끄기", true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
-    let menu = Menu::with_items(app, &[&open, &inbox, &pause, &sep, &quit])?;
+    let menu = Menu::with_items(app, &[&open, &inbox, &search, &pause, &sep, &quit])?;
 
     let mut builder = TrayIconBuilder::with_id(ID)
         .tooltip("파일 정리 도우미")
@@ -33,6 +33,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         .on_menu_event(|app, event| match event.id().as_ref() {
             "open" => show_main(app, None),
             "inbox" => show_main(app, Some("inbox")),
+            "search" => crate::finder::show(app),
             "pause" => {
                 let state = app.state::<AppState>();
                 state.set_paused(!state.is_paused());

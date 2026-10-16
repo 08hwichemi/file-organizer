@@ -6,6 +6,8 @@
 mod classify;
 mod commands;
 mod db;
+mod everything;
+mod finder;
 mod folders;
 mod history;
 mod inbox;
@@ -14,6 +16,7 @@ mod naming;
 mod popup;
 mod recycle;
 mod rules;
+mod search;
 mod settings;
 mod setup;
 mod tray;
@@ -37,6 +40,16 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec![AUTOSTART_ARG]),
         ))
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        finder::toggle(app);
+                    }
+                })
+                .build(),
+        )
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
@@ -57,6 +70,9 @@ pub fn run() {
                 pending: Mutex::new(VecDeque::new()),
                 auto_moved: Mutex::new(Vec::new()),
                 paused: AtomicBool::new(false),
+                index: Mutex::new(search::Index::default()),
+                indexing: AtomicBool::new(false),
+                shortcut_error: Mutex::new(None),
             };
             state.apply_watch_folders(&current);
             app.manage(state);
@@ -67,6 +83,16 @@ pub fn run() {
                 tauri::WebviewWindowBuilder::from_config(app.handle(), config)?.build()?;
             }
             tray::create(app.handle())?;
+
+            // 파일 검색: 단축키 등록(실패하면 설정 화면에 알림), 자체 색인 미리 읽기
+            if let Err(e) = finder::apply_shortcut(app.handle(), &current.search_shortcut) {
+                if let Ok(mut err) = app.state::<commands::AppState>().shortcut_error.lock() {
+                    *err = Some(e);
+                }
+            }
+            if current.setup_done {
+                finder::refresh_index(app.handle(), true);
+            }
 
             // 메인 창은 숨긴 채 만들어 두고, 컴퓨터를 켤 때 자동 실행된 경우(설정을 마쳤으면)에는
             // 트레이로만 시작한다(SPEC 7장).
@@ -81,12 +107,21 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // 메인 창 X = 끄지 않고 숨기기(트레이에서 감시 계속). 끄기는 트레이 메뉴의 "끄기".
-            if window.label() == "main" {
-                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+            match (window.label(), event) {
+                // 메인 창 X = 끄지 않고 숨기기(트레이에서 감시 계속). 끄기는 트레이 메뉴의 "끄기".
+                ("main", tauri::WindowEvent::CloseRequested { api, .. }) => {
                     api.prevent_close();
                     let _ = window.hide();
                 }
+                // 검색창은 닫지 않고 숨긴다. 다른 곳을 누르면(초점을 잃으면) 숨긴다.
+                (finder::LABEL, tauri::WindowEvent::CloseRequested { api, .. }) => {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+                (finder::LABEL, tauri::WindowEvent::Focused(false)) => {
+                    let _ = window.hide();
+                }
+                _ => {}
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -137,6 +172,13 @@ pub fn run() {
             commands::restore_rule,
             commands::move_rule,
             commands::answer_rule_change,
+            finder::search_files,
+            finder::show_search,
+            finder::hide_search,
+            finder::open_path,
+            finder::reveal_path,
+            finder::search_info,
+            finder::set_search_shortcut,
         ])
         .run(tauri::generate_context!())
         .expect("파일 정리 도우미를 시작하지 못했습니다");
