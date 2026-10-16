@@ -10,6 +10,7 @@ import { errorMessage, getAppInfo, getSearchInfo, pickFolder } from "../lib/back
 import type { OrganizeMode, PlaceMode, SearchInfo } from "../lib/types";
 import { useAppStore } from "../store/useAppStore";
 import { useUpdateStore } from "../store/useUpdateStore";
+import thirdParty from "../../src-tauri/resources/THIRD_PARTY.txt?raw";
 import "./SettingsPage.css";
 
 type SavedKey = "mode" | "watch" | "place" | "term" | "wait" | "root" | "fav" | "autostart" | "search" | "scope";
@@ -44,6 +45,7 @@ export default function SettingsPage() {
   const savePins = useAppStore((s) => s.setPinnedFavorites);
   const saveRoot = useAppStore((s) => s.setRootFolder);
   const [newRoot, setNewRoot] = useState<string | null>(null);
+  const [showLicenses, setShowLicenses] = useState(false);
   const saveShortcut = useAppStore((s) => s.setSearchShortcut);
   const saveWholePc = useAppStore((s) => s.setSearchWholePc);
   const openSearch = useAppStore((s) => s.openSearch);
@@ -367,6 +369,36 @@ export default function SettingsPage() {
       <Section title="업데이트" description="새 버전이 나오면 프로그램이 알아서 알려 드려요(켤 때와 하루에 한 번 확인).">
         <UpdateRow version={version} />
       </Section>
+
+      <Section title="정보">
+        <div className="settings__about">
+          <div className="settings__about-text">
+            <strong>파일 정리 도우미</strong>
+            <span className="settings__toggle-desc">
+              {version ? `버전 ${version}` : "버전 확인 중"} · 파일 이름과 경로는 이 PC 안에서만 쓰고 밖으로 보내지 않아요(인터넷은
+              업데이트 확인에만 써요).
+            </span>
+          </div>
+          <button type="button" className="btn" onClick={() => setShowLicenses(true)}>
+            오픈소스 라이선스
+          </button>
+        </div>
+      </Section>
+
+      {showLicenses && (
+        <Dialog
+          title="오픈소스 라이선스"
+          wide
+          onClose={() => setShowLicenses(false)}
+          actions={
+            <button type="button" className="btn btn--primary" onClick={() => setShowLicenses(false)}>
+              닫기
+            </button>
+          }
+        >
+          <pre className="settings__licenses">{thirdParty}</pre>
+        </Dialog>
+      )}
 
       {newRoot && (
         <Dialog
