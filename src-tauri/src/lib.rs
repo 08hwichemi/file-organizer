@@ -41,6 +41,12 @@ pub fn run() {
             };
             state.apply_watch_folders(&current);
             app.manage(state);
+
+            // 창은 저장소(state)를 준비한 뒤에 만든다. 창이 먼저 뜨면 화면이 설정을 묻는 순간
+            // "state not managed" 오류가 날 수 있다(tauri.conf.json의 창은 모두 create: false).
+            for config in &app.config().app.windows {
+                tauri::WebviewWindowBuilder::from_config(app.handle(), config)?.build()?;
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -72,4 +78,23 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("파일 정리 도우미를 시작하지 못했습니다");
+}
+
+#[cfg(test)]
+mod tests {
+    /// 창을 Tauri가 먼저 만들면 저장소 준비 전에 화면이 명령을 불러 오류가 난다(0.1.4에서 실제로 발생).
+    #[test]
+    fn windows_are_created_after_state_is_managed() {
+        let conf: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let windows = conf["app"]["windows"].as_array().unwrap();
+        assert!(!windows.is_empty());
+        for w in windows {
+            assert_eq!(
+                w["create"], false,
+                "창 {}은 create: false여야 해요",
+                w["label"]
+            );
+        }
+    }
 }
