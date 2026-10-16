@@ -94,8 +94,10 @@ export interface PendingFile {
 /** 정리 규칙(SPEC 4장): 조건 → 저장 위치 */
 export interface Rule {
   id: number;
-  /** 파일 이름에 모두 들어 있어야 하는 단어 */
+  /** 파일 이름에 들어 있어야 하는 단어 */
   words: string[];
+  /** 단어가 여럿일 때 하나라도 있으면 맞음(false = 모두 있어야) */
+  anyWord: boolean;
   /** 확장자(소문자, 점 없이). 비면 아무 형식 */
   extensions: string[];
   /** 이 폴더에서 온 파일만 */
@@ -109,6 +111,7 @@ export interface Rule {
 
 export interface RuleInput {
   words: string[];
+  anyWord: boolean;
   extensions: string[];
   sourceDir: string | null;
   destDir: string;

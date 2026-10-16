@@ -18,8 +18,10 @@ const MISSES_BEFORE_ASKING: i64 = 3;
 #[serde(rename_all = "camelCase")]
 pub struct Rule {
     pub id: i64,
-    /// 파일 이름에 모두 들어 있어야 하는 단어(대소문자 무시)
+    /// 파일 이름에 들어 있어야 하는 단어(대소문자 무시)
     pub words: Vec<String>,
+    /// 단어가 여럿일 때 하나라도 있으면 맞음(false면 모두 있어야 맞음)
+    pub any_word: bool,
     /// 확장자(소문자, 점 없이). 비어 있으면 아무 확장자.
     pub extensions: Vec<String>,
     /// 이 폴더에서 온 파일만. 없으면 어디서 왔든.
@@ -31,11 +33,25 @@ pub struct Rule {
     pub used: i64,
 }
 
+impl Rule {
+    /// 이름(소문자, 확장자 뺀)이 단어 조건에 맞는지. 단어가 없으면 맞음.
+    pub fn words_match(&self, name: &str) -> bool {
+        let has = |w: &String| name.contains(&w.to_lowercase());
+        if self.any_word {
+            self.words.is_empty() || self.words.iter().any(has)
+        } else {
+            self.words.iter().all(has)
+        }
+    }
+}
+
 /// 화면에서 만들거나 고칠 때 보내는 값
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RuleInput {
     pub words: Vec<String>,
+    #[serde(default)]
+    pub any_word: bool,
     pub extensions: Vec<String>,
     pub source_dir: Option<String>,
     pub dest_dir: String,
@@ -80,6 +96,7 @@ pub fn normalize(input: RuleInput) -> Result<RuleInput, String> {
         return Err("넣을 폴더를 골라 주세요.".into());
     }
     Ok(RuleInput {
+        any_word: input.any_word && words.len() > 1,
         words,
         extensions,
         source_dir: input
@@ -100,7 +117,8 @@ fn from_json(s: &str) -> Vec<String> {
 }
 
 const SELECT: &str = "SELECT id, words, extensions, source_dir, dest_dir, split,
-       (SELECT COUNT(*) FROM moves m WHERE m.rule = CAST(r.id AS TEXT) AND m.undone_at IS NULL)
+       (SELECT COUNT(*) FROM moves m WHERE m.rule = CAST(r.id AS TEXT) AND m.undone_at IS NULL),
+       any_word
      FROM rules r";
 
 fn row_to_rule(row: &rusqlite::Row) -> rusqlite::Result<Rule> {
@@ -112,6 +130,7 @@ fn row_to_rule(row: &rusqlite::Row) -> rusqlite::Result<Rule> {
         dest_dir: row.get(4)?,
         split: row.get::<_, i64>(5)? != 0,
         used: row.get(6)?,
+        any_word: row.get::<_, i64>(7)? != 0,
     })
 }
 
@@ -121,8 +140,8 @@ pub fn create(conn: &Connection, input: &RuleInput) -> rusqlite::Result<i64> {
         r.get(0)
     })?;
     conn.execute(
-        "INSERT INTO rules (position, words, extensions, source_dir, dest_dir, split, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO rules (position, words, extensions, source_dir, dest_dir, split, created_at, any_word)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
             top - 1,
             to_json(&input.words),
@@ -130,7 +149,8 @@ pub fn create(conn: &Connection, input: &RuleInput) -> rusqlite::Result<i64> {
             input.source_dir,
             input.dest_dir,
             input.split,
-            crate::db::now_ms()
+            crate::db::now_ms(),
+            input.any_word
         ],
     )?;
     Ok(conn.last_insert_rowid())
@@ -139,7 +159,7 @@ pub fn create(conn: &Connection, input: &RuleInput) -> rusqlite::Result<i64> {
 pub fn update(conn: &Connection, id: i64, input: &RuleInput) -> rusqlite::Result<()> {
     conn.execute(
         "UPDATE rules SET words = ?2, extensions = ?3, source_dir = ?4, dest_dir = ?5, split = ?6,
-                          miss_streak = 0, miss_dir = NULL
+                          any_word = ?7, miss_streak = 0, miss_dir = NULL
          WHERE id = ?1",
         params![
             id,
@@ -147,7 +167,8 @@ pub fn update(conn: &Connection, id: i64, input: &RuleInput) -> rusqlite::Result
             to_json(&input.extensions),
             input.source_dir,
             input.dest_dir,
-            input.split
+            input.split,
+            input.any_word
         ],
     )?;
     Ok(())
@@ -263,7 +284,7 @@ pub fn find_match<'a>(rules: &'a [Rule], file_name: &str, source_dir: &Path) -> 
             && r.source_dir
                 .as_deref()
                 .is_none_or(|s| same_path(Path::new(s), source_dir))
-            && r.words.iter().all(|w| name.contains(&w.to_lowercase()))
+            && r.words_match(&name)
     };
     rules
         .iter()
@@ -535,6 +556,7 @@ mod tests {
             source_dir: None,
             dest_dir: dest.into(),
             split: false,
+            any_word: false,
         }
     }
 
@@ -606,7 +628,33 @@ mod tests {
             dest_dir: format!("/r/{id}"),
             split: false,
             used: 0,
+            any_word: false,
         }
+    }
+
+    #[test]
+    fn any_word_matches_one_of_the_words() {
+        let mut r = rule(1, &["중간고사", "기말고사"], &[], None);
+        let d = Path::new("/d");
+        let found = |r: &Rule, name: &str| find_match(std::slice::from_ref(r), name, d).is_some();
+        assert!(!found(&r, "2학기_기말고사_시험지.hwp")); // 모두: 둘 다 있어야
+        assert!(found(&r, "중간고사_기말고사_일정.hwp"));
+        r.any_word = true; // 하나라도
+        assert!(found(&r, "2학기_기말고사_시험지.hwp"));
+        assert!(found(&r, "1학기 중간고사.pdf"));
+        assert!(!found(&r, "수행평가.hwp"));
+    }
+
+    #[test]
+    fn any_word_is_saved_and_only_kept_with_two_or_more_words() {
+        let conn = db::open_in_memory().unwrap();
+        let mut i = input(&["중간고사", "기말고사"], &[], "/r/a");
+        i.any_word = true;
+        let id = create(&conn, &normalize(i).unwrap()).unwrap();
+        assert!(get(&conn, id).unwrap().unwrap().any_word);
+        let mut one = input(&["중간고사"], &[], "/r/a");
+        one.any_word = true;
+        assert!(!normalize(one).unwrap().any_word);
     }
 
     #[test]

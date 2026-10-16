@@ -4,15 +4,16 @@ import type { DestSegment, Reason, Rule } from "./types";
 
 const quote = (w: string) => `‘${w}’`;
 
-/** 조건: "파일 이름에 ‘수행평가’ 포함 · .hwp 파일 · 다운로드에서 온 파일" */
+/** 조건: "파일 이름에 ‘수행평가’ 포함 · .hwp 파일 · 다운로드에서 온 파일", "‘중간고사’, ‘기말고사’ 중 하나라도 포함" */
 export function ruleCondition(
-  rule: Pick<Rule, "words" | "extensions" | "sourceDir">,
+  rule: Pick<Rule, "words" | "anyWord" | "extensions" | "sourceDir">,
   known: KnownFolders | null,
 ): string {
   const parts: string[] = [];
   if (rule.words.length > 0) {
+    const many = rule.words.length > 1;
     parts.push(
-      `파일 이름에 ${rule.words.map(quote).join(", ")}${rule.words.length > 1 ? " 모두" : ""} 포함`,
+      `파일 이름에 ${rule.words.map(quote).join(", ")}${many ? (rule.anyWord ? " 중 하나라도" : " 모두") : ""} 포함`,
     );
   }
   if (rule.extensions.length > 0) parts.push(`${rule.extensions.map((e) => `.${e}`).join("·")} 파일`);

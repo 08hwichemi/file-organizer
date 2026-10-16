@@ -84,6 +84,13 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
              PRAGMA user_version = 4;",
         )?;
     }
+    if version < 5 {
+        // 규칙의 단어 조건: 0 = 모두 들어 있으면, 1 = 하나라도 있으면
+        conn.execute_batch(
+            "ALTER TABLE rules ADD COLUMN any_word INTEGER NOT NULL DEFAULT 0;
+             PRAGMA user_version = 5;",
+        )?;
+    }
     Ok(())
 }
 

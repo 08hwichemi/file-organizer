@@ -259,6 +259,7 @@ const mockRules: MockRule[] =
       ].map((r, i) => ({
         id: i + 1,
         words: r.words,
+        anyWord: false,
         extensions: r.extensions,
         sourceDir: r.sourceDir,
         destDir: `${readyRoot}\\${r.dest}`,
@@ -312,7 +313,7 @@ function matchRule(fileName: string, sourceDir: string): MockRule | undefined {
   const fits = (r: MockRule) =>
     (r.extensions.length === 0 || r.extensions.includes(ext)) &&
     (!r.sourceDir || r.sourceDir === sourceDir) &&
-    r.words.every((w) => stem.includes(w.toLowerCase()));
+    (r.anyWord ? r.words.length === 0 || r.words.some((w) => stem.includes(w.toLowerCase())) : r.words.every((w) => stem.includes(w.toLowerCase())));
   const live = liveRules();
   return live.filter((r) => r.words.length > 0).find(fits) ?? live.filter((r) => r.words.length === 0).find(fits);
 }
