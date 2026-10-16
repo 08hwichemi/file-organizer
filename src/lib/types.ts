@@ -82,3 +82,15 @@ export interface InboxItem {
   addedAt: number;
   size: number;
 }
+
+/** 여러 파일 넣기 결과(파일마다) */
+export interface PutOutcome {
+  path: string;
+  moveId: number | null;
+  error: string | null;
+}
+
+export interface UndoManyResult {
+  restored: number;
+  errors: string[];
+}

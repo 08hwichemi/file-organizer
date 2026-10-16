@@ -4,7 +4,7 @@ use crate::folders::{self, FolderEntry, FolderMatch};
 use crate::inbox::{self, InboxItem};
 use crate::settings::{self, OrganizeMode, Settings};
 use crate::setup::{self, SetupRequest};
-use crate::watcher::{NewFile, WatchService};
+use crate::watcher::{self, NewFile, WatchService};
 use crate::{history, mover, popup};
 use rusqlite::Connection;
 use serde::Serialize;
@@ -283,14 +283,8 @@ pub fn put_file(
     })
 }
 
-/// 되돌리기: 원래 위치로 돌려놓는다. `requeue`면 팝업에서 다시 물어본다.
-#[tauri::command]
-pub fn undo_move(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    move_id: i64,
-    requeue: bool,
-) -> Result<PendingFile, String> {
+/// 이동 기록 하나를 되돌린다: 원래 폴더·원래 이름으로. 돌아온 파일과 그 폴더를 돌려준다.
+fn undo_one(state: &AppState, move_id: i64) -> Result<(PathBuf, PathBuf), String> {
     let record = state
         .with_db(|conn| history::get(conn, move_id).map_err(db_err))?
         .ok_or("되돌릴 기록을 찾을 수 없어요.")?;
@@ -303,12 +297,158 @@ pub fn undo_move(
     // 돌아온 파일을 감시가 새 파일로 다시 잡지 않게
     state.watcher.mark_known(restored.clone());
     let source_dir = original.parent().unwrap_or(Path::new("")).to_path_buf();
+    Ok((restored, source_dir))
+}
+
+/// 되돌리기(팝업): 원래 위치로 돌려놓는다. `requeue`면 팝업에서 다시 물어본다.
+#[tauri::command]
+pub fn undo_move(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    move_id: i64,
+    requeue: bool,
+) -> Result<PendingFile, String> {
+    let (restored, source_dir) = undo_one(&state, move_id)?;
     let item = PendingFile::new(&restored, &source_dir);
     if requeue {
         state.with_pending(|q| q.push_front(item.clone()));
     }
     let _ = app.emit(EVENT_INBOX_CHANGED, ());
     Ok(item)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UndoManyResult {
+    pub restored: usize,
+    pub errors: Vec<String>,
+}
+
+/// 되돌리기(정리함): 여러 이동을 되돌리고, 돌아온 파일은 다시 정리함에 넣는다.
+#[tauri::command]
+pub fn undo_moves(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    move_ids: Vec<i64>,
+) -> UndoManyResult {
+    let mut result = UndoManyResult {
+        restored: 0,
+        errors: Vec::new(),
+    };
+    for id in move_ids {
+        match undo_one(&state, id) {
+            Ok((restored, source_dir)) => {
+                let _ = state.with_db(|conn| {
+                    inbox::add(conn, &restored, &source_dir, inbox::Reason::Later).map_err(db_err)
+                });
+                result.restored += 1;
+            }
+            Err(e) => result.errors.push(e),
+        }
+    }
+    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    result
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PutOutcome {
+    pub path: String,
+    pub move_id: Option<i64>,
+    pub error: Option<String>,
+}
+
+/// 여러 파일을 한 폴더에 넣는다(정리함). 파일마다 결과를 돌려준다.
+#[tauri::command]
+pub fn put_files(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    paths: Vec<String>,
+    dest_dir: String,
+) -> Vec<PutOutcome> {
+    let dest = PathBuf::from(&dest_dir);
+    let outcomes = paths
+        .into_iter()
+        .map(|path| {
+            let src = PathBuf::from(&path);
+            let result = mover::move_into(&src, &dest, None).and_then(|moved| {
+                state.with_db(|conn| {
+                    inbox::remove(conn, &src).map_err(db_err)?;
+                    history::record(conn, &src, &moved).map_err(db_err)
+                })
+            });
+            state.with_pending(|q| q.retain(|p| p.path != path));
+            match result {
+                Ok(id) => PutOutcome {
+                    path,
+                    move_id: Some(id),
+                    error: None,
+                },
+                Err(e) => PutOutcome {
+                    path,
+                    move_id: None,
+                    error: Some(e),
+                },
+            }
+        })
+        .collect();
+    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    outcomes
+}
+
+/// 지금 지켜볼 폴더에 있는 파일을 정리함으로 가져온다(시작할 때 있던 파일 등). 새로 들어온 수를 돌려준다.
+#[tauri::command]
+pub fn import_existing(app: AppHandle, state: State<'_, AppState>) -> Result<usize, String> {
+    let s = state.with_db(settings::load)?;
+    let mut added = 0;
+    for dir in s.watch_folders.iter().map(PathBuf::from) {
+        for (path, stat) in watcher::list_files(&dir) {
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            if !watcher::is_candidate_name(&name)
+                || stat.size == 0
+                || watcher::has_partial_partner(&path)
+            {
+                continue;
+            }
+            let new = state.with_db(|conn| {
+                inbox::add_if_absent(conn, &path, &dir, inbox::Reason::Collected).map_err(db_err)
+            })?;
+            if new {
+                added += 1;
+            }
+        }
+    }
+    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    Ok(added)
+}
+
+/// 자주 쓰는 폴더(숫자 키 1~6): 자주 넣은 폴더부터, 모자라면 정리 폴더 바로 아래 폴더로 채운다.
+#[tauri::command]
+pub fn favorite_folders(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    const COUNT: usize = 6;
+    let s = state.with_db(settings::load)?;
+    let mut out: Vec<String> = state
+        .with_db(|conn| history::frequent_destinations(conn, 20).map_err(db_err))?
+        .into_iter()
+        .filter(|d| Path::new(d).is_dir())
+        .take(COUNT)
+        .collect();
+    if let Some(root) = s.root_folder {
+        if let Ok(top) = folders::list_subfolders(Path::new(&root)) {
+            for f in top {
+                if out.len() >= COUNT {
+                    break;
+                }
+                if !out.contains(&f.path) {
+                    out.push(f.path);
+                }
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// "나중에 정리": 정리함으로 보내고 팝업 차례에서 뺀다.

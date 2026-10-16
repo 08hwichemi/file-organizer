@@ -9,10 +9,12 @@ import type {
   OrganizeMode,
   PendingFile,
   PopupState,
+  PutOutcome,
   PutResult,
   Settings,
   SetupInfo,
   SetupRequest,
+  UndoManyResult,
 } from "../lib/types";
 
 const HOME = "C:\\Users\\선생님";
@@ -131,6 +133,16 @@ interface MockMove {
   destDir: string;
   undone: boolean;
 }
+
+// 다운로드·바탕화면에 원래 있던 파일(‘지금 있는 파일 가져오기’로 불러옴)
+let existingFiles: PendingFile[] = startReady
+  ? [
+      file(DOWNLOADS, "2027학년도_교육과정_편성_안내.pdf", 1_200_000),
+      file(DESKTOP, "체험학습_단체사진_01.jpg", 2_400_000),
+      file(DOWNLOADS, "광합성_수업자료.pptx", 5_100_000),
+      file(DOWNLOADS, "학업성적관리위원회_회의록_10월.hwp", 31_000),
+    ]
+  : [];
 const moves: MockMove[] = [];
 let recent: string[] = startReady
   ? [`${readyRoot}\\업무\\회의록`, `${readyRoot}\\평가\\지필고사`, `${readyRoot}\\학급\\상담`]
@@ -271,6 +283,69 @@ export const mockBackend = {
       mockEvents.emit("popup-changed");
     }, 1500);
     return delay(undefined);
+  },
+
+  putFiles(paths: string[], destDir: string) {
+    const dest = findFolder(destDir);
+    const outcomes: PutOutcome[] = paths.map((path) => {
+      const item = inbox.find((i) => i.path === path) ?? pending.find((p) => p.path === path);
+      if (!item || !dest) {
+        return { path, moveId: null, error: "파일을 찾을 수 없어요. 이미 옮겨졌거나 지워졌을 수 있어요." };
+      }
+      dest.files += 1;
+      const id = ++nextId;
+      moves.push({ id, original: { ...item }, destDir, undone: false });
+      inbox = inbox.filter((i) => i.path !== path);
+      pending = pending.filter((p) => p.path !== path);
+      return { path, moveId: id, error: null };
+    });
+    if (outcomes.some((o) => o.moveId)) recent = [destDir, ...recent.filter((r) => r !== destDir)];
+    mockEvents.emit("inbox-changed");
+    return delay(outcomes);
+  },
+
+  undoMoves(moveIds: number[]) {
+    const result: UndoManyResult = { restored: 0, errors: [] };
+    for (const id of moveIds) {
+      const move = moves.find((m) => m.id === id);
+      if (!move || move.undone) {
+        result.errors.push("되돌릴 기록을 찾을 수 없어요.");
+        continue;
+      }
+      move.undone = true;
+      const dest = findFolder(move.destDir);
+      if (dest) dest.files -= 1;
+      inbox = [{ id: ++nextId, ...move.original, addedAt: Date.now() }, ...inbox];
+      result.restored += 1;
+    }
+    mockEvents.emit("inbox-changed");
+    return delay(result);
+  },
+
+  importExisting() {
+    const added = existingFiles.filter((f) => !inbox.some((i) => i.path === f.path));
+    inbox = [...inbox, ...added.map((f) => ({ id: ++nextId, ...f, addedAt: Date.now() - 3 * 86400_000 }))];
+    existingFiles = [];
+    mockEvents.emit("inbox-changed");
+    return delay(added.length);
+  },
+
+  favoriteFolders() {
+    const root = settings.rootFolder;
+    const tree = root ? trees.get(root) : null;
+    const counts = new Map<string, number>();
+    for (const m of moves.filter((m) => !m.undone)) counts.set(m.destDir, (counts.get(m.destDir) ?? 0) + 1);
+    const frequent = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([d]) => d);
+    const seed = startReady ? [`${readyRoot}\\업무\\공문`, `${readyRoot}\\평가\\수행평가`, `${readyRoot}\\학급\\상담`] : [];
+    const out = [...new Set([...frequent, ...seed])].filter((p) => findFolder(p));
+    if (root && tree) {
+      for (const name of Object.keys(tree.children).sort((a, b) => a.localeCompare(b, "ko"))) {
+        if (out.length >= 6) break;
+        const p = root + SEP + name;
+        if (!out.includes(p)) out.push(p);
+      }
+    }
+    return delay(out.slice(0, 6));
   },
 
   listInbox: () => delay([...inbox]),

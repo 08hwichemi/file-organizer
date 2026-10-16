@@ -10,10 +10,12 @@ import type {
   OrganizeMode,
   PendingFile,
   PopupState,
+  PutOutcome,
   PutResult,
   Settings,
   SetupInfo,
   SetupRequest,
+  UndoManyResult,
 } from "./types";
 
 export const usingMocks = !isTauri();
@@ -118,6 +120,28 @@ export function deferFile(path: string): Promise<void> {
 export function hidePopup(): Promise<void> {
   if (usingMocks) return mockBackend.hidePopup();
   return invoke("hide_popup");
+}
+
+export function putFiles(paths: string[], destDir: string): Promise<PutOutcome[]> {
+  if (usingMocks) return mockBackend.putFiles(paths, destDir);
+  return invoke("put_files", { paths, destDir });
+}
+
+export function undoMoves(moveIds: number[]): Promise<UndoManyResult> {
+  if (usingMocks) return mockBackend.undoMoves(moveIds);
+  return invoke("undo_moves", { moveIds });
+}
+
+/** 지켜볼 폴더에 지금 있는 파일을 정리함으로 가져온다. 새로 들어온 수. */
+export function importExisting(): Promise<number> {
+  if (usingMocks) return mockBackend.importExisting();
+  return invoke("import_existing");
+}
+
+/** 자주 쓰는 폴더(숫자 키 1~6) */
+export function getFavoriteFolders(): Promise<string[]> {
+  if (usingMocks) return mockBackend.favoriteFolders();
+  return invoke("favorite_folders");
 }
 
 export function listInbox(): Promise<InboxItem[]> {

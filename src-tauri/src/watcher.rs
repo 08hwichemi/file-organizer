@@ -40,7 +40,7 @@ pub fn is_candidate_name(name: &str) -> bool {
 }
 
 /// 같은 이름의 다운로드 중 파일(`a.pdf.crdownload` 등)이 옆에 있는지.
-fn has_partial_partner(path: &Path) -> bool {
+pub fn has_partial_partner(path: &Path) -> bool {
     PARTIAL_SUFFIXES.iter().any(|suffix| {
         let mut partner = path.as_os_str().to_owned();
         partner.push(".");
