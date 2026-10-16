@@ -357,6 +357,11 @@
   gap: 16px;
 }
 
+/* 카드 보기: 카드 칸을 넓게 두고 폴더 격자는 좁게 */
+.classify--cards {
+  grid-template-columns: minmax(0, 1fr) clamp(260px, 27%, 380px);
+}
+
 .classify__list {
   min-height: 0;
   display: flex;

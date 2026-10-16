@@ -61,7 +61,8 @@ interface Props {
  * 자동 분류 미리보기(SPEC 4-1). 넣을 폴더마다 같은 크기의 네모 카드(포스트잇을 줄 맞춰 붙인 것처럼)에
  * 그 폴더로 갈 파일을 담아 보여 준다. 파일이 많으면 카드 안에서만 내려간다.
  * 파일을 끌어 다른 카드에 놓으면 그 파일만 넣을 곳이 바뀐다. [+ 폴더 추가]로 목록에 없는 폴더 카드를 만든다.
- * 위의 버튼으로 '목록으로 보기'(왼쪽 목록 + 오른쪽 폴더 격자, 아무 폴더에나 놓기)로 바꿀 수 있다.
+ * 오른쪽 폴더 격자에 놓으면 카드가 없던 폴더에도 넣을 수 있다(놓으면 그 폴더 카드가 생긴다).
+ * 위의 버튼으로 '목록으로 보기'(왼쪽 목록 + 오른쪽 폴더 격자)로 바꿀 수 있다.
  */
 export default function ClassifyDialog({ paths, root, separator, onClose, onRun }: Props) {
   const [plans, setPlans] = useState<ClassifyPlan[] | null>(null);
@@ -82,6 +83,8 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
     }
   };
   const [pick, setPick] = useState<string | null>(null);
+  /** 새로 생긴 카드(오른쪽 폴더에 놓았을 때): 아래쪽에 생겨도 보이게 그 카드까지 내려 준다 */
+  const [reveal, setReveal] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -102,6 +105,13 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
       alive = false;
     };
   }, [paths]);
+
+  useEffect(() => {
+    if (!reveal) return;
+    const card = [...document.querySelectorAll<HTMLElement>(".classify__card[data-dest]")].find((el) => el.dataset.dest === reveal);
+    card?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    setReveal(null);
+  }, [reveal, cards]);
 
   const destOf = (p: ClassifyPlan) => overrides.get(p.path) ?? p.target?.destDir ?? INBOX;
 
@@ -138,7 +148,10 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
       else next.add(plan.path);
       return next;
     });
-    if (dest !== INBOX) addCard(dest);
+    if (dest !== INBOX) {
+      if (!cards.includes(dest)) setReveal(dest);
+      addCard(dest);
+    }
   };
 
   const onDragStart = (e: DragStartEvent) => setDragging((e.active.data.current as { plan: ClassifyPlan }).plan);
@@ -215,6 +228,22 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
     </>
   );
 
+  /** 오른쪽 폴더 격자: 아무 폴더에나 끌어다 놓기(카드 보기·목록 보기 모두) */
+  const folderSide = () => (
+    <div className="classify__side">
+      <div className="classify__side-title">끌어다 놓을 폴더 · 누르면 안으로 들어가요</div>
+      <FolderPane
+        root={root}
+        separator={separator}
+        dragging={dragging !== null}
+        toast={null}
+        onToast={() => {}}
+        label="끌어다 놓을 폴더"
+        fill
+      />
+    </div>
+  );
+
   return (
     <Dialog
       title="자동 분류"
@@ -260,31 +289,24 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
       {plans && plans.length > 0 && (
         <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
           {view === "cards" ? (
-            <div className="classify__board">
-              {groupCards()}
-              <button type="button" className="classify__card classify__card--add" onClick={() => setAdding(true)}>
-                <FolderPlus size={26} aria-hidden="true" />
-                <span>폴더 추가</span>
-                <small>목록에 없는 폴더로 보내고 싶을 때</small>
-              </button>
+            <div className="classify classify--cards">
+              <div className="classify__board">
+                {groupCards()}
+                <button type="button" className="classify__card classify__card--add" onClick={() => setAdding(true)}>
+                  <FolderPlus size={26} aria-hidden="true" />
+                  <span>폴더 추가</span>
+                  <small>목록에 없는 폴더로 보내고 싶을 때</small>
+                </button>
+              </div>
+              {/* 카드가 없는 폴더에도 바로 놓을 수 있게 오른쪽에 폴더 격자(놓으면 그 폴더 카드가 생긴다) */}
+              {folderSide()}
             </div>
           ) : (
             <div className="classify">
               <div className="classify__list" aria-label="나눌 파일">
                 {groupCards()}
               </div>
-              <div className="classify__side">
-                <div className="classify__side-title">끌어다 놓을 폴더 · 누르면 안으로 들어가요</div>
-                <FolderPane
-                  root={root}
-                  separator={separator}
-                  dragging={dragging !== null}
-                  toast={null}
-                  onToast={() => {}}
-                  label="끌어다 놓을 폴더"
-                  fill
-                />
-              </div>
+              {folderSide()}
             </div>
           )}
           <DragOverlay dropAnimation={null}>
@@ -349,6 +371,7 @@ function Card({
   return (
     <section
       ref={setNodeRef}
+      data-dest={dest}
       className={`classify__card${inbox ? " classify__card--inbox" : ""}${isOver ? " classify__card--over" : ""}`}
       aria-label={`${name} ${count}개`}
     >
