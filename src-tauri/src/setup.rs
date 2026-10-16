@@ -1,7 +1,7 @@
 //! 처음 실행 설정(SPEC 3-3): 정리 폴더 만들기, 예시 폴더 구조, 지켜볼 폴더, 정리 방식.
 //! 폴더를 만들기만 하고 지우거나 덮어쓰지 않는다. 이미 있는 폴더·파일은 그대로 둔다.
 
-use crate::settings::{OrganizeMode, Settings};
+use crate::settings::{OrganizeMode, Settings, UserKind};
 use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -20,12 +20,29 @@ pub const TEACHER_EXAMPLE: &[(&str, &[&str])] = &[
     ("개인", &[]),
 ];
 
+/// 일반(회사·개인) 예시 폴더
+pub const GENERAL_EXAMPLE: &[(&str, &[&str])] = &[
+    ("업무", &["보고서", "회의록", "계약서"]),
+    ("돈 관리", &["영수증", "세금", "보험"]),
+    ("개인", &["병원", "증명서"]),
+    ("공부", &[]),
+    ("사진", &[]),
+];
+
+/// 쓰는 곳에 맞는 예시 폴더
+pub fn example(kind: UserKind) -> &'static [(&'static str, &'static [&'static str])] {
+    match kind {
+        UserKind::School => TEACHER_EXAMPLE,
+        UserKind::General => GENERAL_EXAMPLE,
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum FolderPreset {
     /// `기준 위치\정리 폴더`를 빈 채로 만든다.
     Empty,
-    /// `기준 위치\정리 폴더`를 만들고 교사용 예시 폴더를 넣는다.
+    /// `기준 위치\정리 폴더`를 만들고 예시 폴더(학교·일반)를 넣는다. 이름은 예전 그대로.
     Teacher,
     /// 고른 폴더를 그대로 정리 폴더로 쓴다(아무것도 만들지 않는다).
     Existing,
@@ -50,11 +67,14 @@ pub struct SetupRequest {
     pub structure: Option<Vec<FolderSpec>>,
     pub watch_folders: Vec<String>,
     pub organize_mode: OrganizeMode,
+    /// 쓰는 곳(없으면 학교)
+    #[serde(default)]
+    pub user_kind: UserKind,
 }
 
-/// 교사용 예시를 폴더 구성 형태로.
-pub fn teacher_structure() -> Vec<FolderSpec> {
-    TEACHER_EXAMPLE
+/// 예시(학교·일반)를 폴더 구성 형태로.
+pub fn example_structure(kind: UserKind) -> Vec<FolderSpec> {
+    example(kind)
         .iter()
         .map(|(name, subs)| FolderSpec {
             name: name.to_string(),
@@ -114,7 +134,7 @@ pub fn run(req: &SetupRequest) -> Result<Settings, String> {
     validate_watch_folders(&req.watch_folders, &root_str)?;
     let structure = match (&req.preset, &req.structure) {
         (FolderPreset::Teacher, Some(custom)) => custom.clone(),
-        (FolderPreset::Teacher, None) => teacher_structure(),
+        (FolderPreset::Teacher, None) => example_structure(req.user_kind),
         _ => Vec::new(),
     };
     validate_structure(&structure)?;
@@ -127,6 +147,9 @@ pub fn run(req: &SetupRequest) -> Result<Settings, String> {
         root_folder: Some(root_str),
         watch_folders: req.watch_folders.clone(),
         organize_mode: req.organize_mode,
+        user_kind: req.user_kind,
+        first_term_month: req.user_kind.term_months().first,
+        second_term_month: req.user_kind.term_months().second,
         ..Settings::default()
     })
 }
@@ -175,6 +198,7 @@ mod tests {
             structure: None,
             watch_folders: watch,
             organize_mode: OrganizeMode::Manual,
+            user_kind: UserKind::School,
         }
     }
 
@@ -198,6 +222,21 @@ mod tests {
         assert!(root.join("평가").join("수행평가").is_dir());
         assert!(root.join("학급").join("출결").is_dir());
         assert!(root.join("생활기록부").is_dir());
+    }
+
+    #[test]
+    fn general_users_get_general_example_and_calendar_year() {
+        let dir = tempfile::tempdir().unwrap();
+        let watch = vec![downloads(dir.path())];
+        let mut req = request(dir.path(), FolderPreset::Teacher, watch);
+        req.user_kind = UserKind::General;
+        let s = run(&req).unwrap();
+        let root = PathBuf::from(s.root_folder.as_ref().unwrap());
+        assert!(root.join("돈 관리").join("영수증").is_dir());
+        assert!(!root.join("평가").exists());
+        assert_eq!(s.user_kind, UserKind::General);
+        // 일반: 1월부터 '올해'(학년도가 아니라 달력의 해)
+        assert_eq!((s.first_term_month, s.second_term_month), (1, 7));
     }
 
     #[test]

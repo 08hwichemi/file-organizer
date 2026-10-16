@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Check, Lightbulb, Wand2, Zap } from "lucide-react";
+import { Briefcase, Check, Lightbulb, School, Wand2, Zap } from "lucide-react";
 import ChoiceCard from "../components/ChoiceCard";
 import Dialog from "../components/Dialog";
 import FavoriteSettings from "../components/FavoriteSettings";
@@ -13,7 +13,7 @@ import { useUpdateStore } from "../store/useUpdateStore";
 import thirdParty from "../../src-tauri/resources/THIRD_PARTY.txt?raw";
 import "./SettingsPage.css";
 
-type SavedKey = "mode" | "watch" | "place" | "term" | "wait" | "root" | "fav" | "autostart" | "search" | "scope";
+type SavedKey = "kind" | "mode" | "watch" | "place" | "term" | "wait" | "root" | "fav" | "autostart" | "search" | "scope";
 
 /** 검색 단축키로 고를 수 있는 것("" = 쓰지 않음) */
 const SHORTCUTS = ["Alt+Space", "Ctrl+Alt+F", "Ctrl+Shift+Space", ""];
@@ -48,6 +48,7 @@ export default function SettingsPage() {
   const [showLicenses, setShowLicenses] = useState(false);
   const saveShortcut = useAppStore((s) => s.setSearchShortcut);
   const saveWholePc = useAppStore((s) => s.setSearchWholePc);
+  const saveKind = useAppStore((s) => s.setUserKind);
   const openSearch = useAppStore((s) => s.openSearch);
   const [searchInfo, setSearchInfo] = useState<SearchInfo | null>(null);
   const known = useAppStore((s) => s.setupInfo);
@@ -147,6 +148,32 @@ export default function SettingsPage() {
     <div className="page settings">
       <h1 className="page__title">설정</h1>
 
+      <Section
+        title="쓰는 곳"
+        description="자동 분류 낱말(고친 적 없을 때)과 연도를 정하는 방식이 달라져요. 이미 만든 폴더는 그대로 둬요."
+        saved={saved === "kind"}
+        error={errors.kind}
+      >
+        <div className="settings__kinds" role="radiogroup" aria-label="쓰는 곳">
+          <ChoiceCard
+            name="user-kind"
+            checked={settings.userKind !== "general"}
+            onSelect={() => void save("kind", () => saveKind("school"))}
+            icon={<School size={20} />}
+            title="학교"
+            description="공문·수행평가 같은 낱말, 학년도·학기(3월·9월)"
+          />
+          <ChoiceCard
+            name="user-kind"
+            checked={settings.userKind === "general"}
+            onSelect={() => void save("kind", () => saveKind("general"))}
+            icon={<Briefcase size={20} />}
+            title="일반(회사·개인)"
+            description="보고서·영수증·세금 같은 낱말, 연도는 달력의 해"
+          />
+        </div>
+      </Section>
+
       <Section title="새 파일이 생기면" saved={saved === "mode"} error={errors.mode}>
         <ModeChoice value={settings.organizeMode} onChange={changeMode} />
       </Section>
@@ -213,6 +240,7 @@ export default function SettingsPage() {
         )}
       </Section>
 
+      {settings.userKind !== "general" && (
       <Section
         title="학년도·학기"
         description={`규칙이 연도·학기 폴더를 나눌 때, 파일 이름에 연도·학기가 없으면 오늘 날짜로 정해요. ${termRule(
@@ -251,6 +279,8 @@ export default function SettingsPage() {
           </label>
         </div>
       </Section>
+
+      )}
 
       <Section
         title="지켜볼 폴더"

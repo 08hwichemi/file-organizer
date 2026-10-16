@@ -124,6 +124,7 @@ pub fn run() {
             commands::get_settings,
             commands::complete_setup,
             commands::set_organize_mode,
+            commands::set_user_kind,
             commands::set_watch_folders,
             commands::list_folders,
             commands::create_folder,

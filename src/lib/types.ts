@@ -98,6 +98,8 @@ export interface SetupInfo {
   rootFolderName: string;
   separator: string;
   teacherExample: ExampleFolder[];
+  /** 일반(회사·개인) 예시 폴더 */
+  generalExample: ExampleFolder[];
 }
 
 /** empty = 빈 정리 폴더, teacher = 교사용 예시 폴더, existing = 쓰던 폴더 그대로 */
@@ -116,6 +118,8 @@ export interface SetupRequest {
   structure?: FolderSpec[];
   watchFolders: string[];
   organizeMode: OrganizeMode;
+  /** 쓰는 곳(예시 폴더·자동 분류 단어·학기 시작 달이 달라짐) */
+  userKind: UserKind;
 }
 
 export interface FolderEntry {

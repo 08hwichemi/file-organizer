@@ -41,6 +41,7 @@ import type {
   SetupRequest,
   TrashResult,
   UndoManyResult,
+  UserKind,
 } from "../lib/types";
 
 const HOME = "C:\\Users\\선생님";
@@ -62,6 +63,13 @@ const setupInfo: SetupInfo = {
     { name: "생활기록부", children: [] },
     { name: "연수", children: [] },
     { name: "개인", children: [] },
+  ],
+  generalExample: [
+    { name: "업무", children: ["보고서", "회의록", "계약서"] },
+    { name: "돈 관리", children: ["영수증", "세금", "보험"] },
+    { name: "개인", children: ["병원", "증명서"] },
+    { name: "공부", children: [] },
+    { name: "사진", children: [] },
   ],
 };
 
@@ -614,6 +622,9 @@ export const mockBackend = {
       rootFolder: root,
       watchFolders: req.watchFolders,
       organizeMode: req.organizeMode,
+      userKind: req.userKind,
+      firstTermMonth: req.userKind === "general" ? 1 : 3,
+      secondTermMonth: req.userKind === "general" ? 7 : 9,
     };
     return delay({ ...settings });
   },
@@ -947,6 +958,16 @@ export const mockBackend = {
       window.setTimeout(() => mockEvents.emit("search-indexed"), MOCK_INDEX_MS + 50);
     }
     return delay(undefined);
+  },
+
+  setUserKind(kind: UserKind) {
+    settings = {
+      ...settings,
+      userKind: kind,
+      firstTermMonth: kind === "general" ? 1 : 3,
+      secondTermMonth: kind === "general" ? 7 : 9,
+    };
+    return delay({ ...settings });
   },
 
   setSearchWholePc(enabled: boolean) {

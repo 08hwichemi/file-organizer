@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import * as backend from "../lib/backend";
-import type { OrganizeMode, PlaceMode, Settings, SetupInfo, SetupRequest } from "../lib/types";
+import type { OrganizeMode, PlaceMode, Settings, SetupInfo, SetupRequest, UserKind } from "../lib/types";
 
 type Status = "loading" | "setup" | "ready" | "error";
 export type Page = "inbox" | "search" | "rename" | "rules" | "settings";
@@ -27,6 +27,7 @@ interface AppState {
   setRootFolder: (path: string) => Promise<void>;
   setSearchShortcut: (shortcut: string) => Promise<void>;
   setSearchWholePc: (enabled: boolean) => Promise<void>;
+  setUserKind: (kind: UserKind) => Promise<void>;
   goTo: (page: Page) => void;
   /** 파일 검색 화면으로 가서 입력 칸에 초점 */
   openSearch: () => void;
@@ -96,6 +97,10 @@ export const useAppStore = create<AppState>((set) => ({
 
   async setSearchShortcut(shortcut) {
     set({ settings: await backend.setSearchShortcut(shortcut) });
+  },
+
+  async setUserKind(kind) {
+    set({ settings: await backend.setUserKind(kind) });
   },
 
   async setSearchWholePc(enabled) {

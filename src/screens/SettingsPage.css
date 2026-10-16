@@ -208,3 +208,16 @@
   font-size: 12px;
   color: var(--color-text-sub);
 }
+
+/* 쓰는 곳: 두 가지를 나란히 */
+.settings__kinds {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 760px) {
+  .settings__kinds {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
