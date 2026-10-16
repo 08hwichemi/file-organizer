@@ -54,12 +54,14 @@
   box-shadow: 0 1px 3px rgba(23, 25, 28, 0.12);
 }
 
+/* 카드 한 장 = 두 칸(300px). 파일이 없는 카드·폴더 추가는 한 칸(반 높이)이라 폴더가 많아도 한눈에 */
 .classify__board {
   flex: 1;
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  grid-auto-rows: 300px;
+  grid-auto-rows: 143px;
+  grid-auto-flow: row dense;
   gap: 14px;
   align-content: start;
   padding: 2px 4px 10px 2px;
@@ -76,6 +78,15 @@
   background: var(--color-surface);
   box-shadow: 0 1px 2px rgba(23, 25, 28, 0.04);
   transition: border-color 0.1s, background 0.1s, box-shadow 0.1s;
+}
+
+.classify__board .classify__card {
+  grid-row: span 2;
+}
+
+.classify__board .classify__card--empty,
+.classify__board .classify__card--add {
+  grid-row: span 1;
 }
 
 .classify__card--inbox {
