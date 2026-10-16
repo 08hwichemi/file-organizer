@@ -116,7 +116,7 @@
   - 업데이트 서명 키: 개인 키는 GitHub Secrets(`TAURI_SIGNING_PRIVATE_KEY`, `..._PASSWORD`)에만, 별도 백업 필수(잃으면 기존 설치본에 업데이트 불가).
   - 개인 키 암호는 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. 공개 키는 `tauri.conf.json`의 `plugins.updater.pubkey`.
   - `latest.json` + 설치 파일은 **공개 저장소 `08hwichemi/file-organizer-releases`의 Releases**(코드는 비공개 저장소에 그대로). 이 저장소에 쓰는 토큰은 Secrets `RELEASES_TOKEN`.
-- 빌드·배포: **main에 병합될 때마다** GitHub Actions(`release.yml`, windows-latest, tauri-action)가 버전 `0.1.<실행 번호>`로 빌드·서명해 공개 저장소 Releases에 올린다. 설치된 프로그램은 다음 확인 때 스스로 업데이트한다. Secrets가 없으면 배포를 건너뛴다.
+- 빌드·배포: **main에 병합될 때마다** GitHub Actions(`release.yml`, windows-latest)가 버전 `0.1.<실행 번호>`로 빌드·서명하고, 설치 파일을 영문 이름(`file-organizer_<버전>_x64-setup.exe`)으로 바꿔 `latest.json`과 함께 공개 저장소 Releases에 올린다(`scripts/prepare-release.sh`). 설치된 프로그램은 다음 확인 때 스스로 업데이트한다. Secrets가 없으면 배포를 건너뛴다.
 - PR마다 설치 파일을 아티팩트로도 만든다(버전 0.1.0, 업데이트 서명 없음).
 - "알 수 없는 게시자" 경고: 1차는 "추가 정보 → 실행" 안내, 이후 코드 서명 인증서 검토.
 
