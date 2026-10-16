@@ -8,7 +8,8 @@
 //! - 이 모듈은 폴더를 읽기만 한다. 파일을 옮기거나 지우지 않는다.
 
 use crate::naming;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::cmp::Ordering as CmpOrdering;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -86,6 +87,62 @@ struct Entry {
     /// 고친 시각(1970년부터 밀리초)
     modified: i64,
     alive: bool,
+}
+
+/// 찾은 파일을 늘어놓는 차례(화면의 "정렬"). 잘라 내기(최대 개수) 전에 정렬한다.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SortBy {
+    /// 이름에 낱말이 다 든 것 먼저, 그 안에서 최근 것부터(기본)
+    #[default]
+    Best,
+    /// 고친 날짜: 최근 것부터
+    Newest,
+    /// 고친 날짜: 오래된 것부터
+    Oldest,
+    /// 이름: 가나다·ABC(숫자는 크기대로 — 2가 10보다 먼저)
+    NameAsc,
+    /// 이름: 거꾸로
+    NameDesc,
+    /// 크기: 큰 것부터
+    Largest,
+    /// 크기: 작은 것부터
+    Smallest,
+}
+
+/// 탐색기처럼 이름 비교: 대소문자 무시, 이어진 숫자는 수로(파일2 < 파일10).
+pub fn natural_cmp(a: &str, b: &str) -> CmpOrdering {
+    let mut x = a.chars().flat_map(char::to_lowercase).peekable();
+    let mut y = b.chars().flat_map(char::to_lowercase).peekable();
+    loop {
+        match (x.peek().copied(), y.peek().copied()) {
+            (None, None) => return a.cmp(b),
+            (None, Some(_)) => return CmpOrdering::Less,
+            (Some(_), None) => return CmpOrdering::Greater,
+            (Some(c), Some(d)) if c.is_ascii_digit() && d.is_ascii_digit() => {
+                let take = |it: &mut std::iter::Peekable<_>| {
+                    let mut run = String::new();
+                    while let Some(ch) = it.next_if(|ch: &char| ch.is_ascii_digit()) {
+                        run.push(ch);
+                    }
+                    run
+                };
+                let (m, n) = (take(&mut x), take(&mut y));
+                let (mt, nt) = (m.trim_start_matches('0'), n.trim_start_matches('0'));
+                let ord = mt.len().cmp(&nt.len()).then_with(|| mt.cmp(nt));
+                if ord != CmpOrdering::Equal {
+                    return ord;
+                }
+            }
+            (Some(c), Some(d)) => {
+                if c != d {
+                    return c.cmp(&d);
+                }
+                x.next();
+                y.next();
+            }
+        }
+    }
 }
 
 /// 찾은 파일
@@ -475,7 +532,13 @@ impl Index {
 
     /// 띄어 쓴 낱말이 모두 경로(폴더 이름 포함)에 들어 있는 파일.
     /// 이름에 모두 들어 있는 파일이 먼저, 그다음 최근에 고친 순.
+    #[cfg(test)]
     pub fn find(&self, query: &str, limit: usize) -> Vec<Found> {
+        self.find_sorted(query, limit, SortBy::Best)
+    }
+
+    /// 낱말이 모두 든 파일(이름이나 위 폴더 이름)을 `sort` 차례로 `limit`개까지.
+    pub fn find_sorted(&self, query: &str, limit: usize, sort: SortBy) -> Vec<Found> {
         let mut terms: Vec<String> = Vec::new();
         for t in query.split_whitespace().map(str::to_lowercase) {
             if !terms.contains(&t) && terms.len() < 64 {
@@ -516,8 +579,20 @@ impl Index {
                 hits.push((name_mask == full, f.modified, i));
             }
         }
-        let order =
-            |a: &(bool, i64, usize), b: &(bool, i64, usize)| b.0.cmp(&a.0).then(b.1.cmp(&a.1));
+        let name = |i: usize| self.name_of(&self.files[i]);
+        let size = |i: usize| self.files[i].size;
+        let order = |a: &(bool, i64, usize), b: &(bool, i64, usize)| {
+            match sort {
+                SortBy::Best => b.0.cmp(&a.0).then(b.1.cmp(&a.1)),
+                SortBy::Newest => b.1.cmp(&a.1),
+                SortBy::Oldest => a.1.cmp(&b.1),
+                SortBy::NameAsc => natural_cmp(name(a.2), name(b.2)),
+                SortBy::NameDesc => natural_cmp(name(b.2), name(a.2)),
+                SortBy::Largest => size(b.2).cmp(&size(a.2)),
+                SortBy::Smallest => size(a.2).cmp(&size(b.2)),
+            }
+            .then(a.2.cmp(&b.2))
+        };
         if hits.len() > limit {
             hits.select_nth_unstable_by(limit - 1, order);
             hits.truncate(limit);
@@ -672,6 +747,62 @@ mod tests {
             path: path.to_path_buf(),
             deep: true,
         }
+    }
+
+    #[test]
+    fn natural_name_order() {
+        let mut v = [
+            "파일10.hwp",
+            "파일2.hwp",
+            "B.txt",
+            "a.txt",
+            "파일02.hwp",
+            "가나.pdf",
+        ];
+        v.sort_by(|a, b| natural_cmp(a, b));
+        assert_eq!(
+            v,
+            [
+                "a.txt",
+                "B.txt",
+                "가나.pdf",
+                "파일02.hwp",
+                "파일2.hwp",
+                "파일10.hwp"
+            ]
+        );
+    }
+
+    #[test]
+    fn sorts_before_cutting_to_limit() {
+        let d = tempfile::tempdir().unwrap();
+        let r = d.path().join("정리 폴더");
+        // (이름, 고친 시각, 크기)
+        for (name, secs, len) in [
+            ("자료10.hwp", 30, 5),
+            ("자료2.hwp", 10, 50),
+            ("자료1.hwp", 20, 500),
+            ("옛날자료.hwp", 5, 1),
+        ] {
+            let path = r.join(name);
+            write(&path, secs);
+            fs::write(&path, vec![0u8; len]).unwrap();
+            let f = fs::File::options().write(true).open(&path).unwrap();
+            f.set_modified(SystemTime::UNIX_EPOCH + Duration::from_secs(secs))
+                .unwrap();
+        }
+        let index = Index::build(&[deep(&r)], &AtomicUsize::new(0));
+        let find = |sort, limit| names(&index.find_sorted("자료", limit, sort));
+        assert_eq!(
+            find(SortBy::NameAsc, 10),
+            ["옛날자료.hwp", "자료1.hwp", "자료2.hwp", "자료10.hwp"]
+        );
+        assert_eq!(find(SortBy::NameDesc, 1), ["자료10.hwp"]);
+        assert_eq!(find(SortBy::Newest, 2), ["자료10.hwp", "자료1.hwp"]);
+        // 개수를 자르기 전에 정렬: 가장 오래된 파일은 기본 순서로는 맨 뒤지만 여기서는 처음
+        assert_eq!(find(SortBy::Oldest, 1), ["옛날자료.hwp"]);
+        assert_eq!(find(SortBy::Largest, 2), ["자료1.hwp", "자료2.hwp"]);
+        assert_eq!(find(SortBy::Smallest, 1), ["옛날자료.hwp"]);
     }
 
     #[test]

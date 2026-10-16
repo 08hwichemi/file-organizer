@@ -102,5 +102,5 @@ jobs:
             --repo "${RELEASES_OWNER}/${RELEASES_REPO}" \
             --target main \
             --title "파일 정리 도우미 ${VERSION}" \
-            --notes "아래 Assets에서 file-organizer_${VERSION}_x64-setup.exe 를 받아 실행하세요. 이미 설치했다면 받을 필요 없어요. 프로그램이 알아서 새 버전을 알려 드려요." \
+            --notes "아래 Assets에서 file-organizer_${VERSION}_x64-setup.exe 를 받아 실행하세요. 이미 설치했다면 받을 필요 없어요. 프로그램이 알아서 새 버전을 알려 드려요. 교육·개인·업무 용도로 무료로 쓸 수 있고, 판매는 할 수 없어요(이용 조건: 설정 → 정보)." \
             "$OUT"/*
