@@ -5,6 +5,7 @@ import { createFolder, errorMessage, listFolders, onBackendEvent } from "../lib/
 import { baseName, trailFor, type Crumb } from "../lib/paths";
 import type { FolderEntry } from "../lib/types";
 import FolderActions, { type FolderAction } from "./FolderActions";
+import FolderFileList from "./FolderFileList";
 import FolderIcon from "./FolderIcon";
 import PathBar from "./PathBar";
 import "./FolderPane.css";
@@ -34,6 +35,12 @@ interface Props {
   label?: string;
   /** 정리함처럼 창 높이에 맞춘 칸을 채우고, 폴더는 칸 안에서 내려갈지 */
   fill?: boolean;
+  /** 폴더 아래에 지금 폴더의 파일도 보여 줄지(정리함) */
+  showFiles?: boolean;
+  /** 파일 목록에서 골라 둘 파일(최근 정리에서 눌렀을 때, n이 바뀔 때마다) */
+  focusFile?: { path: string; n: number } | null;
+  /** 지금 끌고 있는 파일(파일 목록에서 흐리게) */
+  draggingPaths?: string[] | null;
 }
 
 /** 놓을 곳을 알려 주는 데이터(dnd-kit droppable의 data) */
@@ -201,11 +208,21 @@ export default function FolderPane(props: Props) {
         </li>
       </ul>
 
-      {folders && folders.length === 0 && (
+      {folders && folders.length === 0 && (!props.showFiles || selectedCount > 0) && (
         <p className="ifold__note">
           이 폴더 안에는 하위 폴더가 없어요.
           {selectedCount > 0 && " 위의 ‘이 폴더에 넣기’를 누르면 여기에 넣어요."}
         </p>
+      )}
+
+      {props.showFiles && (
+        <FolderFileList
+          dir={current.path}
+          reloadKey={reloadKey}
+          focus={props.focusFile ?? null}
+          dragging={props.draggingPaths ?? null}
+          onError={(message) => props.onToast({ message })}
+        />
       )}
 
       {props.toast && (

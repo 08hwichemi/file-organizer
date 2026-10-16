@@ -1,7 +1,7 @@
 //! 화면에서 `invoke`로 부르는 명령 모음.
 
 use crate::classify::{self, Classifier, Reason, WordGroup};
-use crate::folders::{self, FolderEntry, FolderMatch};
+use crate::folders::{self, FileEntry, FolderEntry, FolderMatch};
 use crate::inbox::{self, InboxItem};
 use crate::naming::{self, DestSegment};
 use crate::rules::{self, Rule, RuleDraft, RuleInput, Target};
@@ -445,6 +445,57 @@ pub fn set_watch_folders(
 #[tauri::command]
 pub fn list_folders(path: String) -> Result<Vec<FolderEntry>, String> {
     folders::list_subfolders(Path::new(&path)).map_err(|e| format!("폴더를 읽지 못했어요: {e}"))
+}
+
+/// 폴더 안 파일 목록(정리함 오른쪽 폴더 칸). 정리 폴더와 그 안쪽만 읽는다.
+#[tauri::command]
+pub fn list_files(state: State<'_, AppState>, path: String) -> Result<Vec<FileEntry>, String> {
+    let root = state
+        .with_db(settings::load)?
+        .root_folder
+        .ok_or("정리 폴더가 아직 없어요.")?;
+    if !folders::is_root_or_inside(Path::new(&root), Path::new(&path)) {
+        return Err("정리 폴더 안만 볼 수 있어요.".into());
+    }
+    folders::list_files(Path::new(&path)).map_err(|e| format!("폴더를 읽지 못했어요: {e}"))
+}
+
+/// 최근 정리한 파일 한 줄
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecentMove {
+    pub id: i64,
+    pub name: String,
+    pub moved_path: String,
+    pub dest_dir: String,
+    pub original_dir: String,
+    pub moved_at: i64,
+}
+
+/// 최근 정리한 파일(정리함의 '최근 정리' 탭): 지금 그 자리에 있는 것만, 새것부터 100개.
+#[tauri::command]
+pub fn recent_moves(state: State<'_, AppState>) -> Result<Vec<RecentMove>, String> {
+    let records = state.with_db(|conn| history::recent_puts(conn, 100).map_err(db_err))?;
+    let parent = |p: &str| {
+        Path::new(p)
+            .parent()
+            .map(|d| d.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    };
+    Ok(records
+        .into_iter()
+        .map(|r| RecentMove {
+            id: r.id,
+            name: Path::new(&r.moved_path)
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            dest_dir: parent(&r.moved_path),
+            original_dir: parent(&r.original_path),
+            moved_path: r.moved_path,
+            moved_at: r.moved_at,
+        })
+        .collect())
 }
 
 #[tauri::command]
@@ -912,6 +963,7 @@ pub struct UndoManyResult {
 }
 
 /// 되돌리기(정리함): 여러 이동을 되돌리고, 돌아온 파일은 다시 정리함에 넣는다.
+/// 정리 폴더 안에서 폴더끼리 옮긴 것을 되돌리면 원래 폴더로만 돌아간다(정리함에 넣지 않음).
 #[tauri::command]
 pub fn undo_moves(
     app: AppHandle,
@@ -922,12 +974,23 @@ pub fn undo_moves(
         restored: 0,
         errors: Vec::new(),
     };
+    let root = state
+        .with_db(settings::load)
+        .ok()
+        .and_then(|s| s.root_folder)
+        .map(PathBuf::from);
     for id in move_ids {
         match undo_one(&state, id) {
             Ok((restored, source_dir)) => {
-                let _ = state.with_db(|conn| {
-                    inbox::add(conn, &restored, &source_dir, inbox::Reason::Later).map_err(db_err)
-                });
+                let in_root = root
+                    .as_deref()
+                    .is_some_and(|r| folders::is_root_or_inside(r, &source_dir));
+                if !in_root {
+                    let _ = state.with_db(|conn| {
+                        inbox::add(conn, &restored, &source_dir, inbox::Reason::Later)
+                            .map_err(db_err)
+                    });
+                }
                 result.restored += 1;
             }
             Err(e) => result.errors.push(e),
@@ -958,7 +1021,17 @@ pub fn put_files(
         .into_iter()
         .map(|path| {
             let src = PathBuf::from(&path);
-            let result = mover::move_into(&src, &dest, None).and_then(|moved| {
+            // 이미 그 폴더에 있는 파일을 같은 폴더에 넣으면 '이름 (2)'가 되지 않게 그대로 둔다
+            let same_dir = src
+                .parent()
+                .zip(dest.canonicalize().ok())
+                .is_some_and(|(p, d)| p.canonicalize().is_ok_and(|p| p == d));
+            let result = if same_dir {
+                Err("이미 이 폴더에 있어요.".to_string())
+            } else {
+                mover::move_into(&src, &dest, None)
+            }
+            .and_then(|moved| {
                 state.with_db(|conn| {
                     inbox::remove(conn, &src).map_err(db_err)?;
                     history::record(conn, &src, &moved).map_err(db_err)

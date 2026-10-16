@@ -127,6 +127,8 @@ pub fn run() {
             commands::set_user_kind,
             commands::set_watch_folders,
             commands::list_folders,
+            commands::list_files,
+            commands::recent_moves,
             commands::create_folder,
             commands::search_folders,
             commands::recent_destinations,

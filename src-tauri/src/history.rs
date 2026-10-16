@@ -138,6 +138,35 @@ pub fn rewrite_folder_prefix(conn: &Connection, old: &Path, new: &Path) -> rusql
     )
 }
 
+/// 최근에 정리한(넣은·옮긴) 기록, 새것부터. 되돌린 것과 이름 한꺼번에 바꾸기(묶음)는 뺀다.
+/// 그 뒤에 다시 옮겨져 그 자리에 없는 파일은 빼서, 같은 파일이 두 줄로 나오지 않게 한다.
+pub fn recent_puts(conn: &Connection, limit: usize) -> rusqlite::Result<Vec<MoveRecord>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, original_path, moved_path, moved_at FROM moves
+         WHERE undone_at IS NULL AND batch IS NULL ORDER BY moved_at DESC, id DESC LIMIT 300",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok(MoveRecord {
+            id: row.get(0)?,
+            original_path: row.get(1)?,
+            moved_path: row.get(2)?,
+            moved_at: row.get(3)?,
+            undone: false,
+        })
+    })?;
+    let mut out = Vec::new();
+    for rec in rows {
+        let rec = rec?;
+        if Path::new(&rec.moved_path).is_file() {
+            out.push(rec);
+            if out.len() >= limit {
+                break;
+            }
+        }
+    }
+    Ok(out)
+}
+
 /// 최근에 파일을 넣은 폴더(되돌린 이동 제외), 새것부터, 중복 없이.
 pub fn recent_destinations(conn: &Connection, limit: usize) -> rusqlite::Result<Vec<String>> {
     let mut stmt = conn.prepare(
@@ -273,6 +302,30 @@ mod tests {
         mark_undone(&conn, a).unwrap();
         assert_eq!(batch_moves(&conn, batch).unwrap().len(), 1);
         assert_eq!(next_batch(&conn).unwrap(), 2);
+    }
+
+    #[test]
+    fn recent_puts_only_existing_not_undone_not_batch() {
+        let dir = tempfile::tempdir().unwrap();
+        let at = |n: &str| dir.path().join(n);
+        std::fs::write(at("a.hwp"), "x").unwrap();
+        std::fs::write(at("b.hwp"), "x").unwrap();
+        std::fs::write(at("c.hwp"), "x").unwrap();
+        let conn = db::open_in_memory().unwrap();
+        let a = record(&conn, Path::new("/d/a.hwp"), &at("a.hwp")).unwrap();
+        // 그 뒤에 다른 곳으로 옮겨진 파일(지금 그 자리에 없음)
+        record(&conn, Path::new("/d/gone.hwp"), &at("gone.hwp")).unwrap();
+        let undone = record(&conn, Path::new("/d/b.hwp"), &at("b.hwp")).unwrap();
+        mark_undone(&conn, undone).unwrap();
+        record_in_batch(&conn, Path::new("/d/c0.hwp"), &at("c.hwp"), 1).unwrap();
+        let c = record(&conn, Path::new("/d/c.hwp"), &at("c.hwp")).unwrap();
+        let ids: Vec<i64> = recent_puts(&conn, 10)
+            .unwrap()
+            .iter()
+            .map(|r| r.id)
+            .collect();
+        assert_eq!(ids, [c, a]);
+        assert_eq!(recent_puts(&conn, 1).unwrap().len(), 1);
     }
 
     #[test]

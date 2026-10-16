@@ -6,6 +6,7 @@ import type {
   AppInfo,
   ClassifyPlan,
   DestSegment,
+  FileEntry,
   FolderEntry,
   FolderFiles,
   FolderMatch,
@@ -16,6 +17,7 @@ import type {
   PopupState,
   PutOutcome,
   PutResult,
+  RecentMove,
   RenamePreview,
   RenameRequest,
   SearchSort,
@@ -211,6 +213,18 @@ export function setSearchShortcut(shortcut: string): Promise<Settings> {
 export function listFolders(path: string): Promise<FolderEntry[]> {
   if (usingMocks) return mockBackend.listFolders(path);
   return invoke("list_folders", { path });
+}
+
+/** 폴더 바로 안의 파일(최근에 고친 것부터). 정리 폴더 안만. */
+export function listFiles(path: string): Promise<FileEntry[]> {
+  if (usingMocks) return mockBackend.listFiles(path);
+  return invoke("list_files", { path });
+}
+
+/** 최근 정리한 파일(지금 그 자리에 있는 것만, 새것부터) */
+export function listRecentMoves(): Promise<RecentMove[]> {
+  if (usingMocks) return mockBackend.recentMoves();
+  return invoke("recent_moves");
 }
 
 export function createFolder(parent: string, name: string): Promise<FolderEntry> {
