@@ -128,8 +128,19 @@ let pending: PendingFile[] =
       ]
     : [];
 
+// 주소 뒤 &many=1: 정리함에 파일이 아주 많은 경우(긴 목록 화면 확인용)
+const manyFiles: InboxItem[] =
+  params.get("many") === "1"
+    ? Array.from({ length: 30 }, (_, i) => ({
+        id: 1000 + i,
+        ...file(i % 3 ? DOWNLOADS : DESKTOP, `자료_${String(i + 1).padStart(2, "0")}.pdf`, 50_000 + i * 1000),
+        addedAt: Date.now() - i * 3600_000,
+      }))
+    : [];
+
 let inbox: InboxItem[] = startReady
   ? [
+      ...manyFiles,
       { id: 1, ...file(DOWNLOADS, "2학기_지필고사_감독배정표.xlsx", 22_000), addedAt: Date.now() - 12 * 60_000 },
       { id: 2, ...file(DESKTOP, "3-2_학부모상담_일정.xlsx", 15_000), addedAt: Date.now() - 3 * 3600_000 },
       { id: 3, ...file(DOWNLOADS, "scan_20261013.pdf", 820_000), addedAt: Date.now() - 26 * 3600_000 },
