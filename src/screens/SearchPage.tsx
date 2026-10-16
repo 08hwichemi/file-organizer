@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FolderOpen, Search, X } from "lucide-react";
-import FileBadge from "../components/FileBadge";
+import { ArrowDown, ArrowUp, FolderOpen, Search, X } from "lucide-react";
 import {
   errorMessage,
   getSearchInfo,
@@ -10,7 +9,7 @@ import {
   revealPath,
   searchFiles,
 } from "../lib/backend";
-import { formatDate, formatSize } from "../lib/format";
+import { fileBadge, formatDateTime, formatSize, typeName } from "../lib/format";
 import { displayPath } from "../lib/paths";
 import type { SearchResponse, SearchSort } from "../lib/types";
 import { useAppStore } from "../store/useAppStore";
@@ -21,22 +20,27 @@ const ALL = "";
 // 다른 화면에 갔다 와도 검색어가 그대로 남게
 let lastQuery = "";
 
-const SORTS: { value: SearchSort; label: string }[] = [
-  { value: "best", label: "이름에 맞는 것 먼저" },
-  { value: "newest", label: "최근 수정한 것부터" },
-  { value: "oldest", label: "오래된 것부터" },
-  { value: "nameAsc", label: "이름 가나다순" },
-  { value: "nameDesc", label: "이름 역순" },
-  { value: "largest", label: "큰 파일부터" },
-  { value: "smallest", label: "작은 파일부터" },
+/**
+ * 탐색기처럼 열 제목을 누르면 정렬. 누를 때마다 [처음 방향] → [거꾸로] → 기본 순서(이름에 맞는 것 먼저).
+ * 처음 방향: 이름·유형은 가나다순, 날짜는 최근 것부터, 크기는 큰 것부터(탐색기와 같게).
+ */
+type Column = "name" | "modified" | "type" | "size";
+const COLUMNS: { key: Column; label: string; first: SearchSort; second: SearchSort; firstText: string; secondText: string }[] = [
+  { key: "name", label: "이름", first: "nameAsc", second: "nameDesc", firstText: "가나다순", secondText: "역순" },
+  { key: "modified", label: "수정한 날짜", first: "newest", second: "oldest", firstText: "최근 것부터", secondText: "오래된 것부터" },
+  { key: "type", label: "유형", first: "typeAsc", second: "typeDesc", firstText: "가나다순", secondText: "역순" },
+  { key: "size", label: "크기", first: "largest", second: "smallest", firstText: "큰 것부터", secondText: "작은 것부터" },
 ];
+/** 위로 화살표 = 작은 값(가·오래된·작은)부터 */
+const ASCENDING: SearchSort[] = ["nameAsc", "oldest", "typeAsc", "smallest"];
+const ALL_SORTS: SearchSort[] = ["best", ...COLUMNS.flatMap((c) => [c.first, c.second])];
 const SORT_KEY = "finder.sort";
 
 /** 고른 정렬은 이 PC에 기억해 둔다(다음에 켜도 그대로) */
 function savedSort(): SearchSort {
   try {
     const v = window.localStorage.getItem(SORT_KEY);
-    return SORTS.some((s) => s.value === v) ? (v as SearchSort) : "best";
+    return ALL_SORTS.includes(v as SearchSort) ? (v as SearchSort) : "best";
   } catch {
     return "best";
   }
@@ -249,19 +253,11 @@ export default function SearchPage() {
             )}
           </span>
           <div className="finder__filters">
-            <select
-              className={`finder__select${sort !== "best" ? " finder__select--on" : ""}`}
-              aria-label="정렬"
-              title="정렬"
-              value={sort}
-              onChange={(e) => changeSort(e.target.value as SearchSort)}
-            >
-              {SORTS.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
+            {sort !== "best" && (
+              <button type="button" className="finder__link" onClick={() => changeSort("best")}>
+                기본 순서로
+              </button>
+            )}
             {hasFilters && (
               <>
               <FilterSelect label="연도" value={year} onChange={setYear}>
@@ -293,41 +289,90 @@ export default function SearchPage() {
         {error && <p className="finder__error error-text">{error}</p>}
 
         {hits.length > 0 && (
-          <ul className="finder__list" ref={listRef} role="listbox" aria-label="찾은 파일">
-            {hits.map((h, i) => (
-              <li
-                key={h.path}
-                data-index={i}
-                role="option"
-                aria-selected={i === active}
-                className={`finder__row${i === active ? " finder__row--on" : ""}`}
-                onMouseMove={() => setActive(i)}
-                onDoubleClick={() => void act("open", h.path)}
-              >
-                <FileBadge name={h.name} size={34} />
-                <div className="finder__text">
-                  <div className="finder__name" title={h.name}>
-                    {h.name}
-                  </div>
-                  <div className="finder__meta" title={h.dir}>
-                    {displayPath(root, h.dir, sep)}
-                    {h.modified > 0 && ` · ${formatDate(h.modified)}`}
-                    {` · ${formatSize(h.size)}`}
-                    {h.rule && <span className="finder__rule">‘{h.rule}’ 규칙</span>}
-                  </div>
-                </div>
-                <div className="button-row finder__actions">
-                  <button type="button" className="btn" onClick={() => void act("reveal", h.path)} title="위치 열기(Ctrl+Enter)">
-                    <FolderOpen size={15} aria-hidden="true" />
-                    위치
+          <div className="finder__table">
+            <div className="finder__head" role="presentation">
+              {COLUMNS.map((c) => {
+                const on = sort === c.first || sort === c.second;
+                const next = sort === c.first ? c.second : sort === c.second ? "best" : c.first;
+                const nextText = next === "best" ? "기본 순서로" : next === c.first ? c.firstText : c.secondText;
+                const cell = (
+                  <button
+                    key={c.key}
+                    type="button"
+                    className={`finder__th finder__th--${c.key}${on ? " finder__th--on" : ""}`}
+                    onClick={() => changeSort(next)}
+                    title={`${c.label}: ${nextText}`}
+                    aria-label={`${c.label}${on ? `(${sort === c.first ? c.firstText : c.secondText})` : ""}. 누르면 ${nextText}`}
+                  >
+                    <span>{c.label}</span>
+                    {on &&
+                      (ASCENDING.includes(sort) ? (
+                        <ArrowUp size={13} aria-hidden="true" />
+                      ) : (
+                        <ArrowDown size={13} aria-hidden="true" />
+                      ))}
                   </button>
-                  <button type="button" className="btn btn--accent" onClick={() => void act("open", h.path)} title="열기(Enter)">
-                    열기
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+                );
+                // 이름 다음에 위치(정렬 없음)
+                return c.key === "name"
+                  ? [
+                      cell,
+                      <span key="dir" className="finder__th finder__th--dir">
+                        위치
+                      </span>,
+                    ]
+                  : cell;
+              })}
+            </div>
+            <ul className="finder__list" ref={listRef} role="listbox" aria-label="찾은 파일">
+              {hits.map((h, i) => {
+                const badge = fileBadge(h.name);
+                const where = displayPath(root, h.dir, sep);
+                return (
+                  <li
+                    key={h.path}
+                    data-index={i}
+                    role="option"
+                    aria-selected={i === active}
+                    className={`finder__row${i === active ? " finder__row--on" : ""}`}
+                    onMouseMove={() => setActive(i)}
+                    onDoubleClick={() => void act("open", h.path)}
+                  >
+                    <div className="finder__td finder__td--name">
+                      <span className="finder__badge" style={{ background: badge.bg, color: badge.fg }} aria-hidden="true">
+                        {badge.label}
+                      </span>
+                      <div className="finder__text">
+                        <div className="finder__name" title={h.name}>
+                          {h.name}
+                        </div>
+                        {/* 좁은 창에서는 위치 칸 대신 이름 아래에 */}
+                        <div className="finder__meta" title={h.dir}>
+                          {where}
+                        </div>
+                      </div>
+                      <div className="button-row finder__actions">
+                        <button type="button" className="btn" onClick={() => void act("reveal", h.path)} title="위치 열기(Ctrl+Enter)">
+                          <FolderOpen size={15} aria-hidden="true" />
+                          위치
+                        </button>
+                        <button type="button" className="btn btn--accent" onClick={() => void act("open", h.path)} title="열기(Enter)">
+                          열기
+                        </button>
+                      </div>
+                    </div>
+                    <div className="finder__td finder__td--dir" title={h.dir}>
+                      <span className="finder__dir">{where}</span>
+                      {h.rule && <span className="finder__rule">‘{h.rule}’ 규칙</span>}
+                    </div>
+                    <div className="finder__td finder__td--modified">{h.modified > 0 ? formatDateTime(h.modified) : ""}</div>
+                    <div className="finder__td finder__td--type">{typeName(h.name)}</div>
+                    <div className="finder__td finder__td--size">{formatSize(h.size)}</div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         )}
 
         {hits.length === 0 && (

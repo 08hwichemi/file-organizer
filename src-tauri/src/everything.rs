@@ -49,6 +49,8 @@ fn sort_code(sort: SortBy) -> u32 {
         SortBy::NameDesc => 2,
         SortBy::Smallest => 5,
         SortBy::Largest => 6,
+        SortBy::TypeAsc => 7,
+        SortBy::TypeDesc => 8,
         SortBy::Oldest => 13,
         SortBy::Best | SortBy::Newest => 14,
     }

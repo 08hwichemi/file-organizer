@@ -407,12 +407,18 @@ pub async fn search_files(
     let everything =
         match everything::search(&dll_path(&app), query, MAX_RESULTS as u32, sort) {
             Ok(mut found) => {
-                // 이름 차례는 탐색기처럼(숫자는 크기대로) 맞춘다
+                // 이름·유형 차례는 탐색기처럼(숫자는 크기대로, 같은 유형은 이름순) 맞춘다
                 match sort {
                     SortBy::NameAsc => found
                         .sort_by(|a, b| search::natural_cmp(&name_of(&a.path), &name_of(&b.path))),
                     SortBy::NameDesc => found
                         .sort_by(|a, b| search::natural_cmp(&name_of(&b.path), &name_of(&a.path))),
+                    SortBy::TypeAsc => {
+                        found.sort_by(|a, b| search::type_cmp(&name_of(&a.path), &name_of(&b.path)))
+                    }
+                    SortBy::TypeDesc => {
+                        found.sort_by(|a, b| search::type_cmp(&name_of(&b.path), &name_of(&a.path)))
+                    }
                     _ => {}
                 }
                 let hits = found

@@ -108,6 +108,23 @@ pub enum SortBy {
     Largest,
     /// 크기: 작은 것부터
     Smallest,
+    /// 유형(확장자): 가나다·ABC, 같으면 이름순
+    TypeAsc,
+    /// 유형(확장자): 거꾸로
+    TypeDesc,
+}
+
+/// 확장자(점 뒤, 없으면 빈 글자)
+fn ext_of(name: &str) -> &str {
+    match name.rfind('.') {
+        Some(i) if i > 0 => &name[i + 1..],
+        _ => "",
+    }
+}
+
+/// 유형(확장자)으로 비교하고, 같으면 이름으로
+pub fn type_cmp(a: &str, b: &str) -> CmpOrdering {
+    natural_cmp(ext_of(a), ext_of(b)).then_with(|| natural_cmp(a, b))
 }
 
 /// 탐색기처럼 이름 비교: 대소문자 무시, 이어진 숫자는 수로(파일2 < 파일10).
@@ -590,6 +607,8 @@ impl Index {
                 SortBy::NameDesc => natural_cmp(name(b.2), name(a.2)),
                 SortBy::Largest => size(b.2).cmp(&size(a.2)),
                 SortBy::Smallest => size(a.2).cmp(&size(b.2)),
+                SortBy::TypeAsc => type_cmp(name(a.2), name(b.2)),
+                SortBy::TypeDesc => type_cmp(name(b.2), name(a.2)),
             }
             .then(a.2.cmp(&b.2))
         };
@@ -750,6 +769,13 @@ mod tests {
     }
 
     #[test]
+    fn type_order_then_name() {
+        let mut v = ["b.pdf", "a.xlsx", "c.hwp", "a.pdf", "README"];
+        v.sort_by(|a, b| type_cmp(a, b));
+        assert_eq!(v, ["README", "c.hwp", "a.pdf", "b.pdf", "a.xlsx"]);
+    }
+
+    #[test]
     fn natural_name_order() {
         let mut v = [
             "파일10.hwp",
@@ -803,6 +829,8 @@ mod tests {
         assert_eq!(find(SortBy::Oldest, 1), ["옛날자료.hwp"]);
         assert_eq!(find(SortBy::Largest, 2), ["자료1.hwp", "자료2.hwp"]);
         assert_eq!(find(SortBy::Smallest, 1), ["옛날자료.hwp"]);
+        // 유형이 같으면 이름순
+        assert_eq!(find(SortBy::TypeAsc, 2), ["옛날자료.hwp", "자료1.hwp"]);
     }
 
     #[test]
