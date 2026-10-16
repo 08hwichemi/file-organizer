@@ -10,6 +10,7 @@ import { errorMessage, getAppInfo, getSearchInfo, pickFolder } from "../lib/back
 import type { OrganizeMode, PlaceMode, SearchInfo } from "../lib/types";
 import { useAppStore } from "../store/useAppStore";
 import { useUpdateStore } from "../store/useUpdateStore";
+import terms from "../../src-tauri/resources/TERMS.txt?raw";
 import thirdParty from "../../src-tauri/resources/THIRD_PARTY.txt?raw";
 import "./SettingsPage.css";
 
@@ -47,6 +48,7 @@ export default function SettingsPage() {
   const saveRoot = useAppStore((s) => s.setRootFolder);
   const [newRoot, setNewRoot] = useState<string | null>(null);
   const [showLicenses, setShowLicenses] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
   const saveShortcut = useAppStore((s) => s.setSearchShortcut);
   const saveWholePc = useAppStore((s) => s.setSearchWholePc);
   const saveKind = useAppStore((s) => s.setUserKind);
@@ -423,13 +425,35 @@ export default function SettingsPage() {
             <span className="settings__toggle-desc">
               파일 이름과 경로는 이 PC 안에서만 쓰고 밖으로 보내지 않아요(인터넷은 업데이트 확인에만 써요).
             </span>
+            <span className="settings__toggle-desc">교육·개인·업무 용도로 무료로 쓸 수 있어요. 판매는 할 수 없어요.</span>
             <span className="settings__copyright">© 2026 이용휘</span>
           </div>
-          <button type="button" className="btn" onClick={() => setShowLicenses(true)}>
-            오픈소스 라이선스
-          </button>
+          <div className="settings__about-actions button-row">
+            <button type="button" className="btn" onClick={() => setShowTerms(true)}>
+              이용 조건
+            </button>
+            <button type="button" className="btn" onClick={() => setShowLicenses(true)}>
+              오픈소스 라이선스
+            </button>
+          </div>
         </div>
       </Section>
+
+      {showTerms && (
+        <Dialog
+          title="이용 조건"
+          wide
+          className="dialog--fit"
+          onClose={() => setShowTerms(false)}
+          actions={
+            <button type="button" className="btn btn--primary" onClick={() => setShowTerms(false)}>
+              닫기
+            </button>
+          }
+        >
+          <pre className="settings__licenses">{terms}</pre>
+        </Dialog>
+      )}
 
       {showLicenses && (
         <Dialog
