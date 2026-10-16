@@ -133,3 +133,59 @@
   font-size: 12px;
   font-weight: 700;
 }
+
+/* 창이 좁으면 왼쪽 메뉴는 아이콘만 보여 내용 칸을 넓힌다. */
+@media (max-width: 1000px) {
+  .sidebar {
+    width: 68px;
+    padding: 16px 10px;
+    align-items: center;
+  }
+
+  .sidebar__brand {
+    padding: 4px 0 14px;
+  }
+
+  .sidebar__brand-text,
+  .sidebar__status-text,
+  .sidebar__status-title span:last-child {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .sidebar__item {
+    position: relative;
+    justify-content: center;
+    width: 46px;
+    padding: 0;
+  }
+
+  .sidebar__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .sidebar__badge {
+    position: absolute;
+    top: 2px;
+    right: 0;
+    padding: 0 5px;
+    font-size: 10.5px;
+  }
+
+  .sidebar__status {
+    padding: 10px;
+  }
+
+  .main-window__content {
+    padding: 22px 20px 24px;
+  }
+}

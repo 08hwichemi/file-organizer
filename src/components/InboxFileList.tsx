@@ -31,11 +31,14 @@ export default function InboxFileList(props: Props) {
 
   const tabs = [
     { key: ALL_TAB, label: "전체", count: items.length },
-    ...watchFolders.map((dir) => ({
-      key: dir,
-      label: friendlyName(dir, known),
-      count: items.filter((i) => samePath(i.sourceDir, dir)).length,
-    })),
+    ...watchFolders
+      .map((dir) => ({
+        key: dir,
+        label: friendlyName(dir, known),
+        count: items.filter((i) => samePath(i.sourceDir, dir)).length,
+      }))
+      // 파일이 없는 폴더 탭은 숨긴다(지금 고른 탭은 남김)
+      .filter((t) => t.count > 0 || t.key === tab),
   ];
   const visible = tab === ALL_TAB ? items : items.filter((i) => samePath(i.sourceDir, tab));
   const allVisibleSelected = visible.length > 0 && visible.every((i) => selected.has(i.path));

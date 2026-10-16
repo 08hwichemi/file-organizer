@@ -74,7 +74,8 @@ let settings: Settings = startReady
   ? {
       setupDone: true,
       rootFolder: readyRoot,
-      watchFolders: [DOWNLOADS, DESKTOP],
+      watchFolders:
+        params.get("many") === "1" ? [DOWNLOADS, DESKTOP, `${HOME}\\Documents`, "D:\\", `${HOME}\\빈 폴더`] : [DOWNLOADS, DESKTOP],
       organizeMode: "ask",
     }
   : { setupDone: false, rootFolder: null, watchFolders: [], organizeMode: "ask" };
@@ -133,7 +134,11 @@ const manyFiles: InboxItem[] =
   params.get("many") === "1"
     ? Array.from({ length: 30 }, (_, i) => ({
         id: 1000 + i,
-        ...file(i % 3 ? DOWNLOADS : DESKTOP, `자료_${String(i + 1).padStart(2, "0")}.pdf`, 50_000 + i * 1000),
+        ...file(
+          [DOWNLOADS, DESKTOP, `${HOME}\\Documents`, "D:\\"][i % 4],
+          `자료_${String(i + 1).padStart(2, "0")}.pdf`,
+          50_000 + i * 1000,
+        ),
         addedAt: Date.now() - i * 3600_000,
       }))
     : [];
