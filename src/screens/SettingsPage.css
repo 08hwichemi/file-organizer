@@ -94,3 +94,59 @@
   background: var(--color-surface);
   font-size: 14px;
 }
+
+.settings__wait {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.settings__wait select {
+  padding: 0 10px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-size: 14px;
+}
+
+.settings__root {
+  align-items: center;
+}
+
+.settings__root .settings__path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings__toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.settings__toggle input {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 2px 0 0;
+  flex-shrink: 0;
+  accent-color: var(--color-accent);
+}
+
+.settings__toggle > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings__toggle-desc {
+  font-size: 13px;
+  color: var(--color-text-sub);
+}

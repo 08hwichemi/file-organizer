@@ -8,11 +8,12 @@ use crate::rules::{self, Rule, RuleDraft, RuleInput, Target};
 use crate::settings::{self, OrganizeMode, PlaceMode, Settings};
 use crate::setup::{self, SetupRequest};
 use crate::watcher::{self, NewFile, WatchService};
-use crate::{history, mover, popup, recycle};
+use crate::{history, mover, popup, recycle, tray};
 use rusqlite::Connection;
 use serde::Serialize;
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -23,9 +24,20 @@ pub struct AppState {
     pub pending: Mutex<VecDeque<PendingFile>>,
     /// "바로 정리"로 팝업 없이 옮긴 파일(팝업에서 알리고 되돌리기를 보여 준다)
     pub auto_moved: Mutex<Vec<AutoMoved>>,
+    /// 일시 정지(트레이·메인 창). 정지 중 들어온 파일은 팝업 없이 정리함으로(SPEC 5장).
+    /// 프로그램을 다시 켜면 풀린다.
+    pub paused: AtomicBool,
 }
 
 impl AppState {
+    pub fn is_paused(&self) -> bool {
+        self.paused.load(Ordering::Relaxed)
+    }
+
+    pub fn set_paused(&self, paused: bool) {
+        self.paused.store(paused, Ordering::Relaxed);
+    }
+
     fn with_db<T>(&self, f: impl FnOnce(&Connection) -> Result<T, String>) -> Result<T, String> {
         let conn = self
             .db
@@ -115,6 +127,14 @@ fn db_err(e: rusqlite::Error) -> String {
 /// 화면에 알리는 이벤트 이름
 pub const EVENT_POPUP_CHANGED: &str = "popup-changed";
 pub const EVENT_INBOX_CHANGED: &str = "inbox-changed";
+/// 일시 정지 등 상태가 바뀜
+pub const EVENT_STATUS_CHANGED: &str = "status-changed";
+
+/// 정리함이 바뀌었음을 화면과 트레이(정리함 개수)에 알린다.
+fn notify_inbox(app: &AppHandle) {
+    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    tray::refresh(app);
+}
 
 /// 추천 위치(팝업·정리함)
 #[derive(Debug, Clone, Serialize)]
@@ -178,6 +198,13 @@ impl PendingFile {
 /// 모아 두기 → 정리함 / 바로 정리 + 규칙에 맞음 → 옮기고 알림 / 그 외 → 팝업.
 pub fn handle_new_file(app: &AppHandle, file: NewFile) {
     let state = app.state::<AppState>();
+    if state.is_paused() {
+        let _ = state.with_db(|conn| {
+            inbox::add(conn, &file.path, &file.source_dir, inbox::Reason::Collected).map_err(db_err)
+        });
+        notify_inbox(app);
+        return;
+    }
     let s = state.with_db(settings::load).unwrap_or_default();
     let found = match (s.place_mode, s.organize_mode) {
         (PlaceMode::Classify, _) => state.classifier().and_then(|c| c.classify(&file.path)),
@@ -204,7 +231,7 @@ pub fn handle_new_file(app: &AppHandle, file: NewFile) {
                     reason,
                 })
             });
-            let _ = app.emit(EVENT_INBOX_CHANGED, ());
+            notify_inbox(app);
             let _ = app.emit(EVENT_POPUP_CHANGED, ());
             popup::show(app);
             return;
@@ -222,7 +249,7 @@ pub fn handle_new_file(app: &AppHandle, file: NewFile) {
                 inbox::add(conn, &file.path, &file.source_dir, inbox::Reason::Collected)
                     .map_err(db_err)
             });
-            let _ = app.emit(EVENT_INBOX_CHANGED, ());
+            notify_inbox(app);
         }
         OrganizeMode::Ask => {
             let item = PendingFile::new(&file.path, &file.source_dir);
@@ -298,11 +325,14 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<Settings, String> {
 
 #[tauri::command]
 pub fn complete_setup(
+    app: AppHandle,
     state: State<'_, AppState>,
     request: SetupRequest,
 ) -> Result<Settings, String> {
     let new_settings = setup::run(&request)?;
     state.with_db(|conn| settings::save(conn, &new_settings))?;
+    // 자동 실행은 기본 켬(SPEC 7장). 실패해도 설정은 끝낸다(설정 화면에서 다시 켤 수 있음).
+    let _ = apply_autostart(&app, new_settings.autostart);
     Ok(new_settings)
 }
 
@@ -347,7 +377,7 @@ pub fn set_term_months(
         settings::save(conn, &s)?;
         Ok(s)
     })?;
-    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    notify_inbox(&app);
     Ok(s)
 }
 
@@ -432,7 +462,7 @@ pub fn rename_folder(
     ensure_inside_root(&state, &old)?;
     let new = folders::rename_folder(&old, &new_name)?;
     let _ = state.with_db(|conn| rewrite_paths(conn, &old, &new));
-    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    notify_inbox(&app);
     Ok(entry_for(&new))
 }
 
@@ -457,7 +487,7 @@ pub fn move_folder(
     }
     let new = folders::move_folder(&old, &dest)?;
     let _ = state.with_db(|conn| rewrite_paths(conn, &old, &new));
-    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    notify_inbox(&app);
     Ok(entry_for(&new))
 }
 
@@ -471,7 +501,7 @@ pub fn trash_folder(
     let p = PathBuf::from(&path);
     ensure_inside_root(&state, &p)?;
     let id = state.with_db(|conn| recycle::send_to_trash(conn, &p))?;
-    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    notify_inbox(&app);
     Ok(id)
 }
 
@@ -505,7 +535,7 @@ pub fn trash_files(app: AppHandle, state: State<'_, AppState>, paths: Vec<String
         }
         state.with_pending(|q| q.retain(|x| x.path != path));
     }
-    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    notify_inbox(&app);
     result
 }
 
@@ -536,7 +566,7 @@ pub fn restore_deleted(
             Err(e) => result.errors.push(e),
         }
     }
-    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    notify_inbox(&app);
     result
 }
 
@@ -661,7 +691,7 @@ pub fn put_file(
         history::record_with_rule(conn, &src, &moved, used_rule).map_err(db_err)
     })?;
     state.with_pending(|q| q.retain(|p| p.path != path));
-    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    notify_inbox(&app);
 
     let draft = match (&used, &change, &s.root_folder) {
         (None, None, Some(root)) => Some(rules::draft(
@@ -725,7 +755,7 @@ pub fn put_suggested(
     paths: Vec<String>,
 ) -> Vec<PutOutcome> {
     let outcomes = put_classified(&state, paths, false);
-    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    notify_inbox(&app);
     outcomes
 }
 
@@ -768,7 +798,7 @@ pub fn classify_files(
     paths: Vec<String>,
 ) -> Vec<PutOutcome> {
     let outcomes = put_classified(&state, paths, true);
-    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    notify_inbox(&app);
     outcomes
 }
 
@@ -790,7 +820,7 @@ pub fn set_auto_words(
         None => classify::default_words(),
     };
     state.with_db(|conn| classify::save_words(conn, &groups))?;
-    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    notify_inbox(&app);
     Ok(groups)
 }
 
@@ -825,7 +855,7 @@ pub fn undo_move(
     if requeue {
         state.with_pending(|q| q.push_front(item.clone()));
     }
-    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    notify_inbox(&app);
     Ok(item)
 }
 
@@ -858,7 +888,7 @@ pub fn undo_moves(
             Err(e) => result.errors.push(e),
         }
     }
-    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    notify_inbox(&app);
     result
 }
 
@@ -904,7 +934,7 @@ pub fn put_files(
             }
         })
         .collect();
-    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    notify_inbox(&app);
     outcomes
 }
 
@@ -933,34 +963,25 @@ pub fn import_existing(app: AppHandle, state: State<'_, AppState>) -> Result<usi
             }
         }
     }
-    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    notify_inbox(&app);
     Ok(added)
 }
 
-/// 자주 쓰는 폴더(숫자 키 1~6): 자주 넣은 폴더부터, 모자라면 정리 폴더 바로 아래 폴더로 채운다.
+/// 자주 쓰는 폴더(숫자 키 1~6): 직접 고른 칸은 그 폴더, 나머지는 자주 넣은 폴더부터,
+/// 모자라면 정리 폴더 바로 아래 폴더로 채운다.
 #[tauri::command]
 pub fn favorite_folders(state: State<'_, AppState>) -> Result<Vec<String>, String> {
-    const COUNT: usize = 6;
     let s = state.with_db(settings::load)?;
-    let mut out: Vec<String> = state
-        .with_db(|conn| history::frequent_destinations(conn, 20).map_err(db_err))?
-        .into_iter()
-        .filter(|d| Path::new(d).is_dir())
-        .take(COUNT)
-        .collect();
-    if let Some(root) = s.root_folder {
-        if let Ok(top) = folders::list_subfolders(Path::new(&root)) {
-            for f in top {
-                if out.len() >= COUNT {
-                    break;
-                }
-                if !out.contains(&f.path) {
-                    out.push(f.path);
-                }
-            }
+    let mut auto: Vec<String> =
+        state.with_db(|conn| history::frequent_destinations(conn, 20).map_err(db_err))?;
+    if let Some(root) = &s.root_folder {
+        if let Ok(top) = folders::list_subfolders(Path::new(root)) {
+            auto.extend(top.into_iter().map(|f| f.path));
         }
     }
-    Ok(out)
+    Ok(settings::merge_favorites(&s.pinned_favorites, auto, |p| {
+        Path::new(p).is_dir()
+    }))
 }
 
 /// "나중에 정리": 정리함으로 보내고 팝업 차례에서 뺀다.
@@ -979,7 +1000,7 @@ pub fn defer_file(app: AppHandle, state: State<'_, AppState>, path: String) -> R
         inbox::add(conn, Path::new(&path), &source_dir, inbox::Reason::Later).map_err(db_err)
     })?;
     state.with_pending(|q| q.retain(|p| p.path != path));
-    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    notify_inbox(&app);
     Ok(())
 }
 
@@ -1074,7 +1095,7 @@ pub fn create_rule(
             .map_err(db_err)?
             .ok_or("규칙을 저장하지 못했어요.".into())
     })?;
-    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    notify_inbox(&app);
     Ok(rule)
 }
 
@@ -1092,7 +1113,7 @@ pub fn update_rule(
             .map_err(db_err)?
             .ok_or("규칙을 찾을 수 없어요.".into())
     })?;
-    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    notify_inbox(&app);
     Ok(rule)
 }
 
@@ -1100,14 +1121,14 @@ pub fn update_rule(
 #[tauri::command]
 pub fn delete_rule(app: AppHandle, state: State<'_, AppState>, id: i64) -> Result<(), String> {
     state.with_db(|conn| rules::delete(conn, id).map_err(db_err))?;
-    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    notify_inbox(&app);
     Ok(())
 }
 
 #[tauri::command]
 pub fn restore_rule(app: AppHandle, state: State<'_, AppState>, id: i64) -> Result<(), String> {
     state.with_db(|conn| rules::restore(conn, id).map_err(db_err))?;
-    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    notify_inbox(&app);
     Ok(())
 }
 
@@ -1120,7 +1141,7 @@ pub fn move_rule(
     up: bool,
 ) -> Result<bool, String> {
     let moved = state.with_db(|conn| rules::move_by_one(conn, id, up).map_err(db_err))?;
-    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    notify_inbox(&app);
     Ok(moved)
 }
 
@@ -1139,6 +1160,133 @@ pub fn answer_rule_change(
         Some(_) => Err("새 저장 위치 폴더를 찾을 수 없어요.".into()),
         None => rules::reset_misses(conn, id).map_err(db_err),
     })?;
-    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    notify_inbox(&app);
     Ok(())
+}
+
+// ---------- 트레이·자동 실행·설정(6단계) ----------
+
+/// 컴퓨터를 켤 때 자동 실행 켜고 끄기. 개발용(디버그) 실행 파일은 등록하지 않는다.
+pub fn apply_autostart(app: &AppHandle, enabled: bool) -> Result<(), String> {
+    if cfg!(debug_assertions) {
+        return Ok(());
+    }
+    use tauri_plugin_autostart::ManagerExt;
+    let launcher = app.autolaunch();
+    let now = launcher.is_enabled().unwrap_or(false);
+    let result = match (enabled, now) {
+        (true, false) => launcher.enable(),
+        (false, true) => launcher.disable(),
+        _ => Ok(()),
+    };
+    result.map_err(|e| format!("자동 실행을 바꾸지 못했어요: {e}"))
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Status {
+    pub paused: bool,
+}
+
+#[tauri::command]
+pub fn get_status(state: State<'_, AppState>) -> Status {
+    Status {
+        paused: state.is_paused(),
+    }
+}
+
+/// 일시 정지 / 다시 시작
+#[tauri::command]
+pub fn set_paused(app: AppHandle, state: State<'_, AppState>, paused: bool) -> Status {
+    state.set_paused(paused);
+    tray::status_changed(&app);
+    Status { paused }
+}
+
+fn update_settings(
+    state: &AppState,
+    change: impl FnOnce(&mut Settings) -> Result<(), String>,
+) -> Result<Settings, String> {
+    state.with_db(|conn| {
+        let mut s = settings::load(conn)?;
+        change(&mut s)?;
+        settings::save(conn, &s)?;
+        Ok(s)
+    })
+}
+
+#[tauri::command]
+pub fn set_autostart(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    enabled: bool,
+) -> Result<Settings, String> {
+    apply_autostart(&app, enabled)?;
+    update_settings(&state, |s| {
+        s.autostart = enabled;
+        Ok(())
+    })
+}
+
+/// 추천만일 때 응답이 없으면 n초 뒤 추천 위치에 넣기(0 = 끔)
+#[tauri::command]
+pub fn set_wait_seconds(state: State<'_, AppState>, seconds: u32) -> Result<Settings, String> {
+    if seconds > settings::MAX_WAIT_SECONDS {
+        return Err(format!(
+            "{}초까지만 고를 수 있어요.",
+            settings::MAX_WAIT_SECONDS
+        ));
+    }
+    update_settings(&state, |s| {
+        s.wait_seconds = seconds;
+        Ok(())
+    })
+}
+
+/// 자주 쓰는 폴더 직접 고르기(칸마다 폴더 또는 null = 자동)
+#[tauri::command]
+pub fn set_pinned_favorites(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    pins: Vec<Option<String>>,
+) -> Result<Settings, String> {
+    if pins.len() > settings::FAVORITE_SLOTS {
+        return Err("자주 쓰는 폴더는 6개까지예요.".into());
+    }
+    let root = state.root()?;
+    for p in pins.iter().flatten() {
+        let path = Path::new(p);
+        let at_root = path.canonicalize().ok() == root.canonicalize().ok();
+        if !(path.is_dir() && (at_root || folders::is_inside(&root, path))) {
+            return Err("정리 폴더 안의 폴더만 고를 수 있어요.".into());
+        }
+    }
+    let s = update_settings(&state, |s| {
+        s.pinned_favorites = pins;
+        Ok(())
+    })?;
+    notify_inbox(&app);
+    Ok(s)
+}
+
+/// 정리 폴더를 다른 폴더로 바꾼다. 원래 폴더와 그 안의 파일은 그대로 둔다.
+#[tauri::command]
+pub fn set_root_folder(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<Settings, String> {
+    let path = path.trim().to_string();
+    if path.is_empty() || !Path::new(&path).is_dir() {
+        return Err("고른 폴더를 찾을 수 없어요.".into());
+    }
+    let s = update_settings(&state, |s| {
+        setup::validate_watch_folders(&s.watch_folders, &path)?;
+        s.root_folder = Some(path);
+        // 직접 고른 자주 쓰는 폴더는 예전 정리 폴더 기준이라 비운다
+        s.pinned_favorites.clear();
+        Ok(())
+    })?;
+    notify_inbox(&app);
+    Ok(s)
 }

@@ -46,6 +46,8 @@ export default function Popup() {
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
   const [autoMoved, setAutoMoved] = useState<AutoMoved[]>([]);
   const [hovering, setHovering] = useState(false);
+  /** "응답 없으면 n초 뒤 추천 위치에 넣기": 남은 초(null = 세지 않음) */
+  const [countdown, setCountdown] = useState<number | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: "pick" });
   const [selected, setSelected] = useState<string | null>(null);
   const [reveal, setReveal] = useState<string | null>(null);
@@ -107,6 +109,26 @@ export default function Popup() {
     return () => window.clearTimeout(timer);
   }, [noticeShown, hovering, closeNotice]);
 
+  // 추천이 있는 새 파일이 보이면 세기 시작(설정 "추천만" + 응답 없으면 n초 뒤)
+  const wait = settings?.placeMode === "suggest" ? (settings.waitSeconds ?? 0) : 0;
+  const counting = phase.kind === "pick" && !noticeShown && !!current && !!suggestion && wait > 0;
+  useEffect(() => {
+    setCountdown(counting ? wait : null);
+  }, [counting, wait, current?.path]);
+
+  // 사용자가 무엇이든 누르면 멈춘다
+  const isCounting = countdown !== null;
+  useEffect(() => {
+    if (!isCounting) return;
+    const stop = () => setCountdown(null);
+    window.addEventListener("pointerdown", stop, true);
+    window.addEventListener("keydown", stop, true);
+    return () => {
+      window.removeEventListener("pointerdown", stop, true);
+      window.removeEventListener("keydown", stop, true);
+    };
+  }, [isCounting]);
+
   const undoAuto = async (item: AutoMoved) => {
     if (busy) return;
     setBusy(true);
@@ -136,6 +158,18 @@ export default function Popup() {
       setBusy(false);
     }
   }, [busy, current, newName, selected]);
+
+  // 다 세면 추천 위치(골라 둔 폴더)에 넣는다
+  useEffect(() => {
+    if (countdown === null) return;
+    if (countdown <= 0) {
+      setCountdown(null);
+      void put();
+      return;
+    }
+    const timer = window.setTimeout(() => setCountdown((c) => (c === null ? null : c - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [countdown, put]);
 
   const later = useCallback(async () => {
     if (!current || busy) return;
@@ -462,6 +496,11 @@ export default function Popup() {
             <span className="popup__target-new"> · 없는 폴더는 만들어요</span>
           )}
         </div>
+        {countdown !== null && (
+          <p className="popup__countdown" role="status">
+            {countdown}초 뒤 추천 위치에 넣어요 · 아무 곳이나 누르면 멈춰요
+          </p>
+        )}
         {error && <p className="error-text">{error}</p>}
         <div className="button-row popup__actions">
           <button type="button" className="btn btn--ghost popup__later" onClick={() => void later()} disabled={busy}>

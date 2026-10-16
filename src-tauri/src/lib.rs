@@ -16,14 +16,27 @@ mod recycle;
 mod rules;
 mod settings;
 mod setup;
+mod tray;
 mod watcher;
 
 use std::collections::VecDeque;
+use std::sync::atomic::AtomicBool;
 use std::sync::Mutex;
 use tauri::Manager;
 
+/// 컴퓨터를 켤 때 자동 실행되면 붙는 인자(이때는 창 없이 트레이로만 시작)
+const AUTOSTART_ARG: &str = "--autostart";
+
 pub fn run() {
     tauri::Builder::default()
+        // 한 개만 실행: 이미 켜져 있으면 새로 켜지 않고 켜진 프로그램의 창을 앞으로(가장 먼저 등록해야 한다)
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            tray::show_main(app, None);
+        }))
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![AUTOSTART_ARG]),
+        ))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
@@ -43,6 +56,7 @@ pub fn run() {
                 watcher,
                 pending: Mutex::new(VecDeque::new()),
                 auto_moved: Mutex::new(Vec::new()),
+                paused: AtomicBool::new(false),
             };
             state.apply_watch_folders(&current);
             app.manage(state);
@@ -52,14 +66,26 @@ pub fn run() {
             for config in &app.config().app.windows {
                 tauri::WebviewWindowBuilder::from_config(app.handle(), config)?.build()?;
             }
+            tray::create(app.handle())?;
+
+            // 메인 창은 숨긴 채 만들어 두고, 컴퓨터를 켤 때 자동 실행된 경우(설정을 마쳤으면)에는
+            // 트레이로만 시작한다(SPEC 7장).
+            let autostarted = std::env::args().any(|a| a == AUTOSTART_ARG);
+            if !(autostarted && current.setup_done) {
+                tray::show_main(app.handle(), None);
+            }
+            // 자동 실행 설정을 실제 등록과 맞춘다(예전 버전에서 업데이트한 경우 기본 켬).
+            if current.setup_done {
+                let _ = commands::apply_autostart(app.handle(), current.autostart);
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
-            // 트레이(6단계) 전까지는 메인 창을 닫으면 프로그램을 끝낸다.
-            // (숨어 있는 팝업 창 때문에 프로그램이 보이지 않게 남아 있지 않도록)
+            // 메인 창 X = 끄지 않고 숨기기(트레이에서 감시 계속). 끄기는 트레이 메뉴의 "끄기".
             if window.label() == "main" {
-                if let tauri::WindowEvent::CloseRequested { .. } = event {
-                    window.app_handle().exit(0);
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
                 }
             }
         })
@@ -97,6 +123,12 @@ pub fn run() {
             commands::classify_files,
             commands::get_auto_words,
             commands::set_auto_words,
+            commands::get_status,
+            commands::set_paused,
+            commands::set_autostart,
+            commands::set_wait_seconds,
+            commands::set_pinned_favorites,
+            commands::set_root_folder,
             commands::list_rules,
             commands::describe_dest,
             commands::create_rule,

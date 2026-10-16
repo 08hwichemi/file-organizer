@@ -91,6 +91,9 @@ let settings: Settings = startReady
       placeMode: "suggest",
       firstTermMonth: 3,
       secondTermMonth: 9,
+      autostart: true,
+      waitSeconds: params.get("wait") ? Number(params.get("wait")) : 0,
+      pinnedFavorites: [],
     }
   : {
       setupDone: false,
@@ -100,6 +103,9 @@ let settings: Settings = startReady
       placeMode: "suggest",
       firstTermMonth: 3,
       secondTermMonth: 9,
+      autostart: true,
+      waitSeconds: params.get("wait") ? Number(params.get("wait")) : 0,
+      pinnedFavorites: [],
     };
 
 const trees = new Map<string, MockFolder>(startReady ? [[readyRoot, teacherTree()]] : []);
@@ -214,7 +220,7 @@ let recent: string[] = startReady
   : [];
 
 // ---------- 가짜 이벤트 ----------
-type Handler = () => void;
+type Handler = (payload: unknown) => void;
 const handlers = new Map<string, Set<Handler>>();
 export const mockEvents = {
   on(name: string, handler: Handler) {
@@ -222,8 +228,8 @@ export const mockEvents = {
     handlers.get(name)!.add(handler);
     return () => handlers.get(name)?.delete(handler);
   },
-  emit(name: string) {
-    setTimeout(() => handlers.get(name)?.forEach((h) => h()), 0);
+  emit(name: string, payload?: unknown) {
+    setTimeout(() => handlers.get(name)?.forEach((h) => h(payload)), 0);
   },
 };
 
@@ -476,6 +482,7 @@ function checkRule(input: RuleInput): RuleInput | string {
 }
 
 let autoMoved: AutoMoved[] = [];
+let paused = false;
 
 let pickCount = 0;
 let nextId = 100;
@@ -732,15 +739,23 @@ export const mockBackend = {
     for (const m of moves.filter((m) => !m.undone)) counts.set(m.destDir, (counts.get(m.destDir) ?? 0) + 1);
     const frequent = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([d]) => d);
     const seed = startReady ? [`${readyRoot}\\업무\\공문`, `${readyRoot}\\평가\\수행평가`, `${readyRoot}\\학급\\상담`] : [];
-    const out = [...new Set([...frequent, ...seed])].filter((p) => findFolder(p));
+    const auto = [...new Set([...frequent, ...seed])].filter((p) => findFolder(p));
     if (root && tree) {
       for (const name of Object.keys(tree.children).sort((a, b) => a.localeCompare(b, "ko"))) {
-        if (out.length >= 6) break;
         const p = root + SEP + name;
-        if (!out.includes(p)) out.push(p);
+        if (!auto.includes(p)) auto.push(p);
       }
     }
-    return delay(out.slice(0, 6));
+    // Rust settings::merge_favorites 흉내: 직접 고른 칸은 그 폴더, 나머지는 자동
+    const pins = settings.pinnedFavorites;
+    const rest = auto.filter((a) => !pins.includes(a));
+    const out: string[] = [];
+    for (let i = 0; i < 6; i++) {
+      const pin = pins[i];
+      const pick = pin && findFolder(pin) && !out.includes(pin) ? pin : rest.find((a) => !out.includes(a));
+      if (pick) out.push(pick);
+    }
+    return delay(out);
   },
 
   renameFolder(path: string, newName: string) {
@@ -810,6 +825,38 @@ export const mockBackend = {
     }
     mockEvents.emit("inbox-changed");
     return delay(result);
+  },
+
+  getStatus: () => delay({ paused }),
+
+  setPaused(next: boolean) {
+    paused = next;
+    mockEvents.emit("status-changed");
+    return delay({ paused });
+  },
+
+  setAutostart(enabled: boolean) {
+    settings = { ...settings, autostart: enabled };
+    return delay({ ...settings });
+  },
+
+  setWaitSeconds(seconds: number) {
+    settings = { ...settings, waitSeconds: seconds };
+    return delay({ ...settings });
+  },
+
+  setPinnedFavorites(pins: (string | null)[]) {
+    settings = { ...settings, pinnedFavorites: pins };
+    mockEvents.emit("inbox-changed");
+    return delay({ ...settings });
+  },
+
+  setRootFolder(path: string) {
+    if (settings.watchFolders.includes(path)) return fail("정리 폴더와 지켜볼 폴더는 서로 달라야 해요.");
+    if (!trees.has(path)) trees.set(path, folder(0, { "새로 고른 폴더 안": folder(2) }));
+    settings = { ...settings, rootFolder: path, pinnedFavorites: [] };
+    mockEvents.emit("inbox-changed");
+    return delay({ ...settings });
   },
 
   listInbox: () => delay(inbox.map((i) => ({ ...i, suggestion: suggestFor(i.name, i.sourceDir) }))),

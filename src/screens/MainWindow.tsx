@@ -1,8 +1,8 @@
-import { Inbox, ListChecks, Settings as SettingsIcon } from "lucide-react";
+import { Inbox, ListChecks, Pause, Play, Settings as SettingsIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import FolderIcon from "../components/FolderIcon";
 import UpdateBanner from "../components/UpdateBanner";
-import { listInbox, onBackendEvent } from "../lib/backend";
+import { getStatus, listInbox, onBackendEvent, setPaused } from "../lib/backend";
 import { friendlyName } from "../lib/paths";
 import { useAppStore, type Page } from "../store/useAppStore";
 import { startUpdateChecks } from "../store/useUpdateStore";
@@ -25,8 +25,27 @@ export default function MainWindow() {
   const known = useAppStore((s) => s.setupInfo);
 
   const [inboxCount, setInboxCount] = useState(0);
+  const [paused, setPausedState] = useState(false);
 
   useEffect(() => startUpdateChecks(), []);
+
+  // 트레이 메뉴 "정리함" → 그 화면으로
+  useEffect(
+    () =>
+      onBackendEvent("navigate", (page) => {
+        if (page === "inbox" || page === "rules" || page === "settings") goTo(page);
+      }),
+    [goTo],
+  );
+
+  // 일시 정지(트레이에서 바꿔도 따라감)
+  useEffect(() => {
+    const load = () => void getStatus().then((s) => setPausedState(s.paused)).catch(() => {});
+    load();
+    return onBackendEvent("status-changed", load);
+  }, []);
+
+  const togglePause = () => void setPaused(!paused).then((s) => setPausedState(s.paused)).catch(() => {});
 
   // 왼쪽 메뉴 "정리함" 옆 개수
   useEffect(() => {
@@ -61,11 +80,16 @@ export default function MainWindow() {
           </button>
         ))}
         <div className="sidebar__spacer" />
-        <div className="sidebar__status" title={`지켜볼 폴더: ${watching}`}>
+        <div
+          className={`sidebar__status${paused ? " sidebar__status--paused" : ""}`}
+          title={paused ? "일시 정지 중: 새 파일은 팝업 없이 정리함에 모여요" : `지켜볼 폴더: ${watching}`}
+        >
           <div className="sidebar__status-title">
             <span className="sidebar__dot" aria-hidden="true" />
             <span>
-              {settings?.placeMode === "classify"
+              {paused
+                ? "일시 정지 중"
+                : settings?.placeMode === "classify"
                 ? "자동 분류"
                 : settings?.organizeMode === "manual"
                   ? "모아 두고 나중에 정리"
@@ -74,7 +98,19 @@ export default function MainWindow() {
                     : "바로 물어보기"}
             </span>
           </div>
-          <div className="sidebar__status-text">지켜볼 폴더: {watching}</div>
+          <div className="sidebar__status-text">
+            {paused ? "새 파일은 묻지 않고 정리함에 모여요" : `지켜볼 폴더: ${watching}`}
+          </div>
+          <button
+            type="button"
+            className="sidebar__pause"
+            onClick={togglePause}
+            aria-label={paused ? "다시 시작" : "일시 정지"}
+            title={paused ? "다시 시작" : "일시 정지(새 파일을 묻지 않고 정리함에 모아요)"}
+          >
+            {paused ? <Play size={14} aria-hidden="true" /> : <Pause size={14} aria-hidden="true" />}
+            <span className="sidebar__pause-text">{paused ? "다시 시작" : "일시 정지"}</span>
+          </button>
         </div>
       </nav>
       <main className="main-window__content">

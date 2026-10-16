@@ -19,6 +19,10 @@ interface AppState {
   setWatchFolders: (folders: string[]) => Promise<void>;
   setPlaceMode: (mode: PlaceMode) => Promise<void>;
   setTermMonths: (first: number, second: number) => Promise<void>;
+  setAutostart: (enabled: boolean) => Promise<void>;
+  setWaitSeconds: (seconds: number) => Promise<void>;
+  setPinnedFavorites: (pins: (string | null)[]) => Promise<void>;
+  setRootFolder: (path: string) => Promise<void>;
   goTo: (page: Page) => void;
 }
 
@@ -65,6 +69,22 @@ export const useAppStore = create<AppState>((set) => ({
 
   async setTermMonths(first, second) {
     set({ settings: await backend.setTermMonths(first, second) });
+  },
+
+  async setAutostart(enabled) {
+    set({ settings: await backend.setAutostart(enabled) });
+  },
+
+  async setWaitSeconds(seconds) {
+    set({ settings: await backend.setWaitSeconds(seconds) });
+  },
+
+  async setPinnedFavorites(pins) {
+    set({ settings: await backend.setPinnedFavorites(pins) });
+  },
+
+  async setRootFolder(path) {
+    set({ settings: await backend.setRootFolder(path) });
   },
 
   goTo(page) {
