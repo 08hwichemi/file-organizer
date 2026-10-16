@@ -1,9 +1,11 @@
-/* 자동 분류 미리보기: 넓은 창 + 같은 크기의 네모 카드(넣을 폴더마다)를 격자로. 카드 안 파일만 따로 내려간다. */
+/* 자동 분류 미리보기: 프로그램 창을 거의 다 채우는 창 + 같은 크기의 네모 카드(넣을 폴더마다)를 격자로.
+   카드 안 파일만 따로 내려간다. */
 .dialog--classify {
   position: relative;
-  width: 94vw;
-  max-width: 1240px;
-  height: min(860px, calc(100% - 32px));
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
 }
 
 .dialog--classify .dialog__body {
@@ -56,8 +58,8 @@
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  grid-auto-rows: 270px;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  grid-auto-rows: 300px;
   gap: 14px;
   align-content: start;
   padding: 2px 4px 10px 2px;

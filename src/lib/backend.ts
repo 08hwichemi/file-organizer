@@ -49,7 +49,8 @@ export async function windowKind(): Promise<WindowKind> {
 /**
  * Rust가 보내는 알림: popup-changed(팝업 차례 바뀜), inbox-changed(정리함 바뀜),
  * status-changed(일시 정지 등), navigate(트레이에서 고른 화면, 값 = "inbox" 등),
- * search-opened(단축키·트레이로 파일 검색을 엶), search-indexed(파일 목록을 다 읽음)
+ * search-opened(단축키·트레이로 파일 검색을 엶), search-indexed(파일 목록을 다 읽음),
+ * folders-changed(정리 폴더 안의 폴더가 생기거나 바뀜: 프로그램에서 했거나 탐색기에서 했거나)
  */
 export type BackendEvent =
   | "popup-changed"
@@ -57,7 +58,8 @@ export type BackendEvent =
   | "status-changed"
   | "navigate"
   | "search-opened"
-  | "search-indexed";
+  | "search-indexed"
+  | "folders-changed";
 
 /** 알림을 듣는다. 돌려준 함수를 부르면 그만 듣는다. */
 export function onBackendEvent(name: BackendEvent, handler: (payload: unknown) => void): () => void {
@@ -74,6 +76,16 @@ export function onBackendEvent(name: BackendEvent, handler: (payload: unknown) =
     cancelled = true;
     stop?.();
   };
+}
+
+/**
+ * 폴더를 만들거나 바꾼 뒤, 열려 있는 모든 폴더 칸(다른 창 포함)이 바로 새로 읽게 알린다.
+ * 탐색기에서 바꾼 것은 Rust 감시가 따로 알려 준다.
+ */
+function foldersChanged<T>(result: T): T {
+  if (usingMocks) mockEvents.emit("folders-changed");
+  else void import("@tauri-apps/api/event").then(({ emit }) => emit("folders-changed"));
+  return result;
 }
 
 export function getAppInfo(): Promise<AppInfo> {
@@ -201,8 +213,10 @@ export function listFolders(path: string): Promise<FolderEntry[]> {
 }
 
 export function createFolder(parent: string, name: string): Promise<FolderEntry> {
-  if (usingMocks) return mockBackend.createFolder(parent, name);
-  return invoke("create_folder", { parent, name });
+  const done = usingMocks
+    ? mockBackend.createFolder(parent, name)
+    : invoke<FolderEntry>("create_folder", { parent, name });
+  return done.then(foldersChanged);
 }
 
 export function searchFolders(query: string): Promise<FolderMatch[]> {
@@ -263,19 +277,23 @@ export function getFavoriteFolders(): Promise<string[]> {
 }
 
 export function renameFolder(path: string, newName: string): Promise<FolderEntry> {
-  if (usingMocks) return mockBackend.renameFolder(path, newName);
-  return invoke("rename_folder", { path, newName });
+  const done = usingMocks
+    ? mockBackend.renameFolder(path, newName)
+    : invoke<FolderEntry>("rename_folder", { path, newName });
+  return done.then(foldersChanged);
 }
 
 export function moveFolder(path: string, destParent: string): Promise<FolderEntry> {
-  if (usingMocks) return mockBackend.moveFolder(path, destParent);
-  return invoke("move_folder", { path, destParent });
+  const done = usingMocks
+    ? mockBackend.moveFolder(path, destParent)
+    : invoke<FolderEntry>("move_folder", { path, destParent });
+  return done.then(foldersChanged);
 }
 
 /** 폴더를 휴지통으로. 되돌리기용 번호. */
 export function trashFolder(path: string): Promise<number> {
-  if (usingMocks) return mockBackend.trashFolder(path);
-  return invoke("trash_folder", { path });
+  const done = usingMocks ? mockBackend.trashFolder(path) : invoke<number>("trash_folder", { path });
+  return done.then(foldersChanged);
 }
 
 /** 파일들을 휴지통으로 */
@@ -286,8 +304,10 @@ export function trashFiles(paths: string[]): Promise<TrashResult> {
 
 /** 휴지통으로 보낸 것을 원래 자리로 */
 export function restoreDeleted(deletionIds: number[]): Promise<UndoManyResult> {
-  if (usingMocks) return mockBackend.restoreDeleted(deletionIds);
-  return invoke("restore_deleted", { deletionIds });
+  const done = usingMocks
+    ? mockBackend.restoreDeleted(deletionIds)
+    : invoke<UndoManyResult>("restore_deleted", { deletionIds });
+  return done.then(foldersChanged);
 }
 
 export function listInbox(): Promise<InboxItem[]> {

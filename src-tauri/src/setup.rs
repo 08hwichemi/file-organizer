@@ -62,7 +62,7 @@ pub struct SetupRequest {
     /// Empty·Teacher: 정리 폴더를 만들 위치. Existing: 정리 폴더로 쓸 폴더.
     pub base_dir: String,
     pub preset: FolderPreset,
-    /// Teacher일 때 만들 폴더 구성. 없으면 교사용 예시 그대로.
+    /// Teacher·Existing일 때 만들 폴더 구성(없는 폴더만 만든다). Teacher인데 없으면 예시 그대로.
     #[serde(default)]
     pub structure: Option<Vec<FolderSpec>>,
     pub watch_folders: Vec<String>,
@@ -123,8 +123,16 @@ pub fn root_path(base_dir: &Path, preset: FolderPreset) -> PathBuf {
     }
 }
 
-/// 설정을 확인하고, 폴더를 만들고, 완성된 설정을 돌려준다(저장은 부르는 쪽에서).
+/// 처음 설정: 기본 설정 위에 고른 것을 얹는다.
+#[cfg(test)]
 pub fn run(req: &SetupRequest) -> Result<Settings, String> {
+    run_over(req, Settings::default())
+}
+
+/// 설정을 확인하고, 폴더를 만들고, 지금 설정(`current`) 위에 고른 것만 바꾼 설정을 돌려준다(저장은 부르는 쪽에서).
+/// "처음 설정 다시 하기"에서도 쓴다: 정리 규칙·자동 분류 단어·기록·자주 쓰는 폴더·검색 등은 그대로 두고,
+/// 학기 시작 달은 쓰는 곳이 바뀔 때만, 직접 고른 자주 쓰는 폴더는 정리 폴더가 바뀔 때만 비운다.
+pub fn run_over(req: &SetupRequest, current: Settings) -> Result<Settings, String> {
     let base = PathBuf::from(req.base_dir.trim());
     if req.base_dir.trim().is_empty() || !base.is_dir() {
         return Err("고른 위치를 찾을 수 없어요. 다시 골라 주세요.".into());
@@ -133,25 +141,36 @@ pub fn run(req: &SetupRequest) -> Result<Settings, String> {
     let root_str = root.to_string_lossy().into_owned();
     validate_watch_folders(&req.watch_folders, &root_str)?;
     let structure = match (&req.preset, &req.structure) {
-        (FolderPreset::Teacher, Some(custom)) => custom.clone(),
+        (FolderPreset::Empty, _) => Vec::new(),
+        (_, Some(custom)) => custom.clone(),
         (FolderPreset::Teacher, None) => example_structure(req.user_kind),
-        _ => Vec::new(),
+        (FolderPreset::Existing, None) => Vec::new(),
     };
     validate_structure(&structure)?;
 
     create_structure(&root, req.preset, &structure)
         .map_err(|e| format!("폴더를 만들지 못했어요({}): {e}", root.display()))?;
 
-    Ok(Settings {
-        setup_done: true,
-        root_folder: Some(root_str),
-        watch_folders: req.watch_folders.clone(),
-        organize_mode: req.organize_mode,
-        user_kind: req.user_kind,
-        first_term_month: req.user_kind.term_months().first,
-        second_term_month: req.user_kind.term_months().second,
-        ..Settings::default()
-    })
+    let kind_changed = !current.setup_done || current.user_kind != req.user_kind;
+    let root_changed = current
+        .root_folder
+        .as_deref()
+        .is_none_or(|old| !same_path(Path::new(old), &root));
+    let mut s = current;
+    s.setup_done = true;
+    s.root_folder = Some(root_str);
+    s.watch_folders = req.watch_folders.clone();
+    s.organize_mode = req.organize_mode;
+    s.user_kind = req.user_kind;
+    if kind_changed {
+        let m = req.user_kind.term_months();
+        s.first_term_month = m.first;
+        s.second_term_month = m.second;
+    }
+    if root_changed {
+        s.pinned_favorites.clear();
+    }
+    Ok(s)
 }
 
 pub fn validate_watch_folders(watch: &[String], root: &str) -> Result<(), String> {
@@ -172,10 +191,10 @@ pub fn create_structure(
     preset: FolderPreset,
     structure: &[FolderSpec],
 ) -> std::io::Result<()> {
-    if preset == FolderPreset::Existing {
-        return Ok(());
+    // 쓰던 폴더: 그 안에 없는 폴더만 더한다(고른 구성이 없으면 아무것도 만들지 않음)
+    if preset != FolderPreset::Existing {
+        fs::create_dir_all(root)?;
     }
-    fs::create_dir_all(root)?;
     create_specs(root, structure)
 }
 
@@ -285,6 +304,46 @@ mod tests {
         fs::write(&file, b"data").unwrap();
         run(&request(dir.path(), FolderPreset::Teacher, watch)).unwrap();
         assert_eq!(fs::read(&file).unwrap(), b"data");
+    }
+
+    #[test]
+    fn redo_keeps_other_settings_and_adds_only_missing_folders() {
+        let dir = tempfile::tempdir().unwrap();
+        let watch = vec![downloads(dir.path())];
+        let first = run(&request(dir.path(), FolderPreset::Teacher, watch.clone())).unwrap();
+        let root = PathBuf::from(first.root_folder.clone().unwrap());
+        fs::write(root.join("업무").join("a.hwp"), b"data").unwrap();
+        let current = Settings {
+            pinned_favorites: vec![Some(root.join("업무").to_string_lossy().into_owned())],
+            search_whole_pc: false,
+            first_term_month: 2,
+            ..first
+        };
+
+        // 같은 정리 폴더 그대로 + 일반 예시 더하기
+        let mut req = request(&root, FolderPreset::Existing, watch.clone());
+        req.user_kind = UserKind::General;
+        req.structure = Some(example_structure(UserKind::General));
+        let s = run_over(&req, current.clone()).unwrap();
+        assert_eq!(s.root_folder, current.root_folder);
+        assert!(root.join("돈 관리").join("영수증").is_dir()); // 없던 폴더는 만들고
+        assert!(root.join("평가").join("수행평가").is_dir()); // 있던 폴더와
+        assert_eq!(fs::read(root.join("업무").join("a.hwp")).unwrap(), b"data"); // 파일은 그대로
+        assert_eq!(s.pinned_favorites, current.pinned_favorites); // 정리 폴더가 같으면 자주 쓰는 폴더도
+        assert!(!s.search_whole_pc); // 다른 설정도 그대로
+        assert_eq!((s.first_term_month, s.second_term_month), (1, 7)); // 쓰는 곳이 바뀌면 학기 달만
+
+        // 쓰는 곳이 같으면 학기 달은 사용자가 고친 그대로, 폴더 구성 없이 쓰던 폴더면 아무것도 안 만듦
+        let req = request(&root, FolderPreset::Existing, watch.clone());
+        let s = run_over(&req, current.clone()).unwrap();
+        assert_eq!(s.first_term_month, 2);
+
+        // 정리 폴더를 바꾸면 직접 고른 자주 쓰는 폴더만 비운다
+        let other = dir.path().join("새 위치");
+        fs::create_dir_all(&other).unwrap();
+        let s = run_over(&request(&other, FolderPreset::Empty, watch), current).unwrap();
+        assert!(s.pinned_favorites.is_empty());
+        assert!(other.join(ROOT_FOLDER_NAME).is_dir());
     }
 
     #[test]

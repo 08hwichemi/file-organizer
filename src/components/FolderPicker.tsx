@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronRight, FolderPlus, Search, X } from "lucide-react";
-import { createFolder, errorMessage, listFolders, searchFolders } from "../lib/backend";
+import { createFolder, errorMessage, listFolders, onBackendEvent, searchFolders } from "../lib/backend";
 import { baseName, parentPath, samePath, trailFor, type Crumb } from "../lib/paths";
 import type { FolderEntry, FolderMatch } from "../lib/types";
 import FolderIcon from "./FolderIcon";
@@ -47,6 +47,13 @@ export default function FolderPicker({ root, separator, selected, onSelect, reve
       alive = false;
     };
   }, [current.path, reloadKey]);
+
+  // 다른 곳(정리함의 폴더 칸, 탐색기 등)에서 폴더가 생기거나 바뀌면 바로 새로 읽는다
+  useEffect(() => {
+    const reload = () => setReloadKey((k) => k + 1);
+    const stops = [onBackendEvent("folders-changed", reload), onBackendEvent("inbox-changed", reload)];
+    return () => stops.forEach((stop) => stop());
+  }, []);
 
   // 최근 넣은 곳·검색 결과를 고르면 그 폴더가 보이는 위치로
   useEffect(() => {
