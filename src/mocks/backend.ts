@@ -217,9 +217,24 @@ const manyFiles: StoredItem[] =
       }))
     : [];
 
+// 주소 뒤 &classify=1: 자동 분류 카드판을 볼 수 있게 여러 종류의 이름을 넣는다
+const CLASSIFY_SAMPLES = [
+  "수행평가_채점기준_1학기.hwp", "수행평가_안내문.hwp", "수행평가_결과_3-2.xlsx", "루브릭_과학탐구.hwp",
+  "중간고사_시험지_화학.hwp", "기말고사_문항정보표.xlsx", "2학기_중간고사_감독.xlsx",
+  "공문_시행문_정보보안.pdf", "협조_요청_공문.pdf", "회신_학교폭력예방.hwp",
+  "교무회의록_10월.hwp", "학년협의회_회의록.hwp", "학급상담_일지.hwp", "결석계_김민지.pdf",
+  "세특_초안_3-2.hwp", "생기부_점검표.xlsx", "학습지_광합성.hwp", "활동지_산화환원.hwp",
+  "연수_이수증_정보보호.pdf", "사진_체육대회_01.jpg", "사진_체육대회_02.jpg", "setup_hancom.exe",
+];
+const classifyFiles: StoredItem[] =
+  params.get("classify") === "1"
+    ? CLASSIFY_SAMPLES.map((name, i) => ({ id: 2000 + i, ...file(DOWNLOADS, name, 30_000 + i * 1000), addedAt: Date.now() - i * 600_000 }))
+    : [];
+
 let inbox: StoredItem[] = startReady
   ? [
       ...manyFiles,
+      ...classifyFiles,
       { id: 1, ...file(DOWNLOADS, "2학기_지필고사_감독배정표.xlsx", 22_000), addedAt: Date.now() - 12 * 60_000 },
       { id: 2, ...file(DESKTOP, "3-2_학부모상담_일정.xlsx", 15_000), addedAt: Date.now() - 3 * 3600_000 },
       { id: 3, ...file(DOWNLOADS, "scan_20261013.pdf", 820_000), addedAt: Date.now() - 26 * 3600_000 },
