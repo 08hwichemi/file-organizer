@@ -3,10 +3,11 @@ import { FileText, FolderInput, FolderPlus, FolderTree, Monitor } from "lucide-r
 import ChoiceCard from "../components/ChoiceCard";
 import FolderIcon from "../components/FolderIcon";
 import ModeChoice from "../components/ModeChoice";
+import StructureEditor, { structureProblem } from "../components/StructureEditor";
 import WatchFolderEditor from "../components/WatchFolderEditor";
 import { errorMessage, pickFolder } from "../lib/backend";
 import { friendlyName, joinPath, samePath } from "../lib/paths";
-import type { OrganizeMode } from "../lib/types";
+import type { FolderSpec, OrganizeMode, SetupInfo } from "../lib/types";
 import { useAppStore } from "../store/useAppStore";
 import "./FirstRun.css";
 
@@ -25,6 +26,7 @@ export default function FirstRun() {
   const [customDir, setCustomDir] = useState<string | null>(null);
   const [existingDir, setExistingDir] = useState<string | null>(null);
   const [preset, setPreset] = useState<"teacher" | "empty">("teacher");
+  const [structure, setStructure] = useState<FolderSpec[]>(() => exampleStructure(info));
   const [watch, setWatch] = useState<string[]>(() =>
     [info?.downloads, info?.desktop].filter((p): p is string => !!p),
   );
@@ -59,7 +61,16 @@ export default function FirstRun() {
         ? "정리 폴더와 지켜볼 폴더는 서로 달라야 해요."
         : null;
 
-  const canGoNext = step === "location" ? !!baseDir : step === "watch" ? !watchProblem : true;
+  const structureError = preset === "teacher" ? structureProblem(structure) : null;
+
+  const canGoNext =
+    step === "location"
+      ? !!baseDir
+      : step === "watch"
+        ? !watchProblem
+        : step === "structure"
+          ? !structureError
+          : true;
 
   const choose = async (which: "custom" | "existing") => {
     setError(null);
@@ -83,6 +94,7 @@ export default function FirstRun() {
       await finishSetup({
         baseDir,
         preset: location === "existing" ? "existing" : preset,
+        structure: location !== "existing" && preset === "teacher" ? structure : undefined,
         watchFolders: watch,
         organizeMode: mode,
       });
@@ -173,28 +185,28 @@ export default function FirstRun() {
           {step === "structure" && (
             <>
               <h1 className="setup__title">정리 폴더 안을 어떻게 시작할까요?</h1>
-              <p className="setup__lead">폴더는 나중에 언제든 더 만들거나 이름을 바꿀 수 있어요.</p>
+              <p className="setup__lead">폴더는 나중에 정리함이나 설정에서도 언제든 만들고, 이름을 바꾸고, 옮길 수 있어요.</p>
               <div className="stack-12" role="radiogroup" aria-label="폴더 구성">
                 <ChoiceCard
                   name="preset"
                   checked={preset === "teacher"}
                   onSelect={() => setPreset("teacher")}
                   icon={<FolderTree size={20} />}
-                  title="교사용 예시 폴더로 시작"
-                  description="자주 쓰는 폴더를 미리 만들어 둬요."
-                >
-                  <ul className="setup__example">
-                    {info.teacherExample.map((f) => (
-                      <li key={f.name}>
-                        <FolderIcon size={22} />
-                        <span className="setup__example-name">{f.name}</span>
-                        {f.children.length > 0 && (
-                          <span className="setup__example-sub">{f.children.join(" · ")}</span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </ChoiceCard>
+                  title="폴더를 정해서 시작"
+                  description="교사용 예시를 고쳐서 써요. 이름을 바꾸고, 더하고, 뺄 수 있어요."
+                />
+                {preset === "teacher" && (
+                  <div className="setup__structure">
+                    <div className="setup__structure-head">
+                      <span>만들 폴더</span>
+                      <button type="button" className="btn btn--link" onClick={() => setStructure(exampleStructure(info))}>
+                        예시로 되돌리기
+                      </button>
+                    </div>
+                    <StructureEditor value={structure} onChange={setStructure} />
+                    {structureError && <p className="error-text">{structureError}</p>}
+                  </div>
+                )}
                 <ChoiceCard
                   name="preset"
                   checked={preset === "empty"}
@@ -240,7 +252,9 @@ export default function FirstRun() {
                 {location !== "existing" && (
                   <SummaryRow label="폴더 구성" onEdit={() => goTo("structure")}>
                     {preset === "teacher"
-                      ? `교사용 예시 폴더 (${info.teacherExample.map((f) => f.name).join(" · ")})`
+                      ? structure.length > 0
+                        ? structure.map((f) => f.name.trim()).join(" · ")
+                        : "빈 폴더"
                       : "빈 폴더"}
                   </SummaryRow>
                 )}
@@ -309,4 +323,11 @@ function SummaryRow({
       </button>
     </div>
   );
+}
+
+function exampleStructure(info: SetupInfo | null): FolderSpec[] {
+  return (info?.teacherExample ?? []).map((f) => ({
+    name: f.name,
+    children: f.children.map((c) => ({ name: c, children: [] })),
+  }));
 }

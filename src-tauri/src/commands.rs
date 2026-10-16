@@ -5,7 +5,7 @@ use crate::inbox::{self, InboxItem};
 use crate::settings::{self, OrganizeMode, Settings};
 use crate::setup::{self, SetupRequest};
 use crate::watcher::{self, NewFile, WatchService};
-use crate::{history, mover, popup};
+use crate::{history, mover, popup, recycle};
 use rusqlite::Connection;
 use serde::Serialize;
 use std::collections::VecDeque;
@@ -222,6 +222,150 @@ pub fn search_folders(
         .root_folder
         .ok_or("정리 폴더가 아직 없어요.")?;
     Ok(folders::search(Path::new(&root), &query, 50))
+}
+
+/// 정리 폴더 안쪽 폴더인지 확인(정리 폴더 자체나 바깥은 고치지 않는다).
+fn ensure_inside_root(state: &AppState, path: &Path) -> Result<(), String> {
+    let root = state
+        .with_db(settings::load)?
+        .root_folder
+        .ok_or("정리 폴더가 아직 없어요.")?;
+    if folders::is_inside(Path::new(&root), path) {
+        Ok(())
+    } else {
+        Err("정리 폴더 안의 폴더만 바꿀 수 있어요.".into())
+    }
+}
+
+fn entry_for(path: &Path) -> FolderEntry {
+    FolderEntry {
+        name: path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+        path: path.to_string_lossy().into_owned(),
+        file_count: 0,
+        folder_count: 0,
+    }
+}
+
+#[tauri::command]
+pub fn rename_folder(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+    new_name: String,
+) -> Result<FolderEntry, String> {
+    let old = PathBuf::from(&path);
+    ensure_inside_root(&state, &old)?;
+    let new = folders::rename_folder(&old, &new_name)?;
+    let _ = state.with_db(|conn| history::rewrite_folder_prefix(conn, &old, &new).map_err(db_err));
+    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    Ok(entry_for(&new))
+}
+
+#[tauri::command]
+pub fn move_folder(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+    dest_parent: String,
+) -> Result<FolderEntry, String> {
+    let old = PathBuf::from(&path);
+    ensure_inside_root(&state, &old)?;
+    let root = state
+        .with_db(settings::load)?
+        .root_folder
+        .unwrap_or_default();
+    let dest = PathBuf::from(&dest_parent);
+    if !(folders::is_inside(Path::new(&root), &dest)
+        || dest.canonicalize().ok() == Path::new(&root).canonicalize().ok())
+    {
+        return Err("정리 폴더 안으로만 옮길 수 있어요.".into());
+    }
+    let new = folders::move_folder(&old, &dest)?;
+    let _ = state.with_db(|conn| history::rewrite_folder_prefix(conn, &old, &new).map_err(db_err));
+    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    Ok(entry_for(&new))
+}
+
+/// 폴더를 휴지통으로(정리 폴더 안쪽만). 되돌리기용 기록 번호를 돌려준다.
+#[tauri::command]
+pub fn trash_folder(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<i64, String> {
+    let p = PathBuf::from(&path);
+    ensure_inside_root(&state, &p)?;
+    let id = state.with_db(|conn| recycle::send_to_trash(conn, &p))?;
+    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    Ok(id)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrashResult {
+    pub deletion_ids: Vec<i64>,
+    pub errors: Vec<String>,
+}
+
+/// 정리함의 파일들을 휴지통으로.
+#[tauri::command]
+pub fn trash_files(app: AppHandle, state: State<'_, AppState>, paths: Vec<String>) -> TrashResult {
+    let mut result = TrashResult {
+        deletion_ids: Vec::new(),
+        errors: Vec::new(),
+    };
+    for path in paths {
+        let p = PathBuf::from(&path);
+        if !p.is_file() {
+            result.errors.push("파일을 찾을 수 없어요.".into());
+            continue;
+        }
+        match state.with_db(|conn| {
+            let id = recycle::send_to_trash(conn, &p)?;
+            inbox::remove(conn, &p).map_err(db_err)?;
+            Ok(id)
+        }) {
+            Ok(id) => result.deletion_ids.push(id),
+            Err(e) => result.errors.push(e),
+        }
+        state.with_pending(|q| q.retain(|x| x.path != path));
+    }
+    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    result
+}
+
+/// 휴지통으로 보낸 것을 원래 자리로. 파일이면 정리함에도 다시 넣는다.
+#[tauri::command]
+pub fn restore_deleted(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    deletion_ids: Vec<i64>,
+) -> UndoManyResult {
+    let mut result = UndoManyResult {
+        restored: 0,
+        errors: Vec::new(),
+    };
+    for id in deletion_ids {
+        match state.with_db(|conn| recycle::restore(conn, id)) {
+            Ok(record) => {
+                let path = PathBuf::from(&record.original_path);
+                if !record.is_folder {
+                    state.watcher.mark_known(path.clone());
+                    let source = path.parent().unwrap_or(Path::new("")).to_path_buf();
+                    let _ = state.with_db(|conn| {
+                        inbox::add(conn, &path, &source, inbox::Reason::Later).map_err(db_err)
+                    });
+                }
+                result.restored += 1;
+            }
+            Err(e) => result.errors.push(e),
+        }
+    }
+    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    result
 }
 
 /// 최근에 넣은 폴더 3개(지금도 있는 것만).

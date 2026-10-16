@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check } from "lucide-react";
+import FolderPane, { type Toast } from "../components/FolderPane";
 import ModeChoice from "../components/ModeChoice";
 import WatchFolderEditor from "../components/WatchFolderEditor";
 import { errorMessage, getAppInfo } from "../lib/backend";
@@ -18,6 +19,7 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState<"mode" | "watch" | null>(null);
   const [errors, setErrors] = useState<{ mode?: string; watch?: string }>({});
   const [version, setVersion] = useState<string | null>(null);
+  const [folderToast, setFolderToast] = useState<Toast | null>(null);
   const savedTimer = useRef<number>();
 
   useEffect(() => {
@@ -78,8 +80,21 @@ export default function SettingsPage() {
         <WatchFolderEditor known={known} value={watchDraft} onChange={changeWatch} />
       </Section>
 
-      <Section title="정리 폴더" description="파일을 넣어 두는 폴더예요. 처음 설정에서 정했어요.">
+      <Section
+        title="폴더 구성"
+        description="정리 폴더 안의 폴더를 만들고, 이름을 바꾸고, 옮기고, 지울 수 있어요. 폴더에 마우스를 올리면 나오는 ⋯ 를 누르세요. 지운 폴더는 휴지통으로 가요."
+      >
         <div className="settings__path">{settings.rootFolder}</div>
+        {settings.rootFolder && (
+          <FolderPane
+            key={settings.rootFolder}
+            root={settings.rootFolder}
+            separator={known?.separator ?? "\\"}
+            toast={folderToast}
+            onToast={setFolderToast}
+            label="폴더 구성"
+          />
+        )}
       </Section>
 
       <Section title="업데이트" description="새 버전이 나오면 프로그램이 알아서 알려 드려요(켤 때와 하루에 한 번 확인).">

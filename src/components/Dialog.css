@@ -1,0 +1,107 @@
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(23, 25, 28, 0.35);
+}
+
+.dialog {
+  width: 100%;
+  max-width: 420px;
+  max-height: calc(100% - 32px);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: 0 16px 40px rgba(23, 25, 28, 0.2);
+}
+
+.dialog--wide {
+  max-width: 520px;
+  height: min(560px, calc(100% - 32px));
+}
+
+.dialog__title {
+  margin: 0;
+  padding: 20px 22px 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.dialog__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 22px 0;
+  color: var(--color-text-strong);
+}
+
+.dialog__body p {
+  margin: 0;
+}
+
+.dialog__body input[type="text"] {
+  width: 100%;
+  padding: 0 12px;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  outline: none;
+  font-size: 14px;
+}
+
+.dialog__actions {
+  justify-content: flex-end;
+  padding: 18px 22px 20px;
+}
+
+.btn--danger {
+  min-height: var(--control-height-main);
+  padding: 0 20px;
+  border-color: var(--color-danger);
+  background: var(--color-danger);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.btn--danger:hover:not(:disabled) {
+  border-color: #8e2b22;
+  background: #8e2b22;
+}
+
+.dialog__sub {
+  font-size: 13px;
+  color: var(--color-text-sub);
+}
+
+.folder-move__target {
+  font-size: 13px;
+  color: var(--color-text-sub);
+}
+
+.folder-move__target strong {
+  margin-left: 6px;
+  color: var(--color-accent-hover);
+}
+
+.folder-move__root {
+  align-self: flex-start;
+  min-height: var(--control-height);
+  padding: 0 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-size: 13px;
+}
+
+.folder-move__root--on {
+  border-color: var(--color-accent);
+  background: var(--color-accent-faint);
+  color: var(--color-accent-hover);
+  font-weight: 600;
+}

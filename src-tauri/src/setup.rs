@@ -31,14 +31,69 @@ pub enum FolderPreset {
     Existing,
 }
 
+/// 처음 설정에서 사용자가 고친 폴더 구성(폴더 이름과 그 안의 폴더들).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct FolderSpec {
+    pub name: String,
+    #[serde(default)]
+    pub children: Vec<FolderSpec>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SetupRequest {
     /// Empty·Teacher: 정리 폴더를 만들 위치. Existing: 정리 폴더로 쓸 폴더.
     pub base_dir: String,
     pub preset: FolderPreset,
+    /// Teacher일 때 만들 폴더 구성. 없으면 교사용 예시 그대로.
+    #[serde(default)]
+    pub structure: Option<Vec<FolderSpec>>,
     pub watch_folders: Vec<String>,
     pub organize_mode: OrganizeMode,
+}
+
+/// 교사용 예시를 폴더 구성 형태로.
+pub fn teacher_structure() -> Vec<FolderSpec> {
+    TEACHER_EXAMPLE
+        .iter()
+        .map(|(name, subs)| FolderSpec {
+            name: name.to_string(),
+            children: subs
+                .iter()
+                .map(|s| FolderSpec {
+                    name: s.to_string(),
+                    children: vec![],
+                })
+                .collect(),
+        })
+        .collect()
+}
+
+/// 폴더 이름이 올바르고, 같은 자리에 같은 이름이 없는지.
+fn validate_structure(specs: &[FolderSpec]) -> Result<(), String> {
+    let mut seen: Vec<String> = Vec::new();
+    for spec in specs {
+        crate::folders::validate_name(&spec.name)?;
+        let key = spec.name.trim().to_lowercase();
+        if seen.contains(&key) {
+            return Err(format!(
+                "같은 자리에 ‘{}’ 폴더가 두 번 있어요.",
+                spec.name.trim()
+            ));
+        }
+        seen.push(key);
+        validate_structure(&spec.children)?;
+    }
+    Ok(())
+}
+
+fn create_specs(dir: &Path, specs: &[FolderSpec]) -> std::io::Result<()> {
+    for spec in specs {
+        let path = dir.join(spec.name.trim());
+        fs::create_dir_all(&path)?;
+        create_specs(&path, &spec.children)?;
+    }
+    Ok(())
 }
 
 pub fn root_path(base_dir: &Path, preset: FolderPreset) -> PathBuf {
@@ -57,8 +112,14 @@ pub fn run(req: &SetupRequest) -> Result<Settings, String> {
     let root = root_path(&base, req.preset);
     let root_str = root.to_string_lossy().into_owned();
     validate_watch_folders(&req.watch_folders, &root_str)?;
+    let structure = match (&req.preset, &req.structure) {
+        (FolderPreset::Teacher, Some(custom)) => custom.clone(),
+        (FolderPreset::Teacher, None) => teacher_structure(),
+        _ => Vec::new(),
+    };
+    validate_structure(&structure)?;
 
-    create_structure(&root, req.preset)
+    create_structure(&root, req.preset, &structure)
         .map_err(|e| format!("폴더를 만들지 못했어요({}): {e}", root.display()))?;
 
     Ok(Settings {
@@ -82,21 +143,16 @@ pub fn validate_watch_folders(watch: &[String], root: &str) -> Result<(), String
     Ok(())
 }
 
-pub fn create_structure(root: &Path, preset: FolderPreset) -> std::io::Result<()> {
+pub fn create_structure(
+    root: &Path,
+    preset: FolderPreset,
+    structure: &[FolderSpec],
+) -> std::io::Result<()> {
     if preset == FolderPreset::Existing {
         return Ok(());
     }
     fs::create_dir_all(root)?;
-    if preset == FolderPreset::Teacher {
-        for (top, subs) in TEACHER_EXAMPLE {
-            let top_dir = root.join(top);
-            fs::create_dir_all(&top_dir)?;
-            for sub in *subs {
-                fs::create_dir_all(top_dir.join(sub))?;
-            }
-        }
-    }
-    Ok(())
+    create_specs(root, structure)
 }
 
 /// 같은 폴더인지(Windows는 대소문자를 가리지 않으므로 실제 경로로 비교).
@@ -115,6 +171,7 @@ mod tests {
         SetupRequest {
             base_dir: base.to_string_lossy().into_owned(),
             preset,
+            structure: None,
             watch_folders: watch,
             organize_mode: OrganizeMode::Manual,
         }
@@ -213,5 +270,48 @@ mod tests {
             vec![dl.clone()],
         ));
         assert!(err.is_err());
+    }
+
+    #[test]
+    fn custom_structure_is_created_and_validated() {
+        let dir = tempfile::tempdir().unwrap();
+        let watch = vec![downloads(dir.path())];
+        let mut req = request(dir.path(), FolderPreset::Teacher, watch);
+        req.structure = Some(vec![
+            FolderSpec {
+                name: "3학년 2반".into(),
+                children: vec![FolderSpec {
+                    name: "상담".into(),
+                    children: vec![],
+                }],
+            },
+            FolderSpec {
+                name: " 동아리 ".into(),
+                children: vec![],
+            },
+        ]);
+        run(&req).unwrap();
+        let root = dir.path().join(ROOT_FOLDER_NAME);
+        assert!(root.join("3학년 2반").join("상담").is_dir());
+        assert!(root.join("동아리").is_dir());
+        assert!(!root.join("업무").exists());
+
+        let dup = vec![
+            FolderSpec {
+                name: "a".into(),
+                children: vec![],
+            },
+            FolderSpec {
+                name: "A".into(),
+                children: vec![],
+            },
+        ];
+        req.structure = Some(dup);
+        assert!(run(&req).is_err());
+        req.structure = Some(vec![FolderSpec {
+            name: "나쁜:이름".into(),
+            children: vec![],
+        }]);
+        assert!(run(&req).is_err());
     }
 }

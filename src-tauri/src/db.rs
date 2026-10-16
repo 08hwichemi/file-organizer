@@ -49,6 +49,19 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
              PRAGMA user_version = 2;",
         )?;
     }
+    if version < 3 {
+        // 휴지통으로 보낸 기록(되돌리기·나중에 '최근 정리한 파일'용).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS deletions (
+                 id            INTEGER PRIMARY KEY,
+                 original_path TEXT    NOT NULL,
+                 is_folder     INTEGER NOT NULL,
+                 deleted_at    INTEGER NOT NULL,
+                 restored_at   INTEGER
+             );
+             PRAGMA user_version = 3;",
+        )?;
+    }
     Ok(())
 }
 

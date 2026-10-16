@@ -10,7 +10,7 @@ import {
 } from "@dnd-kit/core";
 import FileBadge from "../components/FileBadge";
 import InboxFileList, { ALL_TAB } from "../components/InboxFileList";
-import InboxFolderPane, { type DropData, type Toast } from "../components/InboxFolderPane";
+import FolderPane, { type DropData, type Toast } from "../components/FolderPane";
 import {
   errorMessage,
   getFavoriteFolders,
@@ -18,6 +18,8 @@ import {
   listInbox,
   onBackendEvent,
   putFiles,
+  restoreDeleted,
+  trashFiles,
   undoMoves,
 } from "../lib/backend";
 import { displayPath } from "../lib/paths";
@@ -88,10 +90,22 @@ export default function InboxPage() {
               ? `${done.length}개 파일을 ${where}에 넣었어요`
               : "넣지 못했어요";
         if (failed.length > 0) message += ` · ${failed.length}개는 못 넣었어요: ${failed[0].error}`;
-        setToast({ message, moveIds: done.map((o) => o.moveId as number) });
+        const moveIds = done.map((o) => o.moveId as number);
+        setToast({
+          message,
+          undo:
+            moveIds.length > 0
+              ? async () => {
+                  const r = await undoMoves(moveIds);
+                  return r.errors.length === 0
+                    ? `${r.restored}개 파일을 원래 자리로 되돌렸어요`
+                    : `${r.restored}개를 되돌렸어요 · ${r.errors[0]}`;
+                }
+              : undefined,
+        });
         setSelected((sel) => new Set([...sel].filter((p) => !done.some((o) => o.path === p))));
       } catch (e) {
-        setToast({ message: errorMessage(e), moveIds: [] });
+        setToast({ message: errorMessage(e) });
       } finally {
         setBusy(false);
       }
@@ -99,18 +113,30 @@ export default function InboxPage() {
     [busy, nameOf, root, sep],
   );
 
-  const undo = async () => {
-    if (!toast || toast.moveIds.length === 0 || busy) return;
+  // 고른 파일을 휴지통으로(되돌리기 가능)
+  const trashSelected = async () => {
+    const paths = [...selected];
+    if (paths.length === 0 || busy) return;
     setBusy(true);
     try {
-      const result = await undoMoves(toast.moveIds);
+      const r = await trashFiles(paths);
+      const n = r.deletionIds.length;
+      let message =
+        n === 1 ? `‘${nameOf(paths[0])}’ 파일을 휴지통으로 보냈어요` : `${n}개 파일을 휴지통으로 보냈어요`;
+      if (r.errors.length > 0) message += ` · ${r.errors.length}개는 못 보냈어요: ${r.errors[0]}`;
       setToast({
-        message:
-          result.errors.length === 0
-            ? `${result.restored}개 파일을 원래 자리로 되돌렸어요`
-            : `${result.restored}개를 되돌렸어요 · ${result.errors[0]}`,
-        moveIds: [],
+        message,
+        undo:
+          n > 0
+            ? async () => {
+                const u = await restoreDeleted(r.deletionIds);
+                return u.errors.length === 0 ? `${u.restored}개 파일을 되돌렸어요` : `${u.restored}개를 되돌렸어요 · ${u.errors[0]}`;
+              }
+            : undefined,
       });
+      setSelected(new Set());
+    } catch (e) {
+      setToast({ message: errorMessage(e) });
     } finally {
       setBusy(false);
     }
@@ -122,10 +148,9 @@ export default function InboxPage() {
       const added = await importExisting();
       setToast({
         message: added > 0 ? `지금 있는 파일 ${added}개를 가져왔어요` : "새로 가져올 파일이 없어요",
-        moveIds: [],
       });
     } catch (e) {
-      setToast({ message: errorMessage(e), moveIds: [] });
+      setToast({ message: errorMessage(e) });
     } finally {
       setImporting(false);
     }
@@ -210,10 +235,11 @@ export default function InboxPage() {
               dragging={dragging}
               onImport={() => void runImport()}
               importing={importing}
+              onTrash={() => void trashSelected()}
             />
           )}
           {root && (
-            <InboxFolderPane
+            <FolderPane
               key={root}
               root={root}
               separator={sep}
@@ -224,7 +250,7 @@ export default function InboxPage() {
               jumpTo={jumpTo}
               onJump={(path) => setJumpTo((j) => ({ path, n: (j?.n ?? 0) + 1 }))}
               toast={toast}
-              onUndo={() => void undo()}
+              onToast={setToast}
               busy={busy}
             />
           )}

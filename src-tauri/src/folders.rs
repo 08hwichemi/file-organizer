@@ -81,6 +81,73 @@ pub fn create_folder(parent: &Path, name: &str) -> Result<FolderEntry, String> {
     }
 }
 
+/// 폴더 이름 바꾸기. 같은 이름이 있으면 바꾸지 않는다. 새 경로를 돌려준다.
+pub fn rename_folder(path: &Path, new_name: &str) -> Result<PathBuf, String> {
+    validate_name(new_name)?;
+    let new_name = new_name.trim();
+    if !path.is_dir() {
+        return Err("폴더를 찾을 수 없어요.".into());
+    }
+    let parent = path.parent().ok_or("이 폴더는 이름을 바꿀 수 없어요.")?;
+    let target = parent.join(new_name);
+    // 대소문자만 바꾸는 경우(Windows)에는 같은 폴더로 보이므로 그대로 진행한다.
+    let same_folder = target.exists() && same_file(&target, path);
+    if target.exists() && !same_folder {
+        return Err(format!("‘{new_name}’ 폴더가 이미 있어요."));
+    }
+    fs::rename(path, &target).map_err(|e| describe_io(&e, "이름을 바꾸지 못했어요"))?;
+    Ok(target)
+}
+
+/// 폴더를 다른 폴더 안으로 옮기기. 같은 이름이 있거나 자기 안으로 옮기려 하면 막는다. 새 경로를 돌려준다.
+pub fn move_folder(path: &Path, dest_parent: &Path) -> Result<PathBuf, String> {
+    if !path.is_dir() {
+        return Err("옮길 폴더를 찾을 수 없어요.".into());
+    }
+    if !dest_parent.is_dir() {
+        return Err("옮겨 넣을 폴더를 찾을 수 없어요.".into());
+    }
+    let (Ok(src), Ok(dest)) = (path.canonicalize(), dest_parent.canonicalize()) else {
+        return Err("폴더 위치를 확인하지 못했어요.".into());
+    };
+    if dest.starts_with(&src) {
+        return Err("폴더를 자기 안으로 옮길 수는 없어요.".into());
+    }
+    if path.parent().and_then(|p| p.canonicalize().ok()) == Some(dest.clone()) {
+        return Err("이미 그 폴더 안에 있어요.".into());
+    }
+    let name = path.file_name().ok_or("폴더 이름을 읽을 수 없어요.")?;
+    let target = dest_parent.join(name);
+    if target.exists() {
+        return Err(format!(
+            "옮길 곳에 ‘{}’ 폴더가 이미 있어요.",
+            name.to_string_lossy()
+        ));
+    }
+    fs::rename(path, &target).map_err(|e| describe_io(&e, "옮기지 못했어요"))?;
+    Ok(target)
+}
+
+/// `path`가 `root` 안쪽(root 자신은 아님)에 있는지.
+pub fn is_inside(root: &Path, path: &Path) -> bool {
+    match (root.canonicalize(), path.canonicalize()) {
+        (Ok(r), Ok(p)) => p != r && p.starts_with(&r),
+        _ => false,
+    }
+}
+
+fn same_file(a: &Path, b: &Path) -> bool {
+    matches!((a.canonicalize(), b.canonicalize()), (Ok(x), Ok(y)) if x == y)
+}
+
+fn describe_io(e: &std::io::Error, what: &str) -> String {
+    // Windows ERROR_SHARING_VIOLATION = 32, ERROR_ACCESS_DENIED = 5
+    if cfg!(windows) && matches!(e.raw_os_error(), Some(32) | Some(5)) {
+        return format!("{what}. 폴더 안 파일이 다른 프로그램에서 열려 있는지 확인해 주세요.");
+    }
+    format!("{what}: {e}")
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FolderMatch {
@@ -240,6 +307,55 @@ mod tests {
         assert_eq!(trails, ["수행평가 자료", "평가/수행평가"]);
         assert!(search(root, " ", 10).is_empty());
         assert_eq!(search(root, "수행", 1).len(), 1);
+    }
+
+    #[test]
+    fn rename_folder_keeps_contents_and_refuses_duplicates() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        fs::create_dir_all(root.join("수업/1학기")).unwrap();
+        fs::create_dir_all(root.join("평가")).unwrap();
+        fs::write(root.join("수업/자료.hwp"), b"x").unwrap();
+
+        let renamed = rename_folder(&root.join("수업"), "수업자료").unwrap();
+        assert_eq!(renamed, root.join("수업자료"));
+        assert_eq!(fs::read(root.join("수업자료/자료.hwp")).unwrap(), b"x");
+        assert!(root.join("수업자료/1학기").is_dir());
+
+        assert!(rename_folder(&root.join("수업자료"), "평가").is_err());
+        assert!(rename_folder(&root.join("수업자료"), "나쁜/이름").is_err());
+        assert!(root.join("수업자료").is_dir());
+    }
+
+    #[test]
+    fn move_folder_rules() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        fs::create_dir_all(root.join("업무/공문")).unwrap();
+        fs::create_dir_all(root.join("평가")).unwrap();
+        fs::write(root.join("업무/공문/a.pdf"), b"a").unwrap();
+
+        let moved = move_folder(&root.join("업무/공문"), &root.join("평가")).unwrap();
+        assert_eq!(moved, root.join("평가/공문"));
+        assert_eq!(fs::read(root.join("평가/공문/a.pdf")).unwrap(), b"a");
+
+        // 자기 안으로, 이미 있는 곳으로, 같은 이름이 있는 곳으로는 못 옮김
+        assert!(move_folder(&root.join("평가"), &root.join("평가/공문")).is_err());
+        assert!(move_folder(&root.join("평가/공문"), &root.join("평가")).is_err());
+        fs::create_dir_all(root.join("업무/공문")).unwrap();
+        assert!(move_folder(&root.join("평가/공문"), &root.join("업무")).is_err());
+        assert!(root.join("평가/공문/a.pdf").exists());
+    }
+
+    #[test]
+    fn inside_check_excludes_root_itself() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        fs::create_dir_all(root.join("a/b")).unwrap();
+        assert!(is_inside(root, &root.join("a")));
+        assert!(is_inside(root, &root.join("a/b")));
+        assert!(!is_inside(root, root));
+        assert!(!is_inside(&root.join("a"), root));
     }
 
     #[test]

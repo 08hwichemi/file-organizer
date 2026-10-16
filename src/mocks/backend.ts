@@ -14,6 +14,7 @@ import type {
   Settings,
   SetupInfo,
   SetupRequest,
+  TrashResult,
   UndoManyResult,
 } from "../lib/types";
 
@@ -93,6 +94,14 @@ function findFolder(path: string): MockFolder | null {
   return null;
 }
 
+function detach(path: string): { parent: MockFolder; name: string; node: MockFolder } | null {
+  const i = path.lastIndexOf(SEP);
+  const parent = findFolder(path.slice(0, i));
+  const name = path.slice(i + 1);
+  const node = parent?.children[name];
+  return parent && node ? { parent, name, node } : null;
+}
+
 function entry(path: string, name: string, node: MockFolder): FolderEntry {
   return {
     name,
@@ -166,6 +175,11 @@ const delay = <T>(value: T) => new Promise<T>((resolve) => setTimeout(() => reso
 const fail = (message: string) =>
   new Promise<never>((_, reject) => setTimeout(() => reject(message), 120));
 
+type Trashed =
+  | { kind: "file"; item: InboxItem }
+  | { kind: "folder"; path: string; parent: MockFolder; name: string; node: MockFolder };
+const trashed = new Map<number, Trashed>();
+
 let pickCount = 0;
 let nextId = 100;
 
@@ -179,7 +193,20 @@ export const mockBackend = {
     const root =
       req.preset === "existing" ? req.baseDir : `${req.baseDir}${SEP}${setupInfo.rootFolderName}`;
     if (req.watchFolders.includes(root)) return fail("정리 폴더와 지켜볼 폴더는 서로 달라야 해요.");
-    if (!trees.has(root)) trees.set(root, req.preset === "empty" ? folder(0) : teacherTree());
+    if (!trees.has(root)) {
+      const build = (specs: { name: string; children: unknown[] }[]): Record<string, MockFolder> =>
+        Object.fromEntries(
+          specs.map((s) => [s.name.trim(), folder(0, build(s.children as { name: string; children: unknown[] }[]))]),
+        );
+      trees.set(
+        root,
+        req.preset === "empty"
+          ? folder(0)
+          : req.structure
+            ? folder(0, build(req.structure))
+            : teacherTree(),
+      );
+    }
     settings = {
       setupDone: true,
       rootFolder: root,
@@ -346,6 +373,75 @@ export const mockBackend = {
       }
     }
     return delay(out.slice(0, 6));
+  },
+
+  renameFolder(path: string, newName: string) {
+    const d = detach(path);
+    const name = newName.trim();
+    if (!d) return fail("폴더를 찾을 수 없어요.");
+    if (!name) return fail("이름을 입력해 주세요.");
+    if (d.parent.children[name] && name !== d.name) return fail(`‘${name}’ 폴더가 이미 있어요.`);
+    delete d.parent.children[d.name];
+    d.parent.children[name] = d.node;
+    mockEvents.emit("inbox-changed");
+    return delay(entry(path.slice(0, path.lastIndexOf(SEP)), name, d.node));
+  },
+
+  moveFolder(path: string, destParent: string) {
+    const d = detach(path);
+    const dest = findFolder(destParent);
+    if (!d || !dest) return fail("폴더를 찾을 수 없어요.");
+    if (destParent === path || destParent.startsWith(path + SEP)) return fail("폴더를 자기 안으로 옮길 수는 없어요.");
+    if (dest === d.parent) return fail("이미 그 폴더 안에 있어요.");
+    if (dest.children[d.name]) return fail(`옮길 곳에 ‘${d.name}’ 폴더가 이미 있어요.`);
+    delete d.parent.children[d.name];
+    dest.children[d.name] = d.node;
+    mockEvents.emit("inbox-changed");
+    return delay(entry(destParent, d.name, d.node));
+  },
+
+  trashFolder(path: string) {
+    const d = detach(path);
+    if (!d) return fail("지울 폴더를 찾을 수 없어요.");
+    delete d.parent.children[d.name];
+    const id = ++nextId;
+    trashed.set(id, { kind: "folder", path, parent: d.parent, name: d.name, node: d.node });
+    mockEvents.emit("inbox-changed");
+    return delay(id);
+  },
+
+  trashFiles(paths: string[]) {
+    const result: TrashResult = { deletionIds: [], errors: [] };
+    for (const path of paths) {
+      const item = inbox.find((i) => i.path === path);
+      if (!item) {
+        result.errors.push("파일을 찾을 수 없어요.");
+        continue;
+      }
+      inbox = inbox.filter((i) => i.path !== path);
+      const id = ++nextId;
+      trashed.set(id, { kind: "file", item });
+      result.deletionIds.push(id);
+    }
+    mockEvents.emit("inbox-changed");
+    return delay(result);
+  },
+
+  restoreDeleted(ids: number[]) {
+    const result: UndoManyResult = { restored: 0, errors: [] };
+    for (const id of ids) {
+      const t = trashed.get(id);
+      if (!t) {
+        result.errors.push("되돌릴 기록을 찾을 수 없어요.");
+        continue;
+      }
+      if (t.kind === "file") inbox = [t.item, ...inbox];
+      else t.parent.children[t.name] = t.node;
+      trashed.delete(id);
+      result.restored += 1;
+    }
+    mockEvents.emit("inbox-changed");
+    return delay(result);
   },
 
   listInbox: () => delay([...inbox]),

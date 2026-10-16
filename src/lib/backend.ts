@@ -15,6 +15,7 @@ import type {
   Settings,
   SetupInfo,
   SetupRequest,
+  TrashResult,
   UndoManyResult,
 } from "./types";
 
@@ -142,6 +143,34 @@ export function importExisting(): Promise<number> {
 export function getFavoriteFolders(): Promise<string[]> {
   if (usingMocks) return mockBackend.favoriteFolders();
   return invoke("favorite_folders");
+}
+
+export function renameFolder(path: string, newName: string): Promise<FolderEntry> {
+  if (usingMocks) return mockBackend.renameFolder(path, newName);
+  return invoke("rename_folder", { path, newName });
+}
+
+export function moveFolder(path: string, destParent: string): Promise<FolderEntry> {
+  if (usingMocks) return mockBackend.moveFolder(path, destParent);
+  return invoke("move_folder", { path, destParent });
+}
+
+/** 폴더를 휴지통으로. 되돌리기용 번호. */
+export function trashFolder(path: string): Promise<number> {
+  if (usingMocks) return mockBackend.trashFolder(path);
+  return invoke("trash_folder", { path });
+}
+
+/** 파일들을 휴지통으로 */
+export function trashFiles(paths: string[]): Promise<TrashResult> {
+  if (usingMocks) return mockBackend.trashFiles(paths);
+  return invoke("trash_files", { paths });
+}
+
+/** 휴지통으로 보낸 것을 원래 자리로 */
+export function restoreDeleted(deletionIds: number[]): Promise<UndoManyResult> {
+  if (usingMocks) return mockBackend.restoreDeleted(deletionIds);
+  return invoke("restore_deleted", { deletionIds });
 }
 
 export function listInbox(): Promise<InboxItem[]> {
