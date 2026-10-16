@@ -374,10 +374,13 @@ export default function SettingsPage() {
         <div className="settings__about">
           <div className="settings__about-text">
             <strong>파일 정리 도우미</strong>
-            <span className="settings__toggle-desc">
-              {version ? `버전 ${version}` : "버전 확인 중"} · 파일 이름과 경로는 이 PC 안에서만 쓰고 밖으로 보내지 않아요(인터넷은
-              업데이트 확인에만 써요).
+            <span className="settings__about-line">
+              {version ? `버전 ${version}` : "버전 확인 중"} · 만든 사람 이용휘(화학 교사)
             </span>
+            <span className="settings__toggle-desc">
+              파일 이름과 경로는 이 PC 안에서만 쓰고 밖으로 보내지 않아요(인터넷은 업데이트 확인에만 써요).
+            </span>
+            <span className="settings__copyright">© 2026 이용휘</span>
           </div>
           <button type="button" className="btn" onClick={() => setShowLicenses(true)}>
             오픈소스 라이선스

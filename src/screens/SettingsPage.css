@@ -198,3 +198,13 @@
   white-space: pre-wrap;
   word-break: normal;
 }
+
+.settings__about-line {
+  font-size: 13.5px;
+}
+
+.settings__copyright {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-text-sub);
+}
