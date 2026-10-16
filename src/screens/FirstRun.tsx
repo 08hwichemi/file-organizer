@@ -134,7 +134,7 @@ export default function FirstRun() {
             <span className="setup__logo" aria-hidden="true">
               <FolderIcon size={18} />
             </span>
-            <span>파일 정리 도우미 · {redo ? "처음 설정 다시 하기" : "처음 설정"}</span>
+            <span>AutoFolder · {redo ? "처음 설정 다시 하기" : "처음 설정"}</span>
           </div>
           <span className="setup__count">
             {stepIndex + 1} / {steps.length}

@@ -609,7 +609,7 @@ let pickCount = 0;
 let nextId = 100;
 
 export const mockBackend = {
-  appInfo: () => delay<AppInfo>({ name: "파일 정리 도우미", version: "0.1.0", os: "browser" }),
+  appInfo: () => delay<AppInfo>({ name: "AutoFolder", version: "0.1.0", os: "browser" }),
   setupInfo: () => delay(setupInfo),
   getSettings: () => delay({ ...settings }),
 

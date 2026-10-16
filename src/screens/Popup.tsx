@@ -260,7 +260,7 @@ export default function Popup() {
     <header className="popup__head">
       <div className="popup__brand">
         <FolderIcon size={16} />
-        <span>파일 정리 도우미</span>
+        <span>AutoFolder</span>
         {remaining > 0 && <span className="popup__count">남은 파일 {remaining}개</span>}
       </div>
       <button

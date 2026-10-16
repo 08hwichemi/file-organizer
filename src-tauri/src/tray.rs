@@ -27,7 +27,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     let menu = Menu::with_items(app, &[&open, &inbox, &search, &pause, &sep, &quit])?;
 
     let mut builder = TrayIconBuilder::with_id(ID)
-        .tooltip("파일 정리 도우미")
+        .tooltip("AutoFolder")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
@@ -87,9 +87,9 @@ pub fn refresh(app: &AppHandle) {
     });
     if let Some(tray) = app.tray_by_id(ID) {
         let _ = tray.set_tooltip(Some(if paused {
-            "파일 정리 도우미 · 일시 정지 중"
+            "AutoFolder · 일시 정지 중"
         } else {
-            "파일 정리 도우미"
+            "AutoFolder"
         }));
     }
 }

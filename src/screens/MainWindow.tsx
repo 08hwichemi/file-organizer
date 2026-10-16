@@ -71,7 +71,7 @@ export default function MainWindow() {
           <span className="sidebar__logo" aria-hidden="true">
             <FolderIcon size={18} />
           </span>
-          <span className="sidebar__brand-text">파일 정리 도우미</span>
+          <span className="sidebar__brand-text">AutoFolder</span>
         </div>
         {MENU.map(({ page: p, label, Icon }) => (
           <button

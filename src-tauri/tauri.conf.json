@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "파일 정리 도우미",
+  "productName": "AutoFolder",
   "mainBinaryName": "file-organizer",
   "version": "../package.json",
   "identifier": "com.hwichemi.file-organizer",
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "파일 정리 도우미",
+        "title": "AutoFolder",
         "width": 1100,
         "height": 720,
         "minWidth": 760,
@@ -46,9 +46,9 @@
     "targets": [
       "nsis"
     ],
-    "publisher": "파일 정리 도우미",
+    "publisher": "이용휘",
     "copyright": "© 2026 이용휘",
-    "shortDescription": "새 파일을 원하는 폴더로 정리해 주는 프로그램",
+    "shortDescription": "AutoFolder — 새 파일을 원하는 폴더로 자동 정리",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -65,7 +65,8 @@
         "languages": [
           "Korean"
         ],
-        "displayLanguageSelector": false
+        "displayLanguageSelector": false,
+        "installerHooks": "./windows/hooks.nsh"
       }
     },
     "createUpdaterArtifacts": true,

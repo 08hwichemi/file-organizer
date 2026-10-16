@@ -1,4 +1,6 @@
-# 파일 정리 도우미 기획서
+# AutoFolder(오토폴더) 기획서
+
+> 프로그램 이름: **AutoFolder**(사용자 결정, 0.1.19부터. 예전 이름 "파일 정리 도우미"). 화면에는 "AutoFolder · 새 파일 자동 정리".
 
 > 원본(편집용): https://claude.ai/code/artifact/3e797a23-ced0-467f-9b4c-7d85e72913ae
 > 화면 시안(눌러 볼 수 있음): https://claude.ai/artifact/47zLo1gXgvr5PqTTeFH6g6 — 같은 내용이 `docs/design/*.dc.html`에 있다.
@@ -184,7 +186,7 @@
   - 업데이트 서명 키: 개인 키는 GitHub Secrets(`TAURI_SIGNING_PRIVATE_KEY`, `..._PASSWORD`)에만, 별도 백업 필수(잃으면 기존 설치본에 업데이트 불가).
   - 개인 키 암호는 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. 공개 키는 `tauri.conf.json`의 `plugins.updater.pubkey`.
   - `latest.json` + 설치 파일은 **공개 저장소 `08hwichemi/file-organizer-releases`의 Releases**(코드는 비공개 저장소에 그대로). 이 저장소에 쓰는 토큰은 Secrets `RELEASES_TOKEN`.
-- 빌드·배포: **main에 병합될 때마다** GitHub Actions(`release.yml`, windows-latest)가 버전 `0.1.<실행 번호>`로 빌드·서명하고, 설치 파일을 영문 이름(`file-organizer_<버전>_x64-setup.exe`)으로 바꿔 `latest.json`과 함께 공개 저장소 Releases에 올린다(`scripts/prepare-release.sh`). 설치된 프로그램은 다음 확인 때 스스로 업데이트한다. Secrets가 없으면 배포를 건너뛴다.
+- 빌드·배포: **main에 병합될 때마다** GitHub Actions(`release.yml`, windows-latest)가 버전 `0.1.<실행 번호>`로 빌드·서명하고, 설치 파일을 영문 이름(`AutoFolder_<버전>_x64-setup.exe`, 0.1.18까지는 `file-organizer_…`)으로 바꿔 `latest.json`과 함께 공개 저장소 Releases에 올린다(`scripts/prepare-release.sh`). 설치된 프로그램은 다음 확인 때 스스로 업데이트한다. Secrets가 없으면 배포를 건너뛴다.
 - PR마다 설치 파일을 아티팩트로도 만든다(버전 0.1.0, 업데이트 서명 없음).
 - "알 수 없는 게시자" 경고(SmartScreen): **코드 서명 없이 무료로 배포**하고 "추가 정보 → 실행"을 안내한다(사용자 결정). 까닭: 개인용 Microsoft 서명 서비스는 미국·캐나다만, 인증서는 연 수십만 원이고 2024년부터는 EV 인증서도 경고를 바로 없애 주지 않는다. 경고는 처음 설치 때만 나오고 자동 업데이트에는 안 나온다.
   - 받기는 **크롬을 권한다**(엣지는 받을 때 "유지 → 자세히 표시 → 그래도 계속"까지 단계가 많음. 링크를 크롬으로 강제로 열 방법은 없어 주소 복사로 안내).
@@ -200,7 +202,8 @@
 - 데이터: `%APPDATA%\com.hwichemi.file-organizer\data.db`(앱 식별자 폴더) 하나에 설정·규칙·이동 기록·정리함·자체 색인. 폴더 구조는 저장하지 않고 디스크를 직접 읽는다.
 - 저장소: `src/`(React), `src-tauri/`(Rust), `docs/`(기획서·시안), `.github/workflows/`.
   - `src/lib/backend.ts`가 Rust 명령을 부르는 유일한 통로. Tauri 밖(브라우저)에서는 `src/mocks/`의 가짜 데이터를 돌려준다.
-  - 앱 식별자 `com.hwichemi.file-organizer`, 실행 파일 이름 `file-organizer.exe`(표시 이름은 "파일 정리 도우미"). 식별자는 설치·업데이트 경로에 쓰이므로 배포 후에는 바꾸지 않는다.
+  - 앱 식별자 `com.hwichemi.file-organizer`, 실행 파일 이름 `file-organizer.exe`(표시 이름 = productName "AutoFolder", 만든 곳 = "이용휘"). 식별자는 사용자 자료 폴더·한 개만 실행·업데이트에 쓰이므로 배포 후에는 바꾸지 않는다.
+  - 이름 바꾸기(파일 정리 도우미 → AutoFolder): 설치 프로그램은 이름으로 설치 폴더(`%LOCALAPPDATA%\<이름>`)·"프로그램 추가/제거" 항목·바로 가기·자동 실행을 만든다. 그래서 `src-tauri/windows/hooks.nsh`(설치 뒤 끼워 넣는 부분)가 예전 설치를 넘긴다: 예전에 넣은 파일만 지우고 빈 폴더만 지움(통째로 지우지 않음), 예전 항목·설치 기록·이름 붙은 자동 실행 지움, 시작 메뉴·바탕화면 바로 가기는 이름만 AutoFolder로 바꿔 새 실행 파일을 가리키게(자동 업데이트는 `/UPDATE`로 깔아 바로 가기를 새로 만들지 않으므로), 작업 표시줄 고정은 새 실행 파일을 가리키게. 사용자 자료(식별자 폴더)는 그대로. 자동 실행은 프로그램이 켜질 때 새 이름으로 다시 등록. PR 빌드가 windows-latest에서 0.1.18을 깐 뒤 새 설치 파일을 `/S /UPDATE`로 깔아 이것들을 확인한다(`scripts/check-rename-migration.ps1`).
 
 ## 9. 개발 단계 (단계마다 PR 하나)
 
@@ -221,7 +224,7 @@
 ## 10. 아직 정할 것
 
 - [x] 저장소 공개 여부: ② 코드는 비공개 + 릴리스용 공개 저장소(`file-organizer-releases`)로 결정.
-- [ ] 프로그램 이름(가칭 "파일 정리 도우미").
+- [x] 프로그램 이름: **AutoFolder**(오토폴더). 영문 표기가 더 세련돼 보여서(사용자 결정).
 - [ ] 예시 폴더 기본 목록(학교·일반 두 가지 — `setup.rs`의 `TEACHER_EXAMPLE`·`GENERAL_EXAMPLE`). 지금 안(2단계): 업무(공문·회의록·계획서) · 수업 · 평가(수행평가·지필고사) · 학급(상담·사진·출결) · 생활기록부 · 연수 · 개인 — `src-tauri/src/setup.rs`의 `TEACHER_EXAMPLE`.
 - [ ] 검색 단축키 Alt+Space 충돌 여부(학교 PC). 7단계: 등록에 실패하면 설정 화면에 알리고, 다른 단축키를 고를 수 있게 함.
 - [ ] 2학기 시작 기준(9월 1일 vs 방학 시작). 5단계: 설정에서 1학기·2학기 시작 **달**을 고를 수 있게 함(기본 3월·9월). 날짜 단위가 필요한지 확인.

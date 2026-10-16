@@ -85,6 +85,13 @@ jobs:
       - name: 설치 파일 만들기 (NSIS)
         run: npm run tauri build -- --config src-tauri/tauri.pr.conf.json
 
+      # 예전 이름(파일 정리 도우미)으로 깔린 PC에서 자동 업데이트로 AutoFolder가 되는지 실제로 깔아 본다
+      - name: 예전 이름에서 넘어오기 확인
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          ./scripts/check-rename-migration.ps1 -NewInstaller $setup.FullName
+
       - name: 설치 파일 올리기
         uses: actions/upload-artifact@v4
         with:
