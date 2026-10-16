@@ -11,7 +11,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { FolderPlus, GripVertical, Inbox, LayoutGrid, List, RotateCcw } from "lucide-react";
-import { classifyPreview, errorMessage } from "../lib/backend";
+import { classifyPreview, errorMessage, listFolders } from "../lib/backend";
 import { displayPath } from "../lib/paths";
 import { reasonLabel } from "../lib/rules";
 import type { ClassifyPlan } from "../lib/types";
@@ -61,16 +61,20 @@ interface Props {
  * 자동 분류 미리보기(SPEC 4-1). 넣을 폴더마다 같은 크기의 네모 카드(포스트잇을 줄 맞춰 붙인 것처럼)에
  * 그 폴더로 갈 파일을 담아 보여 준다. 파일이 많으면 카드 안에서만 내려간다.
  * 파일을 끌어 다른 카드에 놓으면 그 파일만 넣을 곳이 바뀐다. [+ 폴더 추가]로 목록에 없는 폴더 카드를 만든다.
- * 오른쪽 폴더 격자에 놓으면 카드가 없던 폴더에도 넣을 수 있다(놓으면 그 폴더 카드가 생긴다).
- * 위의 버튼으로 '목록으로 보기'(왼쪽 목록 + 오른쪽 폴더 격자)로 바꿀 수 있다.
+ * 정리 폴더 안의 폴더는 추천된 파일이 없어도 늘 카드로 보인다(빈 카드는 반 높이).
+ * 위의 버튼으로 '목록으로 보기'(왼쪽 목록 + 오른쪽 폴더 격자, 아무 폴더에나 놓기)로 바꿀 수 있다.
  */
 export default function ClassifyDialog({ paths, root, separator, onClose, onRun }: Props) {
   const [plans, setPlans] = useState<ClassifyPlan[] | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   /** 직접 옮긴 파일 → 넣을 폴더(INBOX = 정리함에 남기기) */
   const [overrides, setOverrides] = useState<Map<string, string>>(new Map());
-  /** 카드 순서(끌어 옮겨도 카드 자리는 그대로) */
+  /** 카드 순서(끌어 옮겨도 카드 자리는 그대로): 파일이 추천된 폴더 → (정리함에 남기기) → 정리 폴더 안의 나머지 폴더 */
   const [cards, setCards] = useState<string[]>([]);
+  /** 앞에서 몇 장이 파일이 추천된 폴더인지(그 뒤에 '정리함에 남기기' 카드) */
+  const [split, setSplit] = useState(0);
+  /** 추천은 없었지만 정리 폴더 안에 있어서 카드로 보여 주는 폴더 */
+  const [folderCards, setFolderCards] = useState<Set<string>>(new Set());
   const [dragging, setDragging] = useState<ClassifyPlan | null>(null);
   const [adding, setAdding] = useState(false);
   const [view, setViewState] = useState<View>(savedView);
@@ -83,28 +87,33 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
     }
   };
   const [pick, setPick] = useState<string | null>(null);
-  /** 새로 생긴 카드(오른쪽 폴더에 놓았을 때): 아래쪽에 생겨도 보이게 그 카드까지 내려 준다 */
+  /** 새로 생긴 카드(폴더 추가, 목록 보기의 폴더 격자에 놓았을 때): 아래쪽에 생겨도 보이게 그 카드까지 내려 준다 */
   const [reveal, setReveal] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   useEffect(() => {
     let alive = true;
-    classifyPreview(paths)
-      .then((p) => {
+    // 폴더 목록을 못 읽어도 자동 분류는 보여 준다
+    Promise.all([classifyPreview(paths), listFolders(root).catch(() => [])])
+      .then(([p, folders]) => {
         if (!alive) return;
         setPlans(p);
         setChecked(new Set(p.filter((x) => x.target).map((x) => x.path)));
-        // 처음 카드 순서: 파일이 많은 폴더부터
+        // 처음 카드 순서: 파일이 많은 폴더부터, 그다음 정리 폴더 안의 나머지 폴더(파일이 없어도 늘 보이게)
         const count = new Map<string, number>();
         for (const x of p) if (x.target) count.set(x.target.destDir, (count.get(x.target.destDir) ?? 0) + 1);
-        setCards([...count.entries()].sort((a, b) => b[1] - a[1]).map(([d]) => d));
+        const suggested = [...count.entries()].sort((a, b) => b[1] - a[1]).map(([d]) => d);
+        const rest = folders.map((f) => f.path).filter((d) => !count.has(d));
+        setCards([...suggested, ...rest]);
+        setSplit(suggested.length);
+        setFolderCards(new Set(rest));
       })
       .catch((e) => alive && setError(errorMessage(e)));
     return () => {
       alive = false;
     };
-  }, [paths]);
+  }, [paths, root]);
 
   useEffect(() => {
     if (!reveal) return;
@@ -184,65 +193,63 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
   const moved = overrides.size;
   const left = byCard.get(INBOX) ?? [];
 
-  /** 넣을 폴더마다 카드(목록 보기에서는 위아래로 쌓인 묶음) + 정리함에 남기기 */
-  const groupCards = () => (
-    <>
-      {cards.map((dest) => {
-        const list = byCard.get(dest) ?? [];
-        return (
-          <Card
-            key={dest}
-            dest={dest}
-            name={cardName(root, dest, separator)}
-            path={displayPath(root, dest, separator)}
-            isNew={list.length > 0 && list.every((p) => !overrides.has(p.path) && p.target && !p.target.exists)}
-            count={list.length}
-          >
-            {list.length === 0 && <li className="classify__empty">여기로 끌어다 놓으세요</li>}
-            {list.map((p) => (
-              <FileRow
-                key={p.path}
-                plan={p}
-                checked={checked.has(p.path)}
-                moved={overrides.has(p.path)}
-                why={overrides.has(p.path) ? "직접 옮김" : p.target ? reasonLabel(p.target.reason) : ""}
-                onToggle={() => toggle(p.path)}
-                onReset={() => moveTo(p, p.target?.destDir ?? INBOX)}
-              />
-            ))}
-          </Card>
-        );
-      })}
-      <Card dest={INBOX} name="정리함에 남기기" path="이번에는 나누지 않아요" count={left.length} inbox>
-        {left.length === 0 && <li className="classify__empty">여기로 끌어다 놓으면 정리함에 남아요</li>}
-        {left.map((p) => (
+  /** 넣을 폴더 카드 하나. 파일이 없는 카드는 카드 보기에서 반 높이 */
+  const folderCard = (dest: string) => {
+    const list = byCard.get(dest) ?? [];
+    return (
+      <Card
+        key={dest}
+        dest={dest}
+        name={cardName(root, dest, separator)}
+        path={displayPath(root, dest, separator)}
+        isNew={list.length > 0 && list.every((p) => !overrides.has(p.path) && p.target && !p.target.exists)}
+        count={list.length}
+      >
+        {list.length === 0 && <li className="classify__empty">여기로 끌어다 놓으세요</li>}
+        {list.map((p) => (
           <FileRow
             key={p.path}
             plan={p}
+            checked={checked.has(p.path)}
             moved={overrides.has(p.path)}
-            why={overrides.has(p.path) ? "남기기로 함" : "구별 못 함"}
+            why={overrides.has(p.path) ? "직접 옮김" : p.target ? reasonLabel(p.target.reason) : ""}
+            onToggle={() => toggle(p.path)}
             onReset={() => moveTo(p, p.target?.destDir ?? INBOX)}
           />
         ))}
       </Card>
-    </>
+    );
+  };
+
+  const inboxCard = () => (
+    <Card dest={INBOX} name="정리함에 남기기" path="이번에는 나누지 않아요" count={left.length} inbox>
+      {left.length === 0 && <li className="classify__empty">여기로 끌어다 놓으면 정리함에 남아요</li>}
+      {left.map((p) => (
+        <FileRow
+          key={p.path}
+          plan={p}
+          moved={overrides.has(p.path)}
+          why={overrides.has(p.path) ? "남기기로 함" : "구별 못 함"}
+          onReset={() => moveTo(p, p.target?.destDir ?? INBOX)}
+        />
+      ))}
+    </Card>
   );
 
-  /** 오른쪽 폴더 격자: 아무 폴더에나 끌어다 놓기(카드 보기·목록 보기 모두) */
-  const folderSide = () => (
-    <div className="classify__side">
-      <div className="classify__side-title">끌어다 놓을 폴더 · 누르면 안으로 들어가요</div>
-      <FolderPane
-        root={root}
-        separator={separator}
-        dragging={dragging !== null}
-        toast={null}
-        onToast={() => {}}
-        label="끌어다 놓을 폴더"
-        fill
-      />
-    </div>
-  );
+  /**
+   * 카드 보기: 추천된 폴더 → 정리함에 남기기 → 정리 폴더 안의 나머지 폴더(늘 보임).
+   * 목록 보기: 오른쪽에 폴더 격자가 따로 있으므로, 파일이 없는 나머지 폴더 묶음은 뺀다.
+   */
+  const groupCards = (all: boolean) => {
+    const show = (d: string) => all || !folderCards.has(d) || (byCard.get(d)?.length ?? 0) > 0;
+    return (
+      <>
+        {cards.slice(0, split).map(folderCard)}
+        {inboxCard()}
+        {cards.slice(split).filter(show).map(folderCard)}
+      </>
+    );
+  };
 
   return (
     <Dialog
@@ -289,24 +296,31 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
       {plans && plans.length > 0 && (
         <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
           {view === "cards" ? (
-            <div className="classify classify--cards">
-              <div className="classify__board">
-                {groupCards()}
-                <button type="button" className="classify__card classify__card--add" onClick={() => setAdding(true)}>
-                  <FolderPlus size={26} aria-hidden="true" />
-                  <span>폴더 추가</span>
-                  <small>목록에 없는 폴더로 보내고 싶을 때</small>
-                </button>
-              </div>
-              {/* 카드가 없는 폴더에도 바로 놓을 수 있게 오른쪽에 폴더 격자(놓으면 그 폴더 카드가 생긴다) */}
-              {folderSide()}
+            <div className="classify__board">
+              {groupCards(true)}
+              <button type="button" className="classify__card classify__card--add" onClick={() => setAdding(true)}>
+                <FolderPlus size={26} aria-hidden="true" />
+                <span>폴더 추가</span>
+                <small>안쪽 폴더나 목록에 없는 폴더로 보낼 때</small>
+              </button>
             </div>
           ) : (
             <div className="classify">
               <div className="classify__list" aria-label="나눌 파일">
-                {groupCards()}
+                {groupCards(false)}
               </div>
-              {folderSide()}
+              <div className="classify__side">
+                <div className="classify__side-title">끌어다 놓을 폴더 · 누르면 안으로 들어가요</div>
+                <FolderPane
+                  root={root}
+                  separator={separator}
+                  dragging={dragging !== null}
+                  toast={null}
+                  onToast={() => {}}
+                  label="끌어다 놓을 폴더"
+                  fill
+                />
+              </div>
             </div>
           )}
           <DragOverlay dropAnimation={null}>
@@ -334,7 +348,10 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
                 className="btn btn--primary"
                 disabled={!pick}
                 onClick={() => {
-                  if (pick) addCard(pick);
+                  if (pick) {
+                    if (!cards.includes(pick)) setReveal(pick);
+                    addCard(pick);
+                  }
                   setAdding(false);
                   setPick(null);
                 }}
@@ -372,7 +389,7 @@ function Card({
     <section
       ref={setNodeRef}
       data-dest={dest}
-      className={`classify__card${inbox ? " classify__card--inbox" : ""}${isOver ? " classify__card--over" : ""}`}
+      className={`classify__card${inbox ? " classify__card--inbox" : ""}${count === 0 ? " classify__card--empty" : ""}${isOver ? " classify__card--over" : ""}`}
       aria-label={`${name} ${count}개`}
     >
       <div className="classify__card-head">
