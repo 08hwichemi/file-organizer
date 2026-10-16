@@ -179,6 +179,7 @@
 - 빌드·배포: **main에 병합될 때마다** GitHub Actions(`release.yml`, windows-latest)가 버전 `0.1.<실행 번호>`로 빌드·서명하고, 설치 파일을 영문 이름(`file-organizer_<버전>_x64-setup.exe`)으로 바꿔 `latest.json`과 함께 공개 저장소 Releases에 올린다(`scripts/prepare-release.sh`). 설치된 프로그램은 다음 확인 때 스스로 업데이트한다. Secrets가 없으면 배포를 건너뛴다.
 - PR마다 설치 파일을 아티팩트로도 만든다(버전 0.1.0, 업데이트 서명 없음).
 - "알 수 없는 게시자" 경고(SmartScreen): **코드 서명 없이 무료로 배포**하고 "추가 정보 → 실행"을 안내한다(사용자 결정). 까닭: 개인용 Microsoft 서명 서비스는 미국·캐나다만, 인증서는 연 수십만 원이고 2024년부터는 EV 인증서도 경고를 바로 없애 주지 않는다. 경고는 처음 설치 때만 나오고 자동 업데이트에는 안 나온다.
+  - 받기는 **크롬을 권한다**(엣지는 받을 때 "유지 → 자세히 표시 → 그래도 계속"까지 단계가 많음. 링크를 크롬으로 강제로 열 방법은 없어 주소 복사로 안내).
   - 설치 안내 페이지: https://claude.ai/artifact/KBogxpj8DUs2emwBfKfZg3 (받기 → 경고 창 → 설치 → 처음 설정, 자주 묻는 것)
   - 메신저로 보낼 한 장짜리 이미지: `docs/install-image/install-guide.png`(원본 `install-image.html`)
 
