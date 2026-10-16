@@ -7,6 +7,7 @@ import type {
   ClassifyPlan,
   DestSegment,
   FolderEntry,
+  FolderFiles,
   FolderMatch,
   InboxItem,
   OrganizeMode,
@@ -15,6 +16,9 @@ import type {
   PopupState,
   PutOutcome,
   PutResult,
+  RenamePreview,
+  RenameRequest,
+  RenameResult,
   SearchInfo,
   SearchResponse,
   Rule,
@@ -360,6 +364,30 @@ export function moveRule(id: number, up: boolean): Promise<boolean> {
 export function answerRuleChange(id: number, destDir: string | null): Promise<void> {
   if (usingMocks) return mockBackend.answerRuleChange(id, destDir);
   return invoke("answer_rule_change", { id, destDir });
+}
+
+/** 이름 바꾸기: 폴더 안 파일(숨김·임시 파일 빼고) */
+export function renameList(folder: string, includeSub: boolean): Promise<FolderFiles> {
+  if (usingMocks) return mockBackend.renameList(folder, includeSub);
+  return invoke("rename_list", { folder, includeSub });
+}
+
+/** 이름 바꾸기 미리보기(명렬표는 저장하지 않음) */
+export function renamePreview(request: RenameRequest): Promise<RenamePreview> {
+  if (usingMocks) return mockBackend.renamePreview(request);
+  return invoke("rename_preview", { request });
+}
+
+/** 이름 바꾸기 실행. 되돌리기용 묶음 번호를 돌려준다. */
+export function renameApply(request: RenameRequest): Promise<RenameResult> {
+  if (usingMocks) return mockBackend.renameApply(request);
+  return invoke("rename_apply", { request });
+}
+
+/** 이름 바꾸기 묶음 전체 되돌리기 */
+export function renameUndo(batch: number): Promise<UndoManyResult> {
+  if (usingMocks) return mockBackend.renameUndo(batch);
+  return invoke("rename_undo", { batch });
 }
 
 /** 폴더 고르기 창. 취소하면 null. */

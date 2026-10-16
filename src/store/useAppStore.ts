@@ -3,7 +3,7 @@ import * as backend from "../lib/backend";
 import type { OrganizeMode, PlaceMode, Settings, SetupInfo, SetupRequest } from "../lib/types";
 
 type Status = "loading" | "setup" | "ready" | "error";
-export type Page = "inbox" | "search" | "rules" | "settings";
+export type Page = "inbox" | "search" | "rename" | "rules" | "settings";
 
 interface AppState {
   status: Status;

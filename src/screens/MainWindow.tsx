@@ -1,4 +1,4 @@
-import { Inbox, ListChecks, Pause, Play, Search, Settings as SettingsIcon } from "lucide-react";
+import { Inbox, ListChecks, Pause, PencilLine, Play, Search, Settings as SettingsIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import FolderIcon from "../components/FolderIcon";
 import UpdateBanner from "../components/UpdateBanner";
@@ -7,6 +7,7 @@ import { friendlyName } from "../lib/paths";
 import { useAppStore, type Page } from "../store/useAppStore";
 import { startUpdateChecks } from "../store/useUpdateStore";
 import InboxPage from "./InboxPage";
+import RenamePage from "./RenamePage";
 import RulesPage from "./RulesPage";
 import SearchPage from "./SearchPage";
 import SettingsPage from "./SettingsPage";
@@ -15,6 +16,7 @@ import "./MainWindow.css";
 const MENU: { page: Page; label: string; Icon: typeof Inbox }[] = [
   { page: "inbox", label: "정리함", Icon: Inbox },
   { page: "search", label: "파일 검색", Icon: Search },
+  { page: "rename", label: "이름 바꾸기", Icon: PencilLine },
   { page: "rules", label: "정리 규칙", Icon: ListChecks },
   { page: "settings", label: "설정", Icon: SettingsIcon },
 ];
@@ -125,6 +127,8 @@ export default function MainWindow() {
           <InboxPage />
         ) : page === "search" ? (
           <SearchPage />
+        ) : page === "rename" ? (
+          <RenamePage />
         ) : page === "rules" ? (
           <RulesPage />
         ) : (

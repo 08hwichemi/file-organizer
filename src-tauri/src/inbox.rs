@@ -52,6 +52,15 @@ pub fn add(
     Ok(())
 }
 
+/// 정리함에 있는 파일의 이름이 바뀌었을 때(이름 한꺼번에 바꾸기) 새 경로로
+pub fn rename_path(conn: &Connection, old: &Path, new: &Path) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE OR IGNORE inbox SET path = ?2 WHERE path = ?1",
+        params![old.to_string_lossy(), new.to_string_lossy()],
+    )?;
+    Ok(())
+}
+
 /// 이미 정리함에 있으면 그대로 둔다(지금 있는 파일 가져오기용). 새로 넣었으면 true.
 pub fn add_if_absent(
     conn: &Connection,

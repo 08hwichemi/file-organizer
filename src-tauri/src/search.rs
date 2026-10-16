@@ -124,7 +124,7 @@ fn modified_ms(meta: &std::fs::Metadata) -> i64 {
 
 /// Windows의 숨김·시스템 속성
 #[cfg(windows)]
-fn hidden_attr(meta: &std::fs::Metadata) -> bool {
+pub(crate) fn hidden_attr(meta: &std::fs::Metadata) -> bool {
     use std::os::windows::fs::MetadataExt;
     const HIDDEN: u32 = 0x2;
     const SYSTEM: u32 = 0x4;
@@ -132,7 +132,7 @@ fn hidden_attr(meta: &std::fs::Metadata) -> bool {
 }
 
 #[cfg(not(windows))]
-fn hidden_attr(_meta: &std::fs::Metadata) -> bool {
+pub(crate) fn hidden_attr(_meta: &std::fs::Metadata) -> bool {
     false
 }
 
@@ -180,6 +180,27 @@ pub fn ignored_path(path: &Path) -> bool {
         .take(dirs)
         .enumerate()
         .any(|(i, n)| skip_dir(n, top && i == 0))
+}
+
+/// 드라이브 맨 위이거나 Windows·프로그램·AppData 같은 시스템 폴더(또는 그 안)인지(이름 바꾸기에서 막는다)
+pub fn system_path(path: &Path) -> bool {
+    if path.parent().is_none() {
+        return true;
+    }
+    let mut top = false;
+    let mut i = 0;
+    for c in path.components() {
+        match c {
+            std::path::Component::Prefix(_) | std::path::Component::RootDir => top = true,
+            other => {
+                if skip_dir(&other.as_os_str().to_string_lossy(), top && i == 0) {
+                    return true;
+                }
+                i += 1;
+            }
+        }
+    }
+    false
 }
 
 /// 대소문자 무시 포함(영문만 접어 비교: 이름마다 소문자 사본을 두지 않으려고). `needle`은 소문자.
@@ -711,6 +732,15 @@ mod tests {
         assert!(skip_file("a.TMP"));
         assert!(!skip_file("보고서.hwp"));
         assert!(!skip_file("README"));
+    }
+
+    #[test]
+    fn system_folders() {
+        assert!(system_path(Path::new("/")));
+        assert!(system_path(Path::new("/Windows")));
+        assert!(system_path(Path::new("/Program Files/한글")));
+        assert!(system_path(Path::new("/home/t/AppData/Local")));
+        assert!(!system_path(Path::new("/home/t/문서/과제")));
     }
 
     #[test]

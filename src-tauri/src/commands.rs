@@ -139,7 +139,7 @@ pub const EVENT_INBOX_CHANGED: &str = "inbox-changed";
 pub const EVENT_STATUS_CHANGED: &str = "status-changed";
 
 /// 정리함이 바뀌었음을 화면과 트레이(정리함 개수)에 알린다.
-fn notify_inbox(app: &AppHandle) {
+pub fn notify_inbox(app: &AppHandle) {
     let _ = app.emit(EVENT_INBOX_CHANGED, ());
     tray::refresh(app);
 }

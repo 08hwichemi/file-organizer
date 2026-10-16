@@ -15,6 +15,7 @@ mod mover;
 mod naming;
 mod popup;
 mod recycle;
+mod renamer;
 mod rules;
 mod search;
 mod settings;
@@ -172,6 +173,10 @@ pub fn run() {
             finder::reveal_path,
             finder::search_info,
             finder::set_search_shortcut,
+            renamer::rename_list,
+            renamer::rename_preview,
+            renamer::rename_apply,
+            renamer::rename_undo,
         ])
         .run(tauri::generate_context!())
         .expect("파일 정리 도우미를 시작하지 못했습니다");
