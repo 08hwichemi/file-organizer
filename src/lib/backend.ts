@@ -7,6 +7,7 @@ import type {
   ClassifyPlan,
   DestSegment,
   FolderEntry,
+  FolderFiles,
   FolderMatch,
   InboxItem,
   OrganizeMode,
@@ -15,6 +16,9 @@ import type {
   PopupState,
   PutOutcome,
   PutResult,
+  RenamePreview,
+  RenameRequest,
+  RenameResult,
   SearchInfo,
   SearchResponse,
   Rule,
@@ -31,21 +35,28 @@ import type {
 
 export const usingMocks = !isTauri();
 
-/** 이 화면이 어느 창인지: main / popup(새 파일) / search(파일 검색). 브라우저 미리보기에서는 주소 뒤 ?window=… */
-export type WindowKind = "main" | "popup" | "search";
+/** 이 화면이 어느 창인지: main / popup(새 파일). 브라우저 미리보기에서는 주소 뒤 ?window=… */
+export type WindowKind = "main" | "popup";
 
 export async function windowKind(): Promise<WindowKind> {
   const label = usingMocks
     ? new URLSearchParams(window.location.search).get("window")
     : (await import("@tauri-apps/api/window")).getCurrentWindow().label;
-  return label === "popup" || label === "search" ? label : "main";
+  return label === "popup" ? label : "main";
 }
 
 /**
  * Rust가 보내는 알림: popup-changed(팝업 차례 바뀜), inbox-changed(정리함 바뀜),
- * status-changed(일시 정지 등), navigate(트레이에서 고른 화면, 값 = "inbox" 등)
+ * status-changed(일시 정지 등), navigate(트레이에서 고른 화면, 값 = "inbox" 등),
+ * search-opened(단축키·트레이로 파일 검색을 엶), search-indexed(파일 목록을 다 읽음)
  */
-export type BackendEvent = "popup-changed" | "inbox-changed" | "status-changed" | "navigate" | "search-opened";
+export type BackendEvent =
+  | "popup-changed"
+  | "inbox-changed"
+  | "status-changed"
+  | "navigate"
+  | "search-opened"
+  | "search-indexed";
 
 /** 알림을 듣는다. 돌려준 함수를 부르면 그만 듣는다. */
 export function onBackendEvent(name: BackendEvent, handler: (payload: unknown) => void): () => void {
@@ -137,20 +148,22 @@ export function setRootFolder(path: string): Promise<Settings> {
   return invoke("set_root_folder", { path });
 }
 
-/** 파일 검색(Everything이 되면 PC 전체, 아니면 정리 폴더·지켜볼 폴더) */
+/** 파일 검색(Everything이 켜져 있으면 Everything, 아니면 이 프로그램이 읽은 목록) */
 export function searchFiles(query: string): Promise<SearchResponse> {
   if (usingMocks) return mockBackend.searchFiles(query);
   return invoke("search_files", { query });
 }
 
-export function showSearch(): Promise<void> {
-  if (usingMocks) return mockBackend.showSearch();
-  return invoke("show_search");
+/** 검색 화면을 열 때: 파일 목록이 없거나 오래됐으면 뒤에서 읽기 시작 */
+export function prepareSearch(): Promise<void> {
+  if (usingMocks) return mockBackend.prepareSearch();
+  return invoke("prepare_search");
 }
 
-export function hideSearch(): Promise<void> {
-  if (usingMocks) return mockBackend.hideSearch();
-  return invoke("hide_search");
+/** 찾는 범위: PC 전체 / 정리 폴더와 지켜볼 폴더만 */
+export function setSearchWholePc(enabled: boolean): Promise<Settings> {
+  if (usingMocks) return mockBackend.setSearchWholePc(enabled);
+  return invoke("set_search_whole_pc", { enabled });
 }
 
 /** 파일 열기(연결된 프로그램) */
@@ -351,6 +364,30 @@ export function moveRule(id: number, up: boolean): Promise<boolean> {
 export function answerRuleChange(id: number, destDir: string | null): Promise<void> {
   if (usingMocks) return mockBackend.answerRuleChange(id, destDir);
   return invoke("answer_rule_change", { id, destDir });
+}
+
+/** 이름 바꾸기: 폴더 안 파일(숨김·임시 파일 빼고) */
+export function renameList(folder: string, includeSub: boolean): Promise<FolderFiles> {
+  if (usingMocks) return mockBackend.renameList(folder, includeSub);
+  return invoke("rename_list", { folder, includeSub });
+}
+
+/** 이름 바꾸기 미리보기(명렬표는 저장하지 않음) */
+export function renamePreview(request: RenameRequest): Promise<RenamePreview> {
+  if (usingMocks) return mockBackend.renamePreview(request);
+  return invoke("rename_preview", { request });
+}
+
+/** 이름 바꾸기 실행. 되돌리기용 묶음 번호를 돌려준다. */
+export function renameApply(request: RenameRequest): Promise<RenameResult> {
+  if (usingMocks) return mockBackend.renameApply(request);
+  return invoke("rename_apply", { request });
+}
+
+/** 이름 바꾸기 묶음 전체 되돌리기 */
+export function renameUndo(batch: number): Promise<UndoManyResult> {
+  if (usingMocks) return mockBackend.renameUndo(batch);
+  return invoke("rename_undo", { batch });
 }
 
 /** 폴더 고르기 창. 취소하면 null. */

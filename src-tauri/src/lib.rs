@@ -15,6 +15,7 @@ mod mover;
 mod naming;
 mod popup;
 mod recycle;
+mod renamer;
 mod rules;
 mod search;
 mod settings;
@@ -44,7 +45,7 @@ pub fn run() {
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
                     if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                        finder::toggle(app);
+                        finder::show(app);
                     }
                 })
                 .build(),
@@ -72,6 +73,7 @@ pub fn run() {
                 paused: AtomicBool::new(false),
                 index: Mutex::new(search::Index::default()),
                 indexing: AtomicBool::new(false),
+                live: finder::Live::default(),
                 shortcut_error: Mutex::new(None),
             };
             state.apply_watch_folders(&current);
@@ -84,12 +86,13 @@ pub fn run() {
             }
             tray::create(app.handle())?;
 
-            // 파일 검색: 단축키 등록(실패하면 설정 화면에 알림), 자체 색인 미리 읽기
+            // 파일 검색: 단축키 등록(실패하면 설정 화면에 알림), 자체 색인 미리 읽기(뒤에서)
             if let Err(e) = finder::apply_shortcut(app.handle(), &current.search_shortcut) {
                 if let Ok(mut err) = app.state::<commands::AppState>().shortcut_error.lock() {
                     *err = Some(e);
                 }
             }
+            finder::start_live(app.handle());
             if current.setup_done {
                 finder::refresh_index(app.handle(), true);
             }
@@ -107,21 +110,12 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            match (window.label(), event) {
-                // 메인 창 X = 끄지 않고 숨기기(트레이에서 감시 계속). 끄기는 트레이 메뉴의 "끄기".
-                ("main", tauri::WindowEvent::CloseRequested { api, .. }) => {
-                    api.prevent_close();
-                    let _ = window.hide();
-                }
-                // 검색창은 닫지 않고 숨긴다. 다른 곳을 누르면(초점을 잃으면) 숨긴다.
-                (finder::LABEL, tauri::WindowEvent::CloseRequested { api, .. }) => {
-                    api.prevent_close();
-                    let _ = window.hide();
-                }
-                (finder::LABEL, tauri::WindowEvent::Focused(false)) => {
-                    let _ = window.hide();
-                }
-                _ => {}
+            // 메인 창 X = 끄지 않고 숨기기(트레이에서 감시 계속). 끄기는 트레이 메뉴의 "끄기".
+            if let ("main", tauri::WindowEvent::CloseRequested { api, .. }) =
+                (window.label(), event)
+            {
+                api.prevent_close();
+                let _ = window.hide();
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -173,12 +167,16 @@ pub fn run() {
             commands::move_rule,
             commands::answer_rule_change,
             finder::search_files,
-            finder::show_search,
-            finder::hide_search,
+            finder::prepare_search,
+            finder::set_search_whole_pc,
             finder::open_path,
             finder::reveal_path,
             finder::search_info,
             finder::set_search_shortcut,
+            renamer::rename_list,
+            renamer::rename_preview,
+            renamer::rename_apply,
+            renamer::rename_undo,
         ])
         .run(tauri::generate_context!())
         .expect("파일 정리 도우미를 시작하지 못했습니다");

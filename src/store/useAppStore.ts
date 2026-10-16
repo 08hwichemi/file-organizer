@@ -3,7 +3,7 @@ import * as backend from "../lib/backend";
 import type { OrganizeMode, PlaceMode, Settings, SetupInfo, SetupRequest } from "../lib/types";
 
 type Status = "loading" | "setup" | "ready" | "error";
-export type Page = "inbox" | "rules" | "settings";
+export type Page = "inbox" | "search" | "rename" | "rules" | "settings";
 
 interface AppState {
   status: Status;
@@ -12,6 +12,8 @@ interface AppState {
   setupInfo: SetupInfo | null;
   loadError: string | null;
   page: Page;
+  /** 파일 검색 입력 칸에 초점을 줄 때마다 1씩 늘린다(단축키·트레이로 열었을 때) */
+  searchFocus: number;
 
   load: () => Promise<void>;
   finishSetup: (request: SetupRequest) => Promise<void>;
@@ -24,7 +26,10 @@ interface AppState {
   setPinnedFavorites: (pins: (string | null)[]) => Promise<void>;
   setRootFolder: (path: string) => Promise<void>;
   setSearchShortcut: (shortcut: string) => Promise<void>;
+  setSearchWholePc: (enabled: boolean) => Promise<void>;
   goTo: (page: Page) => void;
+  /** 파일 검색 화면으로 가서 입력 칸에 초점 */
+  openSearch: () => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -33,6 +38,7 @@ export const useAppStore = create<AppState>((set) => ({
   setupInfo: null,
   loadError: null,
   page: "inbox",
+  searchFocus: 0,
 
   async load() {
     // 프로그램이 막 켜지는 중이면 잠깐 실패할 수 있어 몇 번 다시 시도한다.
@@ -92,7 +98,15 @@ export const useAppStore = create<AppState>((set) => ({
     set({ settings: await backend.setSearchShortcut(shortcut) });
   },
 
+  async setSearchWholePc(enabled) {
+    set({ settings: await backend.setSearchWholePc(enabled) });
+  },
+
   goTo(page) {
     set({ page });
+  },
+
+  openSearch() {
+    set((s) => ({ page: "search", searchFocus: s.searchFocus + 1 }));
   },
 }));

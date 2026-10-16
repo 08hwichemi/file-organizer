@@ -91,6 +91,14 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
              PRAGMA user_version = 5;",
         )?;
     }
+    if version < 6 {
+        // 이름 한꺼번에 바꾸기(SPEC 3-4): 같은 묶음 번호끼리 한 번에 되돌린다.
+        conn.execute_batch(
+            "ALTER TABLE moves ADD COLUMN batch INTEGER;
+             CREATE INDEX IF NOT EXISTS moves_batch ON moves(batch);
+             PRAGMA user_version = 6;",
+        )?;
+    }
     Ok(())
 }
 

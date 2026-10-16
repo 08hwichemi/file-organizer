@@ -50,8 +50,10 @@ pub struct Settings {
     pub wait_seconds: u32,
     /// 자주 쓰는 폴더 1~6을 직접 고른 것(없는 칸은 자동으로 채운다)
     pub pinned_favorites: Vec<Option<String>>,
-    /// 파일 검색창 단축키(빈 문자열 = 쓰지 않음)
+    /// 파일 검색 단축키(빈 문자열 = 쓰지 않음)
     pub search_shortcut: String,
+    /// 파일 검색 범위: PC 전체(기본) / 정리 폴더와 지켜볼 폴더만(false)
+    pub search_whole_pc: bool,
 }
 
 /// 자주 쓰는 폴더(숫자 키) 칸 수
@@ -74,6 +76,7 @@ impl Default for Settings {
             wait_seconds: 0,
             pinned_favorites: Vec::new(),
             search_shortcut: "Alt+Space".into(),
+            search_whole_pc: true,
         }
     }
 }
@@ -163,6 +166,7 @@ mod tests {
             wait_seconds: 10,
             pinned_favorites: vec![None, Some("C:\\정리 폴더\\평가".into())],
             search_shortcut: "Ctrl+Alt+F".into(),
+            search_whole_pc: false,
         };
         save(&conn, &s).unwrap();
         assert_eq!(load(&conn).unwrap(), s);
@@ -185,6 +189,8 @@ mod tests {
         assert!(s.pinned_favorites.is_empty());
         // 7단계 전: 검색 단축키 Alt+Space
         assert_eq!(s.search_shortcut, "Alt+Space");
+        // 0.1.14 전: 검색은 PC 전체
+        assert!(s.search_whole_pc);
     }
 
     #[test]

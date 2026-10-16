@@ -31,6 +31,8 @@ pub struct AppState {
     pub index: Mutex<crate::search::Index>,
     /// 자체 색인을 읽는 중
     pub indexing: AtomicBool,
+    /// 자체 색인을 최신으로 맞추는 감시
+    pub live: crate::finder::Live,
     /// 검색 단축키를 등록하지 못했을 때 그 까닭(설정 화면에 보여 줌)
     pub shortcut_error: Mutex<Option<String>>,
 }
@@ -137,7 +139,7 @@ pub const EVENT_INBOX_CHANGED: &str = "inbox-changed";
 pub const EVENT_STATUS_CHANGED: &str = "status-changed";
 
 /// 정리함이 바뀌었음을 화면과 트레이(정리함 개수)에 알린다.
-fn notify_inbox(app: &AppHandle) {
+pub fn notify_inbox(app: &AppHandle) {
     let _ = app.emit(EVENT_INBOX_CHANGED, ());
     tray::refresh(app);
 }

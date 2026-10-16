@@ -1,20 +1,22 @@
-import { Inbox, ListChecks, Pause, Play, Search, Settings as SettingsIcon } from "lucide-react";
+import { Inbox, ListChecks, Pause, PencilLine, Play, Search, Settings as SettingsIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import FolderIcon from "../components/FolderIcon";
 import UpdateBanner from "../components/UpdateBanner";
-import { getStatus, listInbox, onBackendEvent, setPaused, showSearch } from "../lib/backend";
+import { getStatus, listInbox, onBackendEvent, setPaused } from "../lib/backend";
 import { friendlyName } from "../lib/paths";
 import { useAppStore, type Page } from "../store/useAppStore";
 import { startUpdateChecks } from "../store/useUpdateStore";
 import InboxPage from "./InboxPage";
+import RenamePage from "./RenamePage";
 import RulesPage from "./RulesPage";
+import SearchPage from "./SearchPage";
 import SettingsPage from "./SettingsPage";
 import "./MainWindow.css";
 
-// "search"는 화면이 아니라 따로 뜨는 검색창을 연다.
-const MENU: { page: Page | "search"; label: string; Icon: typeof Inbox }[] = [
+const MENU: { page: Page; label: string; Icon: typeof Inbox }[] = [
   { page: "inbox", label: "정리함", Icon: Inbox },
   { page: "search", label: "파일 검색", Icon: Search },
+  { page: "rename", label: "이름 바꾸기", Icon: PencilLine },
   { page: "rules", label: "정리 규칙", Icon: ListChecks },
   { page: "settings", label: "설정", Icon: SettingsIcon },
 ];
@@ -23,6 +25,7 @@ const MENU: { page: Page | "search"; label: string; Icon: typeof Inbox }[] = [
 export default function MainWindow() {
   const page = useAppStore((s) => s.page);
   const goTo = useAppStore((s) => s.goTo);
+  const openSearch = useAppStore((s) => s.openSearch);
   const settings = useAppStore((s) => s.settings);
   const known = useAppStore((s) => s.setupInfo);
 
@@ -35,10 +38,13 @@ export default function MainWindow() {
   useEffect(
     () =>
       onBackendEvent("navigate", (page) => {
-        if (page === "inbox" || page === "rules" || page === "settings") goTo(page);
+        if (page === "inbox" || page === "search" || page === "rules" || page === "settings") goTo(page);
       }),
     [goTo],
   );
+
+  // 단축키·트레이 "파일 검색" → 검색 화면 + 입력 칸에 초점
+  useEffect(() => onBackendEvent("search-opened", openSearch), [openSearch]);
 
   // 일시 정지(트레이에서 바꿔도 따라감)
   useEffect(() => {
@@ -74,7 +80,7 @@ export default function MainWindow() {
             className={`sidebar__item${page === p ? " sidebar__item--on" : ""}`}
             title={p === "search" && settings?.searchShortcut ? `${label} (${settings.searchShortcut})` : label}
             aria-current={page === p ? "page" : undefined}
-            onClick={() => (p === "search" ? void showSearch() : goTo(p))}
+            onClick={() => goTo(p)}
           >
             <Icon size={18} aria-hidden="true" />
             <span className="sidebar__label">{label}</span>
@@ -117,7 +123,17 @@ export default function MainWindow() {
       </nav>
       <main className="main-window__content">
         <UpdateBanner />
-        {page === "inbox" ? <InboxPage /> : page === "rules" ? <RulesPage /> : <SettingsPage />}
+        {page === "inbox" ? (
+          <InboxPage />
+        ) : page === "search" ? (
+          <SearchPage />
+        ) : page === "rename" ? (
+          <RenamePage />
+        ) : page === "rules" ? (
+          <RulesPage />
+        ) : (
+          <SettingsPage />
+        )}
       </main>
     </div>
   );

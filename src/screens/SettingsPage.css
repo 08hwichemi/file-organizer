@@ -163,3 +163,48 @@
   background: var(--color-surface-sub);
   color: var(--color-text-sub);
 }
+
+/* 정보 */
+.settings__about {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.settings__about-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings__about .btn {
+  flex-shrink: 0;
+}
+
+.settings__licenses {
+  max-height: 56vh;
+  margin: 0;
+  padding: 14px 16px;
+  overflow: auto;
+  border: 1px solid var(--color-line-soft);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sub);
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: normal;
+}
+
+.settings__about-line {
+  font-size: 13.5px;
+}
+
+.settings__copyright {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-text-sub);
+}

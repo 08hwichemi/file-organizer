@@ -37,6 +37,65 @@ pub fn record_with_rule(
     Ok(conn.last_insert_rowid())
 }
 
+/// 새 묶음 번호(이름 한꺼번에 바꾸기)
+pub fn next_batch(conn: &Connection) -> rusqlite::Result<i64> {
+    conn.query_row("SELECT COALESCE(MAX(batch), 0) + 1 FROM moves", [], |r| {
+        r.get(0)
+    })
+}
+
+/// 묶음으로 기록(이름 한꺼번에 바꾸기: 원래 경로 → 새 경로)
+pub fn record_in_batch(
+    conn: &Connection,
+    original: &Path,
+    moved: &Path,
+    batch: i64,
+) -> rusqlite::Result<i64> {
+    conn.execute(
+        "INSERT INTO moves (original_path, moved_path, moved_at, batch) VALUES (?1, ?2, ?3, ?4)",
+        params![
+            original.to_string_lossy(),
+            moved.to_string_lossy(),
+            crate::db::now_ms(),
+            batch
+        ],
+    )?;
+    Ok(conn.last_insert_rowid())
+}
+
+/// 묶음에서 아직 되돌리지 않은 기록(나중 것부터)
+pub fn batch_moves(conn: &Connection, batch: i64) -> rusqlite::Result<Vec<MoveRecord>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, original_path, moved_path, moved_at FROM moves
+         WHERE batch = ?1 AND undone_at IS NULL ORDER BY id DESC",
+    )?;
+    let rows = stmt.query_map(params![batch], |row| {
+        Ok(MoveRecord {
+            id: row.get(0)?,
+            original_path: row.get(1)?,
+            moved_path: row.get(2)?,
+            moved_at: row.get(3)?,
+            undone: false,
+        })
+    })?;
+    rows.collect()
+}
+
+/// 파일 이름이 바뀌면, 그 파일로 옮겼던 다른 기록도 새 경로를 따라가게 한다(그 이동도 계속 되돌릴 수 있게).
+/// `except_batch`(지금 바꾼 묶음)의 기록은 건드리지 않는다.
+pub fn rewrite_file(
+    conn: &Connection,
+    old: &Path,
+    new: &Path,
+    except_batch: i64,
+) -> rusqlite::Result<usize> {
+    conn.execute(
+        "UPDATE moves SET moved_path = ?2
+         WHERE moved_path = ?1 AND undone_at IS NULL AND (batch IS NULL OR batch != ?3)",
+        params![old.to_string_lossy(), new.to_string_lossy(), except_batch],
+    )
+}
+
 pub fn get(conn: &Connection, id: i64) -> rusqlite::Result<Option<MoveRecord>> {
     conn.query_row(
         "SELECT id, original_path, moved_path, moved_at, undone_at FROM moves WHERE id = ?1",
@@ -174,6 +233,46 @@ mod tests {
             ["/r/업무", "/r/학급", "/r/평가"]
         );
         assert_eq!(frequent_destinations(&conn, 1).unwrap(), ["/r/업무"]);
+    }
+
+    #[test]
+    fn batches_and_following_renamed_files() {
+        let conn = db::open_in_memory().unwrap();
+        // 다운로드에서 정리 폴더로 옮긴 파일의 이름을 바꿈
+        let put = record(&conn, Path::new("/d/05.hwp"), Path::new("/r/05.hwp")).unwrap();
+        let batch = next_batch(&conn).unwrap();
+        assert_eq!(batch, 1);
+        let a = record_in_batch(
+            &conn,
+            Path::new("/r/05.hwp"),
+            Path::new("/r/김민지(5).hwp"),
+            batch,
+        )
+        .unwrap();
+        record_in_batch(
+            &conn,
+            Path::new("/r/06.hwp"),
+            Path::new("/r/이서준(6).hwp"),
+            batch,
+        )
+        .unwrap();
+        rewrite_file(
+            &conn,
+            Path::new("/r/05.hwp"),
+            Path::new("/r/김민지(5).hwp"),
+            batch,
+        )
+        .unwrap();
+        assert_eq!(
+            get(&conn, put).unwrap().unwrap().moved_path,
+            "/r/김민지(5).hwp"
+        );
+        // 묶음 기록 자신은 그대로
+        assert_eq!(get(&conn, a).unwrap().unwrap().original_path, "/r/05.hwp");
+        assert_eq!(batch_moves(&conn, batch).unwrap().len(), 2);
+        mark_undone(&conn, a).unwrap();
+        assert_eq!(batch_moves(&conn, batch).unwrap().len(), 1);
+        assert_eq!(next_batch(&conn).unwrap(), 2);
     }
 
     #[test]

@@ -4,7 +4,6 @@ import { useAppStore } from "./store/useAppStore";
 import FirstRun from "./screens/FirstRun";
 import MainWindow from "./screens/MainWindow";
 import Popup from "./screens/Popup";
-import SearchWindow from "./screens/SearchWindow";
 
 export default function App() {
   const status = useAppStore((s) => s.status);
@@ -27,6 +26,5 @@ export default function App() {
     );
   }
   if (kind === "popup") return <Popup />;
-  if (kind === "search") return <SearchWindow />;
   return status === "setup" ? <FirstRun /> : <MainWindow />;
 }

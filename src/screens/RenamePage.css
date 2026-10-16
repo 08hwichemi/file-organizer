@@ -1,0 +1,595 @@
+/* 이름 한꺼번에 바꾸기(SPEC 3-4): 위에서 아래로 ① ② ③ 카드, 맨 아래 [n개 이름 바꾸기] 줄은 화면 아래에 붙어 있다. */
+.rename {
+  max-width: 1080px;
+}
+
+.rename__card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 22px 22px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.rename__step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.rename__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: #ffffff;
+  font-size: 13px;
+}
+
+.rename__summary {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-sub);
+}
+
+.rename__bad {
+  color: var(--color-danger);
+}
+
+.rename__muted {
+  color: var(--color-text-sub);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+
+.rename .btn--small {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.rename .btn--main {
+  min-height: var(--control-height-main);
+  padding: 0 22px;
+  font-size: 15px;
+}
+
+/* ① 폴더와 파일 */
+.rename__folder {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.rename__folder .btn {
+  flex-shrink: 0;
+}
+
+.rename__path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rename__path--empty {
+  color: var(--color-text-sub);
+}
+
+.rename__check {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--control-height);
+  font-size: 13.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.rename__check input {
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.rename__listbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.rename__count {
+  font-size: 13px;
+  color: var(--color-text-sub);
+}
+
+.rename__count strong {
+  color: var(--color-text);
+}
+
+.rename__listtools {
+  align-items: center;
+}
+
+.rename__select {
+  min-height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 7px;
+  background: var(--color-surface);
+  font-size: 13px;
+}
+
+.rename__files {
+  max-height: 260px;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  border: 1px solid var(--color-line-soft);
+  border-radius: var(--radius-sm);
+  list-style: none;
+}
+
+.rename__file {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 36px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 13.5px;
+}
+
+.rename__file:hover {
+  background: var(--color-surface-sub);
+}
+
+.rename__file[draggable="true"] {
+  cursor: grab;
+}
+
+.rename__file--drag {
+  opacity: 0.45;
+}
+
+.rename__file input {
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.rename__grip {
+  flex-shrink: 0;
+  color: var(--color-text-sub);
+}
+
+.rename__fname {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rename__sub {
+  flex-shrink: 0;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--color-bg);
+  color: var(--color-text-sub);
+  font-size: 11.5px;
+}
+
+.rename__date {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--color-text-sub);
+}
+
+.rename__empty {
+  margin: 0;
+  padding: 14px 0;
+  color: var(--color-text-sub);
+  font-size: 13.5px;
+}
+
+/* ② 바꾸는 방법 */
+.rename__guess {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-accent-line);
+  border-radius: var(--radius-md);
+  background: var(--color-accent-faint);
+}
+
+.rename__guess-title {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.rename__chips,
+.rename__slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rename__chip {
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 16px;
+  background: var(--color-surface);
+  font-size: 13px;
+}
+
+.rename__chip:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent-hover);
+}
+
+.rename__chip--number,
+.rename__chip--class,
+.rename__chip--year,
+.rename__chip--term {
+  border-color: var(--color-accent-line);
+  color: var(--color-accent-hover);
+  font-weight: 600;
+}
+
+.rename__suggests {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rename__suggest {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-size: 13.5px;
+  text-align: left;
+}
+
+.rename__suggest:hover,
+.rename__suggest--on {
+  border-color: var(--color-accent);
+}
+
+.rename__suggest--on {
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.rename__suggest-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rename__suggest code {
+  flex-shrink: 0;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--color-accent-hover);
+}
+
+.rename__tag {
+  flex-shrink: 0;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--color-bg);
+  color: var(--color-text-sub);
+  font-size: 11.5px;
+}
+
+.rename__block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-line-soft);
+}
+
+.rename__label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.rename__template {
+  display: flex;
+  gap: 8px;
+}
+
+.rename__input {
+  flex: 1;
+  min-width: 0;
+  padding: 0 12px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-size: 14px;
+}
+
+.rename__input:focus {
+  border-color: var(--color-accent);
+  outline: none;
+}
+
+.rename__slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px dashed var(--color-line-strong);
+  border-radius: 7px;
+  background: var(--color-surface);
+  font-size: 13px;
+}
+
+.rename__slot:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent-hover);
+}
+
+.rename__options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 18px;
+}
+
+.rename__inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  white-space: nowrap;
+}
+
+.rename__small {
+  width: 72px;
+  padding: 0 8px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 7px;
+}
+
+.rename__roster {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  resize: vertical;
+}
+
+.rename__roster:focus {
+  border-color: var(--color-accent);
+  outline: none;
+}
+
+.rename__roster-info {
+  margin: 0;
+}
+
+.rename__link {
+  min-height: 0;
+  margin-left: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.rename__replace {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rename__arrow {
+  flex-shrink: 0;
+  color: var(--color-text-sub);
+}
+
+.rename__icon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-sub);
+}
+
+.rename__icon:hover {
+  background: var(--color-surface-sub);
+}
+
+.rename__affix {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+}
+
+.rename__affix-input {
+  width: 140px;
+  flex: none;
+}
+
+/* ③ 미리보기 */
+.rename__table {
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid var(--color-line-soft);
+  border-radius: var(--radius-sm);
+}
+
+.rename__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr) 120px;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--color-line-soft);
+  font-size: 13.5px;
+}
+
+.rename__row:last-child {
+  border-bottom: 0;
+}
+
+.rename__old,
+.rename__new {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rename__new {
+  font-weight: 600;
+}
+
+.rename__state {
+  font-size: 12px;
+  text-align: right;
+  color: var(--color-text-sub);
+}
+
+.rename__keep {
+  font-weight: 400;
+  color: var(--color-text-sub);
+}
+
+.rename__row--same {
+  color: var(--color-text-sub);
+}
+
+.rename__row--conflict .rename__state {
+  color: #8a5a00;
+}
+
+.rename__row--invalid,
+.rename__row--skip {
+  background: #fdf3f2;
+}
+
+.rename__row--invalid .rename__keep,
+.rename__row--skip .rename__keep,
+.rename__row--invalid .rename__state,
+.rename__row--skip .rename__state {
+  color: var(--color-danger);
+}
+
+/* 아래에 붙은 실행 줄 */
+.rename__bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 14px;
+  margin: 0 -4px;
+  padding: 12px 16px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: 0 -6px 18px rgba(23, 25, 28, 0.06);
+}
+
+.rename__bar-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  color: var(--color-text-sub);
+}
+
+.rename__bar .btn--main {
+  flex-shrink: 0;
+}
+
+.rename__toast {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 8px 8px 14px;
+  border-radius: 10px;
+  background: #1f2328;
+  color: #ffffff;
+  font-size: 13.5px;
+}
+
+.rename__toast-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.rename__undo {
+  min-height: 32px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: #a9c2f5;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.rename__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #c9ced6;
+}
+
+.rename__errors {
+  margin: -8px 0 0;
+  padding-left: 20px;
+  color: var(--color-danger);
+  font-size: 13px;
+}

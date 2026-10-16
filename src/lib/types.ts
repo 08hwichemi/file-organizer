@@ -30,8 +30,10 @@ export interface Settings {
   waitSeconds: number;
   /** 자주 쓰는 폴더 1~6 직접 고른 것(null = 자동) */
   pinnedFavorites: (string | null)[];
-  /** 파일 검색창 단축키("" = 쓰지 않음) */
+  /** 파일 검색 단축키("" = 쓰지 않음) */
   searchShortcut: string;
+  /** 파일 검색 범위: PC 전체(true, 기본) / 정리 폴더와 지켜볼 폴더만(false) */
+  searchWholePc: boolean;
 }
 
 /** Everything: ready = PC 전체 검색, notRunning = 설치·실행 안 됨, noDll = SDK 빠짐, unsupported = Windows 아님 */
@@ -51,16 +53,27 @@ export interface SearchHit {
   rule: string | null;
 }
 
+/** 어디서 찾았는지: everything = Everything(PC 전체), pc = 이 프로그램이 읽은 PC 전체, folders = 정리 폴더·지켜볼 폴더 */
+export type SearchSource = "everything" | "pc" | "folders";
+
 export interface SearchResponse {
-  /** everything = PC 전체, index = 정리 폴더·지켜볼 폴더 */
-  source: "everything" | "index";
+  source: SearchSource;
   everything: EverythingState;
+  /** 설정에서 PC 전체를 골랐는지 */
+  wantWholePc: boolean;
+  /** 파일 목록을 읽는 중인지 */
   indexing: boolean;
+  /** 읽은 파일 수(읽는 중이면 지금까지) */
+  indexed: number;
   hits: SearchHit[];
 }
 
 export interface SearchInfo {
   everything: EverythingState;
+  /** 이 프로그램이 읽은 목록이 PC 전체인지 */
+  wholePc: boolean;
+  indexing: boolean;
+  indexed: number;
   shortcutError: string | null;
 }
 
@@ -263,5 +276,107 @@ export interface UndoManyResult {
 
 export interface TrashResult {
   deletionIds: number[];
+  errors: string[];
+}
+
+// ───────── 이름 한꺼번에 바꾸기(SPEC 3-4) ─────────
+
+/** 폴더 안 파일 하나 */
+export interface RenameFile {
+  path: string;
+  name: string;
+  /** 고른 폴더 기준 하위 폴더(바로 아래면 "") */
+  subDir: string;
+  modified: number;
+  size: number;
+}
+
+export interface FolderFiles {
+  folder: string;
+  files: RenameFile[];
+  /** 너무 많아 앞쪽만 읽었는지 */
+  truncated: boolean;
+}
+
+/** 이름 조각 종류: 글자 · 번호 · 학급(3-2) · 연도 · 학기 */
+export type PieceKind = "text" | "number" | "class" | "year" | "term";
+
+export interface PieceInfo {
+  /** 1부터. 틀에서는 {조각 n} */
+  index: number;
+  kind: PieceKind;
+  /** 모든 파일에서 같은지 */
+  common: boolean;
+  sample: string;
+}
+
+export interface SuggestedTemplate {
+  label: string;
+  template: string;
+  needsRoster: boolean;
+}
+
+/** 규칙 알아내기 결과 */
+export interface NameAnalysis {
+  pieces: PieceInfo[];
+  /** 가장 많은 모양인 파일 수 / 전체 */
+  matching: number;
+  total: number;
+  numberPiece: number | null;
+  suggestions: SuggestedTemplate[];
+}
+
+export interface NumberOptions {
+  /** true = 이름에서 읽기, false = 순서대로 매기기 */
+  fromName: boolean;
+  start: number;
+  /** 자릿수(0 = 자동) */
+  digits: number;
+}
+
+export interface Replacement {
+  find: string;
+  with: string;
+}
+
+export interface RenameRequest {
+  files: string[];
+  template: string;
+  number: NumberOptions;
+  replacements: Replacement[];
+  prefix: string;
+  suffix: string;
+  /** 붙여 넣은 명렬표(저장하지 않음) */
+  roster: string;
+}
+
+/** same = 그대로, rename = 바꿈, conflict = 같은 이름이 있어 (2)를 붙임, invalid = 쓸 수 없는 이름, skip = 값이 없어 건너뜀 */
+export type RenameStatus = "same" | "rename" | "conflict" | "invalid" | "skip";
+
+export interface PreviewRow {
+  path: string;
+  oldName: string;
+  newName: string;
+  status: RenameStatus;
+  note: string | null;
+}
+
+export interface RosterInfo {
+  count: number;
+  ignored: number;
+  duplicates: number[];
+}
+
+export interface RenamePreview {
+  analysis: NameAnalysis;
+  roster: RosterInfo;
+  rows: PreviewRow[];
+  changes: number;
+}
+
+export interface RenameResult {
+  /** 되돌리기용 묶음 번호 */
+  batch: number;
+  renamed: number;
   errors: string[];
 }

@@ -130,7 +130,7 @@ pub fn name_words(file_name: &str) -> Vec<String> {
 }
 
 /// `3-2` 모양(학년 한 자리 - 반 한두 자리)
-fn is_class_dash(s: &str) -> bool {
+pub(crate) fn is_class_dash(s: &str) -> bool {
     let Some((g, c)) = s.split_once('-') else {
         return false;
     };

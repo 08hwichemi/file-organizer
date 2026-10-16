@@ -38,8 +38,8 @@ strip = true
 
 [target.'cfg(windows)'.dependencies]
 libloading = "0.9.0"
-# 지울 곳에 휴지통이 있는 드라이브인지 확인(GetDriveTypeW)
-windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }
+# 지울 곳에 휴지통이 있는 드라이브인지 확인(GetDriveTypeW), 검색할 고정 디스크 찾기, 색인 스레드 우선순위
+windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem", "Win32_System_Threading"] }
 
 [dev-dependencies]
 tempfile = "3.27.0"
