@@ -18,7 +18,7 @@ import {
 } from "../lib/backend";
 import { formatSize, splitName } from "../lib/format";
 import { baseName, displayPath, friendlyName, joinPath } from "../lib/paths";
-import { ruleName } from "../lib/rules";
+import { reasonLabel, ruleName } from "../lib/rules";
 import type { AutoMoved, PendingFile, PutResult, Suggestion } from "../lib/types";
 import { useAppStore } from "../store/useAppStore";
 import "./Popup.css";
@@ -254,7 +254,13 @@ export default function Popup() {
               <div className="popup__done-title">정리했어요</div>
               <div className="popup__done-name">{baseName(result.movedPath)}</div>
               <div className="popup__done-path">{displayPath(root, result.destDir, sep)}</div>
-              {result.rule && <div className="popup__done-rule">{ruleName(result.rule)}대로 넣었어요</div>}
+              {result.followed && (
+                <div className="popup__done-rule">
+                  {result.followed.kind === "rule"
+                    ? `${ruleName(result.followed.rule)}대로 넣었어요`
+                    : `추천 위치에 넣었어요 · ${reasonLabel(result.followed)}`}
+                </div>
+              )}
             </div>
             <button type="button" className="btn btn--link" onClick={() => void undo()} disabled={busy}>
               되돌리기
@@ -294,9 +300,9 @@ export default function Popup() {
             </span>
             <div className="popup__done-text">
               <div className="popup__done-title">
-                {autoMoved.length === 1 ? "규칙대로 정리했어요" : `${autoMoved.length}개 파일을 규칙대로 정리했어요`}
+                {autoMoved.length === 1 ? "자동으로 정리했어요" : `${autoMoved.length}개 파일을 자동으로 정리했어요`}
               </div>
-              <div className="popup__done-path">바로 정리 중이에요. 잘못 넣었으면 되돌리기를 누르세요.</div>
+              <div className="popup__done-path">잘못 넣었으면 되돌리기를 누르세요. 되돌린 파일은 다시 물어봐요.</div>
             </div>
           </div>
           <ul className="popup__auto">
@@ -307,7 +313,7 @@ export default function Popup() {
                   <div className="popup__done-name" title={a.name}>
                     {a.name}
                   </div>
-                  <div className="popup__auto-meta" title={`${displayPath(root, a.destDir, sep)} · ${ruleName(a.rule)}`}>
+                  <div className="popup__auto-meta" title={`${displayPath(root, a.destDir, sep)} · ${reasonLabel(a.reason)}`}>
                     {displayPath(root, a.destDir, sep)}
                   </div>
                 </div>
@@ -406,7 +412,7 @@ export default function Popup() {
           >
             <FolderIcon size={34} tone="blue" />
             <span className="popup__suggest-text">
-              <span className="popup__suggest-label">추천 위치 · {ruleName(suggestion.rule)}</span>
+              <span className="popup__suggest-label">추천 위치 · {reasonLabel(suggestion.reason)}</span>
               <span className="popup__suggest-path" title={displayPath(root, suggestion.destDir, sep)}>
                 {displayPath(root, suggestion.destDir, sep)}
               </span>

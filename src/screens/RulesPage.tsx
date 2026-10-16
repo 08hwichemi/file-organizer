@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import AutoWords from "../components/AutoWords";
 import FolderIcon from "../components/FolderIcon";
 import RuleEditor from "../components/RuleEditor";
 import { deleteRule, errorMessage, listRules, moveRule, onBackendEvent, restoreRule } from "../lib/backend";
@@ -89,7 +90,7 @@ export default function RulesPage() {
           <h1 className="page__title">정리 규칙</h1>
           <p className="page__lead">
             새 파일이 오면 위에서부터 먼저 맞는 규칙 하나로 추천 위치를 정해요. 이름 단어가 있는 규칙을 먼저 보고,
-            확장자만 있는 규칙은 마지막에 봐요.
+            확장자만 있는 규칙은 마지막에 봐요. 직접 만든 규칙이 아래 ‘자동 분류 단어’보다 먼저예요.
           </p>
         </div>
         <button type="button" className="btn btn--accent rules__new" onClick={() => setEditing("new")}>
@@ -173,6 +174,8 @@ export default function RulesPage() {
           ))}
         </ol>
       )}
+
+      <AutoWords rootName={rootName} onNotice={setNotice} />
 
       {notice && (
         <div className="rules__toast" role="status">

@@ -21,6 +21,8 @@ import type {
   RuleView,
   Settings,
   Suggestion,
+  WordGroup,
+  ClassifyPlan,
   SetupInfo,
   SetupRequest,
   TrashResult,
@@ -328,10 +330,113 @@ function resolveRule(rule: Rule, fileName: string): { dir: string; exists: boole
   return { dir, exists: !!findFolder(dir), reveal };
 }
 
+// 자동 분류 단어(Rust classify.rs의 기본 단어를 줄여 흉내)
+const DEFAULT_WORDS: WordGroup[] = [
+  { folder: ["업무", "공문"], words: ["공문", "시행문", "협조", "회신"] },
+  { folder: ["업무", "회의록"], words: ["회의록", "협의회", "회의"] },
+  { folder: ["업무", "계획서"], words: ["계획서", "계획"] },
+  { folder: ["업무", "가정통신문"], words: ["가정통신문", "통신문"] },
+  { folder: ["수업"], words: ["수업", "학습지", "활동지", "교안", "지도안"] },
+  { folder: ["평가", "수행평가"], words: ["수행평가", "채점기준", "루브릭"] },
+  { folder: ["평가", "지필고사"], words: ["지필", "중간고사", "기말고사", "문항정보표", "이원목적", "시험지", "감독"] },
+  { folder: ["학급", "상담"], words: ["상담"] },
+  { folder: ["학급", "출결"], words: ["출결", "결석", "지각", "조퇴"] },
+  { folder: ["생활기록부"], words: ["생활기록부", "생기부", "세특", "세부능력", "행동특성", "창체", "진로활동", "동아리"] },
+  { folder: ["연수"], words: ["연수", "이수증"] },
+];
+let autoWords: WordGroup[] = DEFAULT_WORDS.map((g) => ({ folder: [...g.folder], words: [...g.words] }));
+
+const TYPES: [string, string[]][] = [
+  ["한글 문서", ["hwp", "hwpx"]],
+  ["워드 문서", ["doc", "docx"]],
+  ["PDF", ["pdf"]],
+  ["엑셀", ["xls", "xlsx", "csv"]],
+  ["발표 자료", ["ppt", "pptx"]],
+  ["사진", ["jpg", "jpeg", "png", "gif", "heic"]],
+  ["동영상", ["mp4", "mov"]],
+  ["압축 파일", ["zip", "7z", "egg"]],
+];
+
+/** 정리 폴더 아래 폴더(얕은 것부터, 형식별 폴더 안은 빼고) */
+function allFolders(): { name: string; path: string }[] {
+  const root = settings.rootFolder;
+  const tree = root ? trees.get(root) : null;
+  if (!root || !tree) return [];
+  const out: { name: string; path: string }[] = [];
+  const queue: [string, MockFolder, number][] = [[root, tree, 0]];
+  while (queue.length) {
+    const [path, node, depth] = queue.shift()!;
+    for (const name of Object.keys(node.children).sort()) {
+      if (depth === 0 && name === "형식별") continue;
+      out.push({ name, path: path + SEP + name });
+      queue.push([path + SEP + name, node.children[name], depth + 1]);
+    }
+  }
+  return out;
+}
+
+function targetOf(dir: string) {
+  let reveal = dir;
+  while (!findFolder(reveal) && reveal.includes(SEP)) reveal = reveal.slice(0, reveal.lastIndexOf(SEP));
+  return { destDir: dir, exists: !!findFolder(dir), reveal };
+}
+
 function suggestFor(fileName: string, sourceDir: string): Suggestion | null {
   const rule = matchRule(fileName, sourceDir);
   const target = rule ? resolveRule(rule, fileName) : null;
-  return rule && target ? { rule: plainRule(rule), destDir: target.dir, exists: target.exists, reveal: target.reveal } : null;
+  if (rule && target) return { reason: { kind: "rule", rule: plainRule(rule) }, ...targetOf(target.dir) };
+  const stem = stemOf(fileName).toLowerCase();
+  const folders = allFolders().filter(
+    (f) => f.name.length >= 2 && !/^\d+$/.test(f.name) && !templateOf(f.name),
+  );
+  let best: Suggestion | null = null;
+  let bestLen = 0;
+  for (const f of folders) {
+    if (stem.includes(f.name.toLowerCase()) && f.name.length > bestLen) {
+      best = { reason: { kind: "folder", word: f.name }, ...targetOf(f.path) };
+      bestLen = f.name.length;
+    }
+  }
+  for (const g of autoWords) {
+    for (const w of g.words) {
+      if (stem.includes(w.toLowerCase()) && w.length > bestLen) {
+        const leaf = g.folder[g.folder.length - 1];
+        const found = folders.find((f) => f.name === leaf);
+        const dir = found ? found.path : [settings.rootFolder, ...g.folder].join(SEP);
+        best = { reason: { kind: "word", word: w }, ...targetOf(dir) };
+        bestLen = w.length;
+      }
+    }
+  }
+  return best;
+}
+
+function classifyFor(fileName: string, sourceDir: string): Suggestion | null {
+  const sug = suggestFor(fileName, sourceDir);
+  if (sug) return sug;
+  const type = TYPES.find(([, exts]) => exts.includes(extOf(fileName)))?.[0];
+  return type
+    ? { reason: { kind: "type", typeName: type }, ...targetOf([settings.rootFolder, "형식별", type].join(SEP)) }
+    : null;
+}
+
+function putPlanned(paths: string[], plan: (item: StoredItem) => Suggestion | null): PutOutcome[] {
+  return paths.map((path) => {
+    const item = inbox.find((i) => i.path === path);
+    const sug = item ? plan(item) : null;
+    if (!item || !sug) return { path, moveId: null, error: "이름이나 형식으로 넣을 곳을 정하지 못했어요." };
+    const dest = ensureFolder(sug.destDir);
+    if (dest) dest.files += 1;
+    if (sug.reason.kind === "rule") {
+      const id = sug.reason.rule.id;
+      const r = mockRules.find((x) => x.id === id);
+      if (r) r.used += 1;
+    }
+    const id = ++nextId;
+    moves.push({ id, original: { ...item }, destDir: sug.destDir, undone: false });
+    inbox = inbox.filter((i) => i.path !== path);
+    return { path, moveId: id, error: null };
+  });
 }
 
 function draftFor(fileName: string, destDir: string): RuleDraft {
@@ -479,19 +584,20 @@ export const mockBackend = {
     const item = pending.find((p) => p.path === path) ?? inbox.find((i) => i.path === path);
     if (!item) return fail("파일을 찾을 수 없어요. 이미 옮겨졌거나 지워졌을 수 있어요.");
     const sug = suggestFor(item.name, item.sourceDir);
-    const used = sug && sug.destDir === destDir ? mockRules.find((r) => r.id === sug.rule.id)! : null;
+    const followed = sug && sug.destDir === destDir ? sug.reason : null;
+    const reason = sug?.reason;
+    const rule = reason?.kind === "rule" ? mockRules.find((r) => r.id === reason.rule.id) : undefined;
     let change: PutResult["change"] = null;
-    if (sug && !used) {
-      const r = mockRules.find((x) => x.id === sug.rule.id)!;
-      r.misses = r.missDir === destDir ? r.misses + 1 : 1;
-      r.missDir = destDir;
-      if (r.misses >= 3) change = { rule: plainRule(r), oldDir: sug.destDir, newDir: destDir };
+    if (sug && !followed && rule) {
+      rule.misses = rule.missDir === destDir ? rule.misses + 1 : 1;
+      rule.missDir = destDir;
+      if (rule.misses >= 3) change = { rule: plainRule(rule), oldDir: sug.destDir, newDir: destDir };
     }
-    const dest = used ? ensureFolder(destDir) : findFolder(destDir);
+    const dest = followed ? ensureFolder(destDir) : findFolder(destDir);
     if (dest) dest.files += 1;
-    if (used) {
-      used.used += 1;
-      used.misses = 0;
+    if (followed && rule) {
+      rule.used += 1;
+      rule.misses = 0;
     }
     const id = ++nextId;
     moves.push({ id, original: { ...item }, destDir, undone: false });
@@ -503,28 +609,46 @@ export const mockBackend = {
       moveId: id,
       movedPath: destDir + SEP + (newName ?? item.name),
       destDir,
-      rule: used ? plainRule(used) : null,
+      followed,
       change,
-      draft: used || change ? null : draftFor(item.name, destDir),
+      draft: followed || change ? null : draftFor(item.name, destDir),
     });
   },
 
   putSuggested(paths: string[]) {
-    const outcomes: PutOutcome[] = paths.map((path) => {
-      const item = inbox.find((i) => i.path === path);
-      const sug = item ? suggestFor(item.name, item.sourceDir) : null;
-      if (!item || !sug) return { path, moveId: null, error: "이 파일에 맞는 규칙이 없어요." };
-      const dest = ensureFolder(sug.destDir);
-      if (dest) dest.files += 1;
-      const r = mockRules.find((x) => x.id === sug.rule.id);
-      if (r) r.used += 1;
-      const id = ++nextId;
-      moves.push({ id, original: { ...item }, destDir: sug.destDir, undone: false });
-      inbox = inbox.filter((i) => i.path !== path);
-      return { path, moveId: id, error: null };
-    });
+    const outcomes = putPlanned(paths, (i) => suggestFor(i.name, i.sourceDir));
     mockEvents.emit("inbox-changed");
     return delay(outcomes);
+  },
+
+  classifyPreview(paths: string[]) {
+    return delay<ClassifyPlan[]>(
+      paths.map((path) => {
+        const item = inbox.find((i) => i.path === path);
+        return { path, name: item?.name ?? path, target: item ? classifyFor(item.name, item.sourceDir) : null };
+      }),
+    );
+  },
+
+  classifyFiles(paths: string[]) {
+    const outcomes = putPlanned(paths, (i) => classifyFor(i.name, i.sourceDir));
+    mockEvents.emit("inbox-changed");
+    return delay(outcomes);
+  },
+
+  getAutoWords: () => delay(autoWords.map((g) => ({ folder: [...g.folder], words: [...g.words] }))),
+
+  setAutoWords(groups: WordGroup[] | null) {
+    const next = (groups ?? DEFAULT_WORDS).map((g) => ({
+      folder: g.folder.map((n) => n.trim()).filter(Boolean),
+      words: [...new Set(g.words.map((w) => w.trim()).filter(Boolean))],
+    }));
+    if (next.some((g) => g.folder.length === 0)) return fail("넣을 폴더 이름을 적어 주세요.");
+    const empty = next.find((g) => g.words.length === 0);
+    if (empty) return fail(`‘${empty.folder.join(" › ")}’ 폴더에 단어를 하나 이상 적어 주세요.`);
+    autoWords = next;
+    mockEvents.emit("inbox-changed");
+    return delay(next.map((g) => ({ folder: [...g.folder], words: [...g.words] })));
   },
 
   undoMove(moveId: number, requeue: boolean) {
@@ -779,5 +903,7 @@ if (params.get("auto") === "1" && mockRules[0]) {
   const original = file(DOWNLOADS, "2027_1학기_3-1_수행평가_결과.hwp", 52_000);
   const id = ++nextId;
   moves.push({ id, original, destDir: `${readyRoot}\\평가\\수행평가\\2027\\1학기`, undone: false });
-  autoMoved = [{ moveId: id, name: original.name, destDir: moves[moves.length - 1].destDir, rule: plainRule(mockRules[0]) }];
+  autoMoved = [
+    { moveId: id, name: original.name, destDir: moves[moves.length - 1].destDir, reason: { kind: "rule", rule: plainRule(mockRules[0]) } },
+  ];
 }

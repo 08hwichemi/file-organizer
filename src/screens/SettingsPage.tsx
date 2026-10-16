@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Check, Lightbulb, Zap } from "lucide-react";
+import { Check, Lightbulb, Wand2, Zap } from "lucide-react";
 import ChoiceCard from "../components/ChoiceCard";
 import FolderPane, { type Toast } from "../components/FolderPane";
 import ModeChoice from "../components/ModeChoice";
@@ -101,7 +101,7 @@ export default function SettingsPage() {
 
       <Section
         title="정리 방식"
-        description="정리 규칙에 맞는 파일을 어떻게 할지 골라요. 규칙에 맞지 않는 파일은 위의 방식대로 물어보거나 정리함에 모아요."
+        description="새 파일을 얼마나 알아서 정리할지 골라요. 무엇을 기준으로 나누는지는 왼쪽 ‘정리 규칙’에서 보고 고칠 수 있어요."
         saved={saved === "place"}
         error={errors.place}
       >
@@ -120,12 +120,26 @@ export default function SettingsPage() {
             onSelect={() => void changePlace("auto")}
             icon={<Zap size={20} />}
             title="바로 정리"
-            description="규칙에 맞는 파일은 묻지 않고 바로 넣은 뒤, 화면 오른쪽 아래에 알려 드려요. 잘못 넣었으면 그 자리에서 되돌릴 수 있어요."
+            description="직접 만든 정리 규칙에 맞는 파일은 묻지 않고 바로 넣은 뒤, 화면 오른쪽 아래에 알려 드려요. 잘못 넣었으면 그 자리에서 되돌릴 수 있어요. 나머지는 위의 방식대로요."
+          />
+          <ChoiceCard
+            name="place-mode"
+            checked={settings.placeMode === "classify"}
+            onSelect={() => void changePlace("classify")}
+            icon={<Wand2 size={20} />}
+            title="자동 분류"
+            description="규칙이 없어도 파일 이름(폴더 이름·자동 분류 단어)과 형식(한글·PDF·사진 등)을 보고 알아서 나눠요. 없는 폴더는 만들고, 넣은 뒤 오른쪽 아래에 알려 드려요(되돌리기 가능). 구별이 안 되는 파일만 정리함에 모여요."
           />
         </div>
-        {settings.organizeMode === "manual" && (
+        {settings.placeMode === "classify" && (
           <p className="settings__note">
-            지금은 ‘모아 두고 나중에 정리’라서 새 파일은 모두 정리함으로 가요. 정리함의 ‘추천대로 모두’로 한꺼번에 넣을 수
+            자동 분류 중에는 ‘새 파일이 생기면’ 설정과 상관없이 묻지 않고 나눠요. 이미 있던 파일은 정리함의 ‘자동 분류’로
+            나눌 수 있어요.
+          </p>
+        )}
+        {settings.organizeMode === "manual" && settings.placeMode === "auto" && (
+          <p className="settings__note">
+            지금은 ‘모아 두고 나중에 정리’라서 새 파일은 모두 정리함으로 가요. 정리함의 ‘자동 분류’로 한꺼번에 나눌 수
             있어요.
           </p>
         )}

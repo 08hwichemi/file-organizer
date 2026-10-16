@@ -65,11 +65,13 @@ export default function MainWindow() {
           <div className="sidebar__status-title">
             <span className="sidebar__dot" aria-hidden="true" />
             <span>
-              {settings?.organizeMode === "manual"
-                ? "모아 두고 나중에 정리"
-                : settings?.placeMode === "auto"
-                  ? "규칙대로 바로 정리"
-                  : "바로 물어보기"}
+              {settings?.placeMode === "classify"
+                ? "자동 분류"
+                : settings?.organizeMode === "manual"
+                  ? "모아 두고 나중에 정리"
+                  : settings?.placeMode === "auto"
+                    ? "규칙대로 바로 정리"
+                    : "바로 물어보기"}
             </span>
           </div>
           <div className="sidebar__status-text">지켜볼 폴더: {watching}</div>

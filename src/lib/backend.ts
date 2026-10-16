@@ -4,6 +4,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { mockBackend, mockEvents } from "../mocks/backend";
 import type {
   AppInfo,
+  ClassifyPlan,
   DestSegment,
   FolderEntry,
   FolderMatch,
@@ -22,6 +23,7 @@ import type {
   SetupRequest,
   TrashResult,
   UndoManyResult,
+  WordGroup,
 } from "./types";
 
 export const usingMocks = !isTauri();
@@ -204,6 +206,29 @@ export function dismissAuto(moveIds: number[]): Promise<void> {
 export function putSuggested(paths: string[]): Promise<PutOutcome[]> {
   if (usingMocks) return mockBackend.putSuggested(paths);
   return invoke("put_suggested", { paths });
+}
+
+/** 자동 분류 미리보기 */
+export function classifyPreview(paths: string[]): Promise<ClassifyPlan[]> {
+  if (usingMocks) return mockBackend.classifyPreview(paths);
+  return invoke("classify_preview", { paths });
+}
+
+/** 자동 분류 실행(나누지 못한 파일은 정리함에 남음) */
+export function classifyFiles(paths: string[]): Promise<PutOutcome[]> {
+  if (usingMocks) return mockBackend.classifyFiles(paths);
+  return invoke("classify_files", { paths });
+}
+
+export function getAutoWords(): Promise<WordGroup[]> {
+  if (usingMocks) return mockBackend.getAutoWords();
+  return invoke("get_auto_words");
+}
+
+/** 자동 분류 단어 저장. null이면 기본 단어로 되돌린다. */
+export function setAutoWords(groups: WordGroup[] | null): Promise<WordGroup[]> {
+  if (usingMocks) return mockBackend.setAutoWords(groups);
+  return invoke("set_auto_words", { groups });
 }
 
 export function listRules(): Promise<RuleView[]> {

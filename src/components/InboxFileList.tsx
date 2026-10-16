@@ -1,5 +1,5 @@
 import { useDraggable } from "@dnd-kit/core";
-import { ArrowRight, Download, Trash2 } from "lucide-react";
+import { ArrowRight, Download, Trash2, Wand2 } from "lucide-react";
 import { formatAgo } from "../lib/format";
 import { displayPath, friendlyName, samePath, type KnownFolders } from "../lib/paths";
 import type { InboxItem } from "../lib/types";
@@ -21,8 +21,10 @@ interface Props {
   importing: boolean;
   /** 고른 파일을 휴지통으로 */
   onTrash: () => void;
-  /** 추천 위치에 넣기(줄의 [넣기], 위의 [추천대로 모두]) */
+  /** 추천 위치에 넣기(줄의 [넣기]) */
   onAccept: (paths: string[]) => void;
+  /** [자동 분류]: 지금 보이는 파일을 이름·형식으로 나누기(미리보기 뒤) */
+  onClassify: (paths: string[]) => void;
   root: string | null;
   separator: string;
   busy: boolean;
@@ -47,7 +49,6 @@ export default function InboxFileList(props: Props) {
   ];
   const visible = tab === ALL_TAB ? items : items.filter((i) => samePath(i.sourceDir, tab));
   const allVisibleSelected = visible.length > 0 && visible.every((i) => selected.has(i.path));
-  const suggested = visible.filter((i) => i.suggestion);
 
   const importButton = (
     <button
@@ -79,15 +80,16 @@ export default function InboxFileList(props: Props) {
             </button>
           ))}
         </div>
-        {suggested.length > 0 && (
+        {visible.length > 0 && (
           <button
             type="button"
             className="ifiles__accept-all"
-            onClick={() => props.onAccept(suggested.map((i) => i.path))}
+            onClick={() => props.onClassify(visible.map((i) => i.path))}
             disabled={props.busy}
-            title={`추천 위치가 있는 파일 ${suggested.length}개를 한꺼번에 넣어요`}
+            title="파일 이름과 형식을 보고 폴더로 나눠요(먼저 보여 드리고 확인하면 넣어요)"
           >
-            추천대로 모두
+            <Wand2 size={14} aria-hidden="true" />
+            자동 분류
           </button>
         )}
       </div>

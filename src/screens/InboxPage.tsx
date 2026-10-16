@@ -8,10 +8,12 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import ClassifyDialog from "../components/ClassifyDialog";
 import FileBadge from "../components/FileBadge";
 import InboxFileList, { ALL_TAB } from "../components/InboxFileList";
 import FolderPane, { type DropData, type Toast } from "../components/FolderPane";
 import {
+  classifyFiles,
   errorMessage,
   getFavoriteFolders,
   importExisting,
@@ -43,6 +45,7 @@ export default function InboxPage() {
   const [busy, setBusy] = useState(false);
   const [importing, setImporting] = useState(false);
   const [dragging, setDragging] = useState<string[] | null>(null);
+  const [classifying, setClassifying] = useState<string[] | null>(null);
   const [jumpTo, setJumpTo] = useState<{ path: string; n: number } | null>(null);
 
   const reload = useCallback(() => {
@@ -114,19 +117,20 @@ export default function InboxPage() {
     [busy, nameOf, root, sep],
   );
 
-  // 추천 위치에 넣기: 줄의 [넣기] 또는 [추천대로 모두]
-  const accept = async (paths: string[]) => {
+  // 정해진 곳에 넣기: 줄의 [넣기](추천 위치) 또는 [자동 분류](미리보기에서 확인한 파일)
+  const accept = async (paths: string[], how: "suggest" | "classify") => {
     if (paths.length === 0 || busy) return;
     setBusy(true);
     try {
-      const outcomes = await putSuggested(paths);
+      const outcomes = how === "suggest" ? await putSuggested(paths) : await classifyFiles(paths);
       const done = outcomes.filter((o) => o.moveId !== null);
       const failed = outcomes.filter((o) => o.error);
+      const where = how === "suggest" ? "추천 위치에 넣었어요" : "자동으로 나눴어요";
       let message =
         done.length === 1
-          ? `‘${nameOf(done[0].path)}’ 파일을 추천 위치에 넣었어요`
+          ? `‘${nameOf(done[0].path)}’ 파일을 ${where}`
           : done.length > 1
-            ? `${done.length}개 파일을 추천 위치에 넣었어요`
+            ? `${done.length}개 파일을 ${where}`
             : "넣지 못했어요";
       if (failed.length > 0) message += ` · ${failed.length}개는 못 넣었어요: ${failed[0].error}`;
       const moveIds = done.map((o) => o.moveId as number);
@@ -273,7 +277,8 @@ export default function InboxPage() {
               onImport={() => void runImport()}
               importing={importing}
               onTrash={() => void trashSelected()}
-              onAccept={(paths) => void accept(paths)}
+              onAccept={(paths) => void accept(paths, "suggest")}
+              onClassify={setClassifying}
               root={root}
               separator={sep}
               busy={busy}
@@ -299,6 +304,18 @@ export default function InboxPage() {
         </div>
         <DragOverlay dropAnimation={null}>{overlay}</DragOverlay>
       </DndContext>
+      {classifying && root && (
+        <ClassifyDialog
+          paths={classifying}
+          root={root}
+          separator={sep}
+          onClose={() => setClassifying(null)}
+          onRun={(paths) => {
+            setClassifying(null);
+            void accept(paths, "classify");
+          }}
+        />
+      )}
     </div>
   );
 }

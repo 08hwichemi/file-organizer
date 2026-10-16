@@ -1,6 +1,6 @@
 // 정리 규칙을 화면에 보여 줄 글자로 바꾸는 도우미(SPEC 4장).
 import { friendlyName, type KnownFolders } from "./paths";
-import type { DestSegment, Rule } from "./types";
+import type { DestSegment, Reason, Rule } from "./types";
 
 const quote = (w: string) => `‘${w}’`;
 
@@ -24,6 +24,20 @@ export function ruleCondition(
 export function ruleName(rule: Pick<Rule, "words" | "extensions">): string {
   if (rule.words.length > 0) return `이름의 ${rule.words.map(quote).join("·")} 규칙`;
   return `${rule.extensions.map((e) => quote(`.${e}`)).join("·")} 파일 규칙`;
+}
+
+/** 넣을 곳을 정한 까닭: "이름의 ‘수행평가’ 규칙", "이름의 ‘회의록’(폴더 이름)", "PDF 형식" */
+export function reasonLabel(reason: Reason): string {
+  switch (reason.kind) {
+    case "rule":
+      return ruleName(reason.rule);
+    case "folder":
+      return `이름의 ${quote(reason.word)}(폴더 이름)`;
+    case "word":
+      return `이름의 ${quote(reason.word)}(자동 분류 단어)`;
+    case "type":
+      return `${reason.typeName} 형식`;
+  }
 }
 
 /** 저장 위치: "정리 폴더 › 평가 › 수행평가 › [연도] › [학기]" */

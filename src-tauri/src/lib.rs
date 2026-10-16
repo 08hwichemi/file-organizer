@@ -3,6 +3,7 @@
 //! 화면(React)은 파일을 직접 만지지 않고 여기 등록한 명령을 `invoke`로 부른다(SPEC 8장).
 //! 기능 모듈은 SPEC 9장 개발 단계에 맞춰 하나씩 추가한다.
 
+mod classify;
 mod commands;
 mod db;
 mod folders;
@@ -92,6 +93,10 @@ pub fn run() {
             commands::set_term_months,
             commands::dismiss_auto,
             commands::put_suggested,
+            commands::classify_preview,
+            commands::classify_files,
+            commands::get_auto_words,
+            commands::set_auto_words,
             commands::list_rules,
             commands::describe_dest,
             commands::create_rule,

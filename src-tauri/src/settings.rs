@@ -26,6 +26,8 @@ pub enum PlaceMode {
     Suggest,
     /// 팝업 없이 추천 위치로 바로 옮기고 알린다(되돌리기 가능).
     Auto,
+    /// 규칙이 없어도 이름·형식으로 알아서 나눈다(SPEC 4-1). 나누지 못한 파일은 정리함에.
+    Classify,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

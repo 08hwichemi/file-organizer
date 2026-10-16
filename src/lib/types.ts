@@ -9,8 +9,11 @@ export interface AppInfo {
 /** 새 파일이 생겼을 때: ask = 바로 물어보기(팝업), manual = 정리함에 모아 두기 */
 export type OrganizeMode = "ask" | "manual";
 
-/** 규칙에 맞는 파일: suggest = 추천만(팝업에서 골라 둠), auto = 바로 정리(묻지 않고 옮기고 알림) */
-export type PlaceMode = "suggest" | "auto";
+/**
+ * 정리 방식: suggest = 추천만(팝업에서 골라 둠), auto = 바로 정리(규칙에 맞으면 묻지 않고 옮기고 알림),
+ * classify = 자동 분류(규칙이 없어도 이름·형식으로 나누고, 모르는 파일은 정리함에)
+ */
+export type PlaceMode = "suggest" | "auto" | "classify";
 
 export interface Settings {
   setupDone: boolean;
@@ -113,9 +116,32 @@ export interface RuleView extends Rule {
   missing: boolean;
 }
 
+/** 넣을 곳을 정한 까닭 */
+export type Reason =
+  | { kind: "rule"; rule: Rule }
+  /** 이름에 정리 폴더의 폴더 이름이 들어 있음 */
+  | { kind: "folder"; word: string }
+  /** 이름에 자동 분류 단어가 들어 있음 */
+  | { kind: "word"; word: string }
+  /** 이름으로 몰라서 파일 형식으로 */
+  | { kind: "type"; typeName: string };
+
+/** 자동 분류 단어 묶음: 단어 중 하나가 이름에 있으면 folder(정리 폴더 아래 경로)로 */
+export interface WordGroup {
+  folder: string[];
+  words: string[];
+}
+
+/** 자동 분류 미리보기: 파일마다 넣을 곳(null이면 정리함에 남음) */
+export interface ClassifyPlan {
+  path: string;
+  name: string;
+  target: Suggestion | null;
+}
+
 /** 추천 위치 */
 export interface Suggestion {
-  rule: Rule;
+  reason: Reason;
   destDir: string;
   /** 이미 있는 폴더인지(없으면 넣을 때 만든다) */
   exists: boolean;
@@ -123,12 +149,12 @@ export interface Suggestion {
   reveal: string;
 }
 
-/** "바로 정리"로 옮긴 파일 */
+/** "바로 정리"·"자동 분류"로 옮긴 파일 */
 export interface AutoMoved {
   moveId: number;
   name: string;
   destDir: string;
-  rule: Rule;
+  reason: Reason;
 }
 
 export interface PopupState {
@@ -161,8 +187,8 @@ export interface PutResult {
   moveId: number;
   movedPath: string;
   destDir: string;
-  /** 추천(규칙)대로 넣었으면 그 규칙 */
-  rule: Rule | null;
+  /** 추천 위치에 넣었으면 그 까닭 */
+  followed: Reason | null;
   change: RuleChange | null;
   draft: RuleDraft | null;
 }

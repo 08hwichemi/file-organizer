@@ -1,5 +1,6 @@
 //! 화면에서 `invoke`로 부르는 명령 모음.
 
+use crate::classify::{self, Classifier, Reason, WordGroup};
 use crate::folders::{self, FolderEntry, FolderMatch};
 use crate::inbox::{self, InboxItem};
 use crate::naming::{self, DestSegment};
@@ -43,27 +44,22 @@ impl AppState {
         f(&mut list)
     }
 
-    /// 이 파일에 맞는 규칙과 넣을 폴더(SPEC 4장). 규칙이 없거나 저장 위치가 없어졌으면 None.
-    fn suggest(&self, path: &Path) -> Option<(Rule, Target)> {
-        let name = path.file_name()?.to_string_lossy().into_owned();
-        // 지켜볼 폴더는 바로 아래 파일만 보므로 출처 = 파일이 있는 폴더
-        let source = path.parent()?;
+    /// 지금 설정·규칙·자동 분류 단어·폴더로 분류기를 만든다(정리 폴더가 없으면 None).
+    /// 파일이 여러 개면 한 번 만들어 같이 쓴다.
+    fn classifier(&self) -> Option<Classifier> {
         self.with_db(|conn| {
             let s = settings::load(conn)?;
             let Some(root) = s.root_folder.as_deref() else {
                 return Ok(None);
             };
             let list = rules::list(conn).map_err(db_err)?;
-            Ok(rules::find_match(&list, &name, source).and_then(|rule| {
-                rules::resolve(
-                    rule,
-                    Path::new(root),
-                    &name,
-                    naming::today(),
-                    s.term_months(),
-                )
-                .map(|t| (rule.clone(), t))
-            }))
+            Ok(Some(Classifier::new(
+                Path::new(root),
+                list,
+                classify::load_words(conn),
+                naming::today(),
+                s.term_months(),
+            )))
         })
         .ok()
         .flatten()
@@ -76,19 +72,29 @@ impl AppState {
             .ok_or_else(|| "정리 폴더가 아직 없어요.".to_string())
     }
 
-    /// 추천 위치(규칙)대로 넣는다. 연도·학기 폴더가 없으면 만든다.
-    fn put_by_rule(&self, src: &Path) -> Result<(i64, PathBuf, Rule), String> {
-        let (rule, target) = self.suggest(src).ok_or("이 파일에 맞는 규칙이 없어요.")?;
-        rules::ensure_target(&target, &self.root()?)?;
+    /// 정해진 폴더(추천·자동 분류)에 넣는다. 없는 폴더는 만든다. 규칙이면 규칙 번호도 기록.
+    fn put_to(
+        &self,
+        src: &Path,
+        reason: &Reason,
+        target: &Target,
+    ) -> Result<(i64, PathBuf), String> {
+        rules::ensure_target(target, &self.root()?)?;
         let moved = mover::move_into(src, &target.dir, None)?;
+        let rule_id = match reason {
+            Reason::Rule { rule } => Some(rule.id),
+            _ => None,
+        };
         let id = self.with_db(|conn| {
             inbox::remove(conn, src).map_err(db_err)?;
-            let _ = rules::reset_misses(conn, rule.id);
-            history::record_with_rule(conn, src, &moved, Some(rule.id)).map_err(db_err)
+            if let Some(r) = rule_id {
+                let _ = rules::reset_misses(conn, r);
+            }
+            history::record_with_rule(conn, src, &moved, rule_id).map_err(db_err)
         })?;
         let p = src.to_string_lossy();
         self.with_pending(|q| q.retain(|x| x.path != p));
-        Ok((id, moved, rule))
+        Ok((id, moved))
     }
 
     /// 감시를 지금 설정의 지켜볼 폴더로 맞춘다.
@@ -114,7 +120,8 @@ pub const EVENT_INBOX_CHANGED: &str = "inbox-changed";
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Suggestion {
-    pub rule: Rule,
+    /// 왜 이 폴더인지(규칙 · 폴더 이름 · 자동 분류 단어 · 파일 형식)
+    pub reason: Reason,
     pub dest_dir: String,
     /// 이미 있는 폴더인지(없으면 넣을 때 만든다)
     pub exists: bool,
@@ -123,9 +130,9 @@ pub struct Suggestion {
 }
 
 impl Suggestion {
-    fn new((rule, target): (Rule, Target)) -> Self {
+    fn new((reason, target): (Reason, Target)) -> Self {
         Suggestion {
-            rule,
+            reason,
             dest_dir: target.dir.to_string_lossy().into_owned(),
             exists: target.exists,
             reveal: target.existing.to_string_lossy().into_owned(),
@@ -133,14 +140,14 @@ impl Suggestion {
     }
 }
 
-/// "바로 정리"로 옮긴 파일
+/// "바로 정리"·"자동 분류"로 옮긴 파일
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AutoMoved {
     pub move_id: i64,
     pub name: String,
     pub dest_dir: String,
-    pub rule: Rule,
+    pub reason: Reason,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -167,13 +174,22 @@ impl PendingFile {
 }
 
 /// 감시가 저장이 끝난 새 파일을 찾았을 때(SPEC 2장).
+/// 자동 분류 → 나눌 수 있으면 옮기고 알림, 모르면 정리함 /
 /// 모아 두기 → 정리함 / 바로 정리 + 규칙에 맞음 → 옮기고 알림 / 그 외 → 팝업.
 pub fn handle_new_file(app: &AppHandle, file: NewFile) {
     let state = app.state::<AppState>();
     let s = state.with_db(settings::load).unwrap_or_default();
-    if s.organize_mode == OrganizeMode::Ask && s.place_mode == PlaceMode::Auto {
-        // 옮기지 못하면(파일이 열려 있는 등) 팝업으로 물어본다.
-        if let Ok((move_id, moved, rule)) = state.put_by_rule(&file.path) {
+    let found = match (s.place_mode, s.organize_mode) {
+        (PlaceMode::Classify, _) => state.classifier().and_then(|c| c.classify(&file.path)),
+        (PlaceMode::Auto, OrganizeMode::Ask) => state
+            .classifier()
+            .and_then(|c| c.by_rule(&file.path))
+            .map(|(rule, t)| (Reason::Rule { rule }, t)),
+        _ => None,
+    };
+    // 옮기지 못하면(파일이 열려 있는 등) 아래 원래 방식대로 묻거나 모은다.
+    if let Some((reason, target)) = found {
+        if let Ok((move_id, moved)) = state.put_to(&file.path, &reason, &target) {
             state.with_auto(|list| {
                 list.push(AutoMoved {
                     move_id,
@@ -185,7 +201,7 @@ pub fn handle_new_file(app: &AppHandle, file: NewFile) {
                         .parent()
                         .map(|p| p.to_string_lossy().into_owned())
                         .unwrap_or_default(),
-                    rule,
+                    reason,
                 })
             });
             let _ = app.emit(EVENT_INBOX_CHANGED, ());
@@ -194,7 +210,13 @@ pub fn handle_new_file(app: &AppHandle, file: NewFile) {
             return;
         }
     }
-    match s.organize_mode {
+    // 자동 분류 중에는 나누지 못한 파일을 묻지 않고 정리함에 모은다.
+    let organize = if s.place_mode == PlaceMode::Classify {
+        OrganizeMode::Manual
+    } else {
+        s.organize_mode
+    };
+    match organize {
         OrganizeMode::Manual => {
             let _ = state.with_db(|conn| {
                 inbox::add(conn, &file.path, &file.source_dir, inbox::Reason::Collected)
@@ -547,7 +569,7 @@ pub fn popup_state(state: State<'_, AppState>) -> PopupState {
         state.with_pending(|q| (q.front().cloned(), q.len().saturating_sub(1)));
     let suggestion = current
         .as_ref()
-        .and_then(|c| state.suggest(Path::new(&c.path)))
+        .and_then(|c| state.classifier()?.suggest(Path::new(&c.path)))
         .map(Suggestion::new);
     PopupState {
         current,
@@ -569,8 +591,8 @@ pub struct PutResult {
     pub move_id: i64,
     pub moved_path: String,
     pub dest_dir: String,
-    /// 추천(규칙)대로 넣었으면 그 규칙
-    pub rule: Option<Rule>,
+    /// 추천 위치에 넣었으면 그 까닭(규칙이면 규칙 번호도 기록)
+    pub followed: Option<Reason>,
     /// 같은 규칙에서 같은 다른 폴더를 세 번 연속 골랐으면: "규칙을 바꿀까요?"
     pub change: Option<RuleChange>,
     /// 그 밖에는 "다음에도 여기에?" 규칙 만들기 카드
@@ -587,7 +609,7 @@ pub struct RuleChange {
 }
 
 /// 파일을 폴더에 넣는다(팝업). `new_name`을 주면 그 이름으로 바꿔 넣는다. 이동은 기록에 남는다.
-/// 추천 위치에 넣으면 규칙 번호도 남기고, 연도·학기 폴더가 없으면 만든다.
+/// 추천 위치에 넣으면 그 폴더가 없을 때 만들고, 규칙이면 규칙 번호도 남긴다.
 #[tauri::command]
 pub fn put_file(
     app: AppHandle,
@@ -604,31 +626,39 @@ pub fn put_file(
         .unwrap_or_default();
     let s = state.with_db(settings::load)?;
 
-    let mut used: Option<Rule> = None;
+    let mut used: Option<Reason> = None;
     let mut change: Option<RuleChange> = None;
-    if let Some((rule, target)) = state.suggest(&src) {
+    if let Some((reason, target)) = state.classifier().and_then(|c| c.suggest(&src)) {
         if rules::same_path(&dest, &target.dir) {
             rules::ensure_target(&target, &state.root()?)?;
-            used = Some(rule);
-        } else if state
-            .with_db(|conn| rules::note_choice(conn, rule.id, &dest, &target.dir).map_err(db_err))
-            .unwrap_or(false)
-        {
-            change = Some(RuleChange {
-                rule,
-                old_dir: target.dir.to_string_lossy().into_owned(),
-                new_dir: dest_dir.clone(),
-            });
+            used = Some(reason);
+        } else if let Reason::Rule { rule } = reason {
+            let ask = state
+                .with_db(|conn| {
+                    rules::note_choice(conn, rule.id, &dest, &target.dir).map_err(db_err)
+                })
+                .unwrap_or(false);
+            if ask {
+                change = Some(RuleChange {
+                    rule,
+                    old_dir: target.dir.to_string_lossy().into_owned(),
+                    new_dir: dest_dir.clone(),
+                });
+            }
         }
     }
+    let used_rule = match &used {
+        Some(Reason::Rule { rule }) => Some(rule.id),
+        _ => None,
+    };
 
     let moved = mover::move_into(&src, &dest, new_name.as_deref())?;
     let move_id = state.with_db(|conn| {
         inbox::remove(conn, &src).map_err(db_err)?;
-        if let Some(r) = &used {
-            let _ = rules::reset_misses(conn, r.id);
+        if let Some(r) = used_rule {
+            let _ = rules::reset_misses(conn, r);
         }
-        history::record_with_rule(conn, &src, &moved, used.as_ref().map(|r| r.id)).map_err(db_err)
+        history::record_with_rule(conn, &src, &moved, used_rule).map_err(db_err)
     })?;
     state.with_pending(|q| q.retain(|p| p.path != path));
     let _ = app.emit(EVENT_INBOX_CHANGED, ());
@@ -647,36 +677,121 @@ pub fn put_file(
         move_id,
         moved_path: moved.to_string_lossy().into_owned(),
         dest_dir,
-        rule: used,
+        followed: used,
         change,
         draft,
     })
 }
 
-/// 추천 위치에 넣는다(정리함의 [넣기]·[추천대로 모두]). 파일마다 결과를 돌려준다.
+/// 정리함 파일 여러 개를 분류기로 정한 폴더에 넣는다(`by_type`이면 파일 형식까지).
+fn put_classified(state: &AppState, paths: Vec<String>, by_type: bool) -> Vec<PutOutcome> {
+    let classifier = state.classifier();
+    paths
+        .into_iter()
+        .map(|path| {
+            let src = PathBuf::from(&path);
+            let found = classifier.as_ref().and_then(|c| {
+                if by_type {
+                    c.classify(&src)
+                } else {
+                    c.suggest(&src)
+                }
+            });
+            let result = match found {
+                Some((reason, target)) => state.put_to(&src, &reason, &target).map(|(id, _)| id),
+                None => Err("이름이나 형식으로 넣을 곳을 정하지 못했어요.".into()),
+            };
+            match result {
+                Ok(id) => PutOutcome {
+                    path,
+                    move_id: Some(id),
+                    error: None,
+                },
+                Err(e) => PutOutcome {
+                    path,
+                    move_id: None,
+                    error: Some(e),
+                },
+            }
+        })
+        .collect()
+}
+
+/// 추천 위치에 넣는다(정리함 줄의 [넣기]). 파일마다 결과를 돌려준다.
 #[tauri::command]
 pub fn put_suggested(
     app: AppHandle,
     state: State<'_, AppState>,
     paths: Vec<String>,
 ) -> Vec<PutOutcome> {
-    let outcomes = paths
-        .into_iter()
-        .map(|path| match state.put_by_rule(Path::new(&path)) {
-            Ok((id, _, _)) => PutOutcome {
-                path,
-                move_id: Some(id),
-                error: None,
-            },
-            Err(e) => PutOutcome {
-                path,
-                move_id: None,
-                error: Some(e),
-            },
-        })
-        .collect();
+    let outcomes = put_classified(&state, paths, false);
     let _ = app.emit(EVENT_INBOX_CHANGED, ());
     outcomes
+}
+
+/// 자동 분류 미리보기: 파일마다 넣을 곳(모르면 None → 정리함에 남음).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClassifyPlan {
+    pub path: String,
+    pub name: String,
+    pub target: Option<Suggestion>,
+}
+
+#[tauri::command]
+pub fn classify_preview(state: State<'_, AppState>, paths: Vec<String>) -> Vec<ClassifyPlan> {
+    let classifier = state.classifier();
+    paths
+        .into_iter()
+        .map(|path| {
+            let p = PathBuf::from(&path);
+            ClassifyPlan {
+                name: p
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+                target: classifier
+                    .as_ref()
+                    .and_then(|c| c.classify(&p))
+                    .map(Suggestion::new),
+                path,
+            }
+        })
+        .collect()
+}
+
+/// 자동 분류 실행(정리함 [자동 분류] → 미리보기 → 확인). 나누지 못한 파일은 정리함에 남는다.
+#[tauri::command]
+pub fn classify_files(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    paths: Vec<String>,
+) -> Vec<PutOutcome> {
+    let outcomes = put_classified(&state, paths, true);
+    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    outcomes
+}
+
+/// 자동 분류 단어(정리 규칙 화면)
+#[tauri::command]
+pub fn get_auto_words(state: State<'_, AppState>) -> Result<Vec<WordGroup>, String> {
+    state.with_db(|conn| Ok(classify::load_words(conn)))
+}
+
+/// 자동 분류 단어 저장. `groups`가 없으면 기본 단어로 되돌린다.
+#[tauri::command]
+pub fn set_auto_words(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    groups: Option<Vec<WordGroup>>,
+) -> Result<Vec<WordGroup>, String> {
+    let groups = match groups {
+        Some(g) => classify::normalize_words(g)?,
+        None => classify::default_words(),
+    };
+    state.with_db(|conn| classify::save_words(conn, &groups))?;
+    let _ = app.emit(EVENT_INBOX_CHANGED, ());
+    Ok(groups)
 }
 
 /// 이동 기록 하나를 되돌린다: 원래 폴더·원래 이름으로. 돌아온 파일과 그 폴더를 돌려준다.
@@ -885,10 +1000,14 @@ pub struct InboxEntry {
 #[tauri::command]
 pub fn list_inbox(state: State<'_, AppState>) -> Result<Vec<InboxEntry>, String> {
     let items = state.with_db(|conn| inbox::list(conn).map_err(db_err))?;
+    let classifier = state.classifier();
     Ok(items
         .into_iter()
         .map(|item| InboxEntry {
-            suggestion: state.suggest(Path::new(&item.path)).map(Suggestion::new),
+            suggestion: classifier
+                .as_ref()
+                .and_then(|c| c.suggest(Path::new(&item.path)))
+                .map(Suggestion::new),
             item,
         })
         .collect())
