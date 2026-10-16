@@ -52,6 +52,25 @@ pub fn add(
     Ok(())
 }
 
+/// 이미 정리함에 있으면 그대로 둔다(지금 있는 파일 가져오기용). 새로 넣었으면 true.
+pub fn add_if_absent(
+    conn: &Connection,
+    path: &Path,
+    source_dir: &Path,
+    reason: Reason,
+) -> rusqlite::Result<bool> {
+    let changed = conn.execute(
+        "INSERT OR IGNORE INTO inbox (path, source_dir, added_at, reason) VALUES (?1, ?2, ?3, ?4)",
+        params![
+            path.to_string_lossy(),
+            source_dir.to_string_lossy(),
+            crate::db::now_ms(),
+            reason.as_str()
+        ],
+    )?;
+    Ok(changed > 0)
+}
+
 pub fn remove(conn: &Connection, path: &Path) -> rusqlite::Result<()> {
     conn.execute(
         "DELETE FROM inbox WHERE path = ?1",
@@ -114,6 +133,11 @@ mod tests {
         assert_eq!(items.len(), 2);
         assert_eq!(items.iter().find(|i| i.name == "a.pdf").unwrap().size, 3);
 
+        // 가져오기는 이미 있는 줄을 건드리지 않는다
+        assert!(!add_if_absent(&conn, &a, dir.path(), Reason::Collected).unwrap());
+
+        remove(&conn, &a).unwrap();
+        assert!(add_if_absent(&conn, &a, dir.path(), Reason::Collected).unwrap());
         remove(&conn, &a).unwrap();
         fs::remove_file(&b).unwrap(); // 사용자가 직접 지운 경우(테스트용 임시 파일)
         assert!(list(&conn).unwrap().is_empty());

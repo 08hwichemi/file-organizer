@@ -120,3 +120,16 @@
   margin: 6px 0 0;
   color: var(--color-text-sub);
 }
+
+.sidebar__label {
+  flex: 1;
+}
+
+.sidebar__badge {
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: var(--color-accent);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+}

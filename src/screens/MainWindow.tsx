@@ -1,7 +1,8 @@
 import { Inbox, Settings as SettingsIcon } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import FolderIcon from "../components/FolderIcon";
 import UpdateBanner from "../components/UpdateBanner";
+import { listInbox, onBackendEvent } from "../lib/backend";
 import { friendlyName } from "../lib/paths";
 import { useAppStore, type Page } from "../store/useAppStore";
 import { startUpdateChecks } from "../store/useUpdateStore";
@@ -21,7 +22,16 @@ export default function MainWindow() {
   const settings = useAppStore((s) => s.settings);
   const known = useAppStore((s) => s.setupInfo);
 
+  const [inboxCount, setInboxCount] = useState(0);
+
   useEffect(() => startUpdateChecks(), []);
+
+  // 왼쪽 메뉴 "정리함" 옆 개수
+  useEffect(() => {
+    const load = () => void listInbox().then((l) => setInboxCount(l.length)).catch(() => {});
+    load();
+    return onBackendEvent("inbox-changed", load);
+  }, []);
 
   const watching = settings?.watchFolders.map((w) => friendlyName(w, known)).join(" · ") ?? "";
 
@@ -43,7 +53,8 @@ export default function MainWindow() {
             onClick={() => goTo(p)}
           >
             <Icon size={18} aria-hidden="true" />
-            <span>{label}</span>
+            <span className="sidebar__label">{label}</span>
+            {p === "inbox" && inboxCount > 0 && <span className="sidebar__badge">{inboxCount}</span>}
           </button>
         ))}
         <div className="sidebar__spacer" />
