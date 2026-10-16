@@ -1,10 +1,8 @@
 .ifiles {
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
   /* 목록이 길면 칸 안에서 내려가고, 위쪽 탭·선택 줄은 그대로 보이게 */
-  position: sticky;
-  top: 16px;
-  max-height: calc(100vh - 32px);
   display: flex;
   flex-direction: column;
   border: 1px solid var(--color-line);
@@ -12,17 +10,20 @@
   background: var(--color-surface);
 }
 
+/* 칸이 좁으면 탭이 한 줄을 다 쓰고 [자동 분류]는 아래 줄 오른쪽으로(탭이 세로로 쌓이지 않게) */
 .ifiles__head {
   flex-shrink: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 8px;
   padding: 12px 14px;
   border-bottom: 1px solid var(--color-line-soft);
 }
 
 .ifiles__tabs {
+  flex: 1 1 220px;
   display: flex;
   flex-wrap: wrap;
   gap: 2px;

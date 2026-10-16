@@ -1,8 +1,18 @@
 /* 파일 칸과 폴더 칸은 창 크기와 상관없이 항상 나란히(폴더 칸이 아래로 밀려 안 보이지 않게). */
+/* 정리함은 창 높이에 맞춰 고정: 화면 전체는 내려가지 않고, 파일 목록·폴더만 각 칸 안에서 내려간다.
+   (창이 아주 낮으면 그때만 화면 전체가 내려간다) */
+.page--fill {
+  flex: 1;
+  min-height: 0;
+}
+
 .inbox {
+  flex: 1;
+  min-height: 360px;
   display: grid;
   grid-template-columns: clamp(240px, 38%, 400px) minmax(0, 1fr);
-  align-items: start;
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
   gap: 18px;
 }
 

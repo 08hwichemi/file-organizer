@@ -7,13 +7,19 @@
   background: var(--color-surface);
 }
 
-/* 정리함: 목록이 길어 내려도 폴더 칸은 화면 위에 붙어 있게(끌어다 놓을 곳이 사라지지 않게).
-   폴더가 많으면 칸 안에서 따로 내려간다. */
-.ifold--sticky {
-  position: sticky;
-  top: 16px;
-  max-height: calc(100vh - 32px);
+/* 정리함: 칸 높이가 창에 맞춰 고정되고, 폴더가 많으면 칸 안에서 따로 내려간다
+   (화면 전체가 내려가지 않으니 끌어다 놓을 곳이 사라지거나 두 칸이 어긋나지 않는다). */
+.ifold--fill {
+  min-height: 0;
   overflow-y: auto;
+}
+
+/* 칸 안을 내려도 알림(되돌리기)은 칸 아래에 보이게 */
+.ifold--fill .ifold__toast {
+  position: sticky;
+  bottom: 16px;
+  margin-top: auto;
+  z-index: 2;
 }
 
 .ifold__bar {
