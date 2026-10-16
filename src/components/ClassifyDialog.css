@@ -1,27 +1,64 @@
+/* 넓은 창: 왼쪽 파일 목록은 따로 내려가고, 오른쪽 폴더 칸은 제자리(끌어다 놓기) */
 .dialog--classify {
-  max-width: 600px;
-  height: min(720px, calc(100% - 32px));
+  width: 94vw;
+  max-width: 1240px;
+  height: min(860px, calc(100% - 32px));
 }
 
 .dialog--classify .dialog__body {
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .classify {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(300px, 42%, 520px);
+  gap: 16px;
+}
+
+.classify__list {
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding-bottom: 4px;
+  padding: 2px 4px 8px 0;
+  overflow-y: auto;
+}
+
+.classify__side {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.classify__side-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-sub);
+}
+
+.classify__side .ifold {
+  flex: 1;
+  min-height: 0;
 }
 
 .classify__group {
+  flex-shrink: 0;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
+  transition: border-color 0.1s, background 0.1s;
 }
 
-.classify__group--unknown {
+.classify__group--left {
   border-style: dashed;
   background: var(--color-surface-sub);
+}
+
+.classify__group--over {
+  border-color: var(--color-accent);
+  background: var(--color-accent-faint);
 }
 
 .classify__head {
@@ -82,12 +119,31 @@
 .classify__file {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
   min-height: 36px;
-  padding: 0 14px;
+  padding: 0 10px 0 6px;
   font-size: 13px;
-  cursor: pointer;
+}
+
+.classify__file:hover {
+  background: var(--color-surface-sub);
+}
+
+.classify__file--drag {
+  opacity: 0.4;
+}
+
+.classify__grip {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--color-text-sub);
+  cursor: grab;
+  touch-action: none;
+}
+
+.classify__name {
+  cursor: grab;
 }
 
 .classify__file--off {
@@ -120,4 +176,66 @@
   color: var(--color-text-sub);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.classify__why--moved {
+  color: var(--color-accent-hover);
+  font-weight: 600;
+}
+
+.classify__undo {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-sub);
+}
+
+.classify__undo:hover {
+  background: var(--color-line-soft);
+}
+
+.classify__spacer {
+  flex: 1;
+}
+
+.classify__reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.classify__drag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 320px;
+  padding: 7px 12px 7px 7px;
+  border: 1px solid var(--color-accent-line);
+  border-radius: 9px;
+  background: var(--color-surface);
+  box-shadow: 0 8px 20px rgba(23, 25, 28, 0.16);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: grabbing;
+}
+
+.classify__drag span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 창이 좁으면 폴더 칸을 아래로(목록·폴더 모두 칸 안에서 내려감) */
+@media (max-width: 760px) {
+  .classify {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  }
 }
