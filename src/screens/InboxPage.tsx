@@ -250,7 +250,7 @@ export default function InboxPage() {
   }, [dragging, nameOf]);
 
   return (
-    <div className="page">
+    <div className="page page--fill">
       <div>
         <h1 className="page__title">정리함</h1>
         <p className="page__lead">
@@ -287,7 +287,7 @@ export default function InboxPage() {
           {root && (
             <FolderPane
               key={root}
-              sticky
+              fill
               root={root}
               separator={sep}
               selectedCount={selected.size}
