@@ -241,6 +241,7 @@ export default function InboxPage() {
           {root && (
             <FolderPane
               key={root}
+              sticky
               root={root}
               separator={sep}
               selectedCount={selected.size}

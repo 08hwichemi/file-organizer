@@ -32,6 +32,8 @@ interface Props {
   busy?: boolean;
   /** 이름표(화면 읽기 프로그램용) */
   label?: string;
+  /** 정리함처럼 목록 옆에서 화면 위에 붙어 있을지 */
+  sticky?: boolean;
 }
 
 /** 놓을 곳을 알려 주는 데이터(dnd-kit droppable의 data) */
@@ -113,7 +115,7 @@ export default function FolderPane(props: Props) {
   };
 
   return (
-    <section className="ifold" aria-label={props.label ?? "정리 폴더"}>
+    <section className={`ifold${props.sticky ? " ifold--sticky" : ""}`} aria-label={props.label ?? "정리 폴더"}>
       <div className="ifold__bar">
         <PathBar trail={trail} onGo={(i) => setTrail((t) => t.slice(0, i + 1))}>
           {selectedCount > 0 && trail.length > 1 && (

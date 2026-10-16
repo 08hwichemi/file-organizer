@@ -42,13 +42,14 @@ export default function MainWindow() {
           <span className="sidebar__logo" aria-hidden="true">
             <FolderIcon size={18} />
           </span>
-          <span>파일 정리 도우미</span>
+          <span className="sidebar__brand-text">파일 정리 도우미</span>
         </div>
         {MENU.map(({ page: p, label, Icon }) => (
           <button
             key={p}
             type="button"
             className={`sidebar__item${page === p ? " sidebar__item--on" : ""}`}
+            title={label}
             aria-current={page === p ? "page" : undefined}
             onClick={() => goTo(p)}
           >
@@ -58,7 +59,7 @@ export default function MainWindow() {
           </button>
         ))}
         <div className="sidebar__spacer" />
-        <div className="sidebar__status">
+        <div className="sidebar__status" title={`지켜볼 폴더: ${watching}`}>
           <div className="sidebar__status-title">
             <span className="sidebar__dot" aria-hidden="true" />
             <span>{settings?.organizeMode === "manual" ? "모아 두고 나중에 정리" : "바로 물어보기"}</span>
