@@ -2,7 +2,8 @@ import { create } from "zustand";
 import * as backend from "../lib/backend";
 import type { OrganizeMode, PlaceMode, Settings, SetupInfo, SetupRequest, UserKind } from "../lib/types";
 
-type Status = "loading" | "setup" | "ready" | "error";
+/** redo = 설정에서 "처음 설정 다시 하기"를 연 상태(취소하면 ready로) */
+type Status = "loading" | "setup" | "redo" | "ready" | "error";
 export type Page = "inbox" | "search" | "rename" | "rules" | "settings";
 
 interface AppState {
@@ -17,6 +18,8 @@ interface AppState {
 
   load: () => Promise<void>;
   finishSetup: (request: SetupRequest) => Promise<void>;
+  /** 처음 설정 화면을 지금 설정으로 채워 다시 연다 / 닫는다 */
+  redoSetup: (open: boolean) => void;
   setOrganizeMode: (mode: OrganizeMode) => Promise<void>;
   setWatchFolders: (folders: string[]) => Promise<void>;
   setPlaceMode: (mode: PlaceMode) => Promise<void>;
@@ -61,6 +64,10 @@ export const useAppStore = create<AppState>((set) => ({
   async finishSetup(request) {
     const settings = await backend.completeSetup(request);
     set({ settings, status: "ready", page: "inbox" });
+  },
+
+  redoSetup(open) {
+    set({ status: open ? "redo" : "ready" });
   },
 
   async setOrganizeMode(mode) {

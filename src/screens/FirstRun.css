@@ -139,3 +139,17 @@
   font-weight: 600;
   color: var(--color-text-sub);
 }
+
+/* 처음 설정 다시 하기: 머리글 오른쪽 [취소] */
+.setup__head .setup__count {
+  margin-left: auto;
+}
+
+.setup__cancel {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 36px;
+  padding: 0 10px;
+  white-space: nowrap;
+}

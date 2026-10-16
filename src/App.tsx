@@ -26,5 +26,5 @@ export default function App() {
     );
   }
   if (kind === "popup") return <Popup />;
-  return status === "setup" ? <FirstRun /> : <MainWindow />;
+  return status === "setup" || status === "redo" ? <FirstRun /> : <MainWindow />;
 }

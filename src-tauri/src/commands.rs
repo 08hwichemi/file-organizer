@@ -343,10 +343,18 @@ pub fn complete_setup(
     state: State<'_, AppState>,
     request: SetupRequest,
 ) -> Result<Settings, String> {
-    let new_settings = setup::run(&request)?;
-    state.with_db(|conn| settings::save(conn, &new_settings))?;
+    // 처음 설정과 "처음 설정 다시 하기" 모두: 지금 설정 위에 고른 것만 바꾼다(규칙·단어·기록은 그대로)
+    let new_settings = state.with_db(|conn| {
+        let s = setup::run_over(&request, settings::load(conn)?)?;
+        settings::save(conn, &s)?;
+        Ok(s)
+    })?;
     // 자동 실행은 기본 켬(SPEC 7장). 실패해도 설정은 끝낸다(설정 화면에서 다시 켤 수 있음).
     let _ = apply_autostart(&app, new_settings.autostart);
+    // 바뀐 지켜볼 폴더·정리 폴더로 바로 감시·색인(다시 켜지 않아도)
+    state.apply_watch_folders(&new_settings);
+    crate::finder::refresh_index(&app, false);
+    notify_inbox(&app);
     Ok(new_settings)
 }
 

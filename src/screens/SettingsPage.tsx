@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Briefcase, Check, Lightbulb, School, Wand2, Zap } from "lucide-react";
+import { Briefcase, Check, Lightbulb, RotateCcw, School, Wand2, Zap } from "lucide-react";
 import ChoiceCard from "../components/ChoiceCard";
 import Dialog from "../components/Dialog";
 import FavoriteSettings from "../components/FavoriteSettings";
@@ -36,6 +36,7 @@ const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 // 설정(SPEC 3-3). 바꾸면 바로 저장한다.
 export default function SettingsPage() {
   const settings = useAppStore((s) => s.settings);
+  const redoSetup = useAppStore((s) => s.redoSetup);
   const saveMode = useAppStore((s) => s.setOrganizeMode);
   const saveWatch = useAppStore((s) => s.setWatchFolders);
   const savePlace = useAppStore((s) => s.setPlaceMode);
@@ -398,6 +399,18 @@ export default function SettingsPage() {
 
       <Section title="업데이트" description="새 버전이 나오면 프로그램이 알아서 알려 드려요(켤 때와 하루에 한 번 확인).">
         <UpdateRow version={version} />
+      </Section>
+
+      <Section
+        title="처음 설정 다시 하기"
+        description="처음 켰을 때 고른 것(쓰는 곳, 정리 폴더, 예시 폴더, 지켜볼 폴더, 새 파일 알림 방식)을 한 번에 다시 골라요. 지금 설정이 골라진 채로 열리고, 정리 규칙·자동 분류 단어·기록과 폴더·파일은 그대로 둬요."
+      >
+        <div className="button-row">
+          <button type="button" className="btn" onClick={() => redoSetup(true)}>
+            <RotateCcw size={16} aria-hidden="true" />
+            처음 설정 다시 하기
+          </button>
+        </div>
       </Section>
 
       <Section title="정보">

@@ -617,20 +617,18 @@ export const mockBackend = {
     const root =
       req.preset === "existing" ? req.baseDir : `${req.baseDir}${SEP}${setupInfo.rootFolderName}`;
     if (req.watchFolders.includes(root)) return fail("정리 폴더와 지켜볼 폴더는 서로 달라야 해요.");
-    if (!trees.has(root)) {
-      const build = (specs: { name: string; children: unknown[] }[]): Record<string, MockFolder> =>
-        Object.fromEntries(
-          specs.map((s) => [s.name.trim(), folder(0, build(s.children as { name: string; children: unknown[] }[]))]),
-        );
-      trees.set(
-        root,
-        req.preset === "empty"
-          ? folder(0)
-          : req.structure
-            ? folder(0, build(req.structure))
-            : teacherTree(),
-      );
-    }
+    // 없는 폴더만 더한다(있던 폴더·파일은 그대로) — setup.rs run_over와 같게
+    type Spec = { name: string; children: Spec[] };
+    const merge = (into: MockFolder, specs: Spec[]) => {
+      for (const sp of specs) {
+        const name = sp.name.trim();
+        into.children[name] ??= folder(0);
+        merge(into.children[name], sp.children);
+      }
+    };
+    if (!trees.has(root)) trees.set(root, req.preset === "teacher" && !req.structure ? teacherTree() : folder(0));
+    if (req.preset !== "empty" && req.structure) merge(trees.get(root)!, req.structure as Spec[]);
+    const kindChanged = !settings.setupDone || settings.userKind !== req.userKind;
     settings = {
       ...settings,
       setupDone: true,
@@ -638,9 +636,12 @@ export const mockBackend = {
       watchFolders: req.watchFolders,
       organizeMode: req.organizeMode,
       userKind: req.userKind,
-      firstTermMonth: req.userKind === "general" ? 1 : 3,
-      secondTermMonth: req.userKind === "general" ? 7 : 9,
+      pinnedFavorites: settings.rootFolder === root ? settings.pinnedFavorites : [],
+      ...(kindChanged
+        ? { firstTermMonth: req.userKind === "general" ? 1 : 3, secondTermMonth: req.userKind === "general" ? 7 : 9 }
+        : {}),
     };
+    mockEvents.emit("inbox-changed");
     return delay({ ...settings });
   },
 
