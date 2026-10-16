@@ -23,6 +23,10 @@ import type {
   Suggestion,
   WordGroup,
   ClassifyPlan,
+  EverythingState,
+  SearchHit,
+  SearchInfo,
+  SearchResponse,
   SetupInfo,
   SetupRequest,
   TrashResult,
@@ -94,6 +98,7 @@ let settings: Settings = startReady
       autostart: true,
       waitSeconds: params.get("wait") ? Number(params.get("wait")) : 0,
       pinnedFavorites: [],
+      searchShortcut: "Alt+Space",
     }
   : {
       setupDone: false,
@@ -106,6 +111,7 @@ let settings: Settings = startReady
       autostart: true,
       waitSeconds: params.get("wait") ? Number(params.get("wait")) : 0,
       pinnedFavorites: [],
+      searchShortcut: "Alt+Space",
     };
 
 const trees = new Map<string, MockFolder>(startReady ? [[readyRoot, teacherTree()]] : []);
@@ -483,6 +489,37 @@ function checkRule(input: RuleInput): RuleInput | string {
 }
 
 let autoMoved: AutoMoved[] = [];
+
+/** 검색용 가짜 파일: 가짜 폴더마다 파일 이름을 만들어 둔다 */
+function mockSearchFiles(): SearchHit[] {
+  const root = settings.rootFolder;
+  const tree = root ? trees.get(root) : null;
+  if (!root || !tree) return [];
+  const samples = ["채점기준", "안내", "결과", "계획", "명단"];
+  const out: SearchHit[] = [];
+  const walk = (path: string, node: MockFolder, names: string[]) => {
+    for (let i = 0; i < Math.min(node.files, 5); i++) {
+      const year = names.find((n) => /^20\d\d$/.test(n)) ?? (i % 2 ? "2026" : "2027");
+      const term = names.find((n) => /^[12]학기$/.test(n)) ?? `${(i % 2) + 1}학기`;
+      const klass = i % 3 === 0 ? "_3-2" : i % 3 === 1 ? "_1-4" : "";
+      const name = `${year}_${term}${klass}_${names[names.length - 1] ?? "자료"}_${samples[i % samples.length]}.${i % 2 ? "pdf" : "hwp"}`;
+      out.push({
+        path: path + SEP + name,
+        name,
+        dir: path,
+        size: 30_000 + i * 1000,
+        modified: Date.now() - (out.length + 1) * 86_400_000,
+        year: Number(year),
+        term: Number(term[0]),
+        class: klass ? klass.slice(1) : null,
+        rule: names.includes("수행평가") ? "수행평가" : null,
+      });
+    }
+    for (const [n, child] of Object.entries(node.children)) walk(path + SEP + n, child, [...names, n]);
+  };
+  walk(root, tree, []);
+  return out;
+}
 let paused = false;
 
 let pickCount = 0;
@@ -826,6 +863,39 @@ export const mockBackend = {
     }
     mockEvents.emit("inbox-changed");
     return delay(result);
+  },
+
+  // ---------- 파일 검색(가짜 폴더의 파일 이름을 만들어 찾는다) ----------
+  searchFiles(query: string) {
+    const everything: EverythingState = params.get("everything") === "1" ? "ready" : "notRunning";
+    const source = everything === "ready" ? ("everything" as const) : ("index" as const);
+    const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+    if (terms.length === 0) return delay<SearchResponse>({ source, everything, indexing: false, hits: [] });
+    const hits = mockSearchFiles()
+      .filter((h) => terms.every((t) => h.path.toLowerCase().includes(t)))
+      .sort((a, b) => b.modified - a.modified)
+      .slice(0, 200);
+    return delay<SearchResponse>({ source, everything, indexing: false, hits });
+  },
+
+  showSearch() {
+    if (params.get("window") !== "search") window.open("/?window=search", "_blank", "width=680,height=500");
+    return delay(undefined);
+  },
+
+  hideSearch: () => delay(undefined),
+  openPath: (path: string) => (path.includes("없는") ? fail("파일을 찾을 수 없어요.") : delay(undefined)),
+  revealPath: (_path: string) => delay(undefined),
+
+  searchInfo: () =>
+    delay<SearchInfo>({
+      everything: params.get("everything") === "1" ? "ready" : "notRunning",
+      shortcutError: null,
+    }),
+
+  setSearchShortcut(shortcut: string) {
+    settings = { ...settings, searchShortcut: shortcut };
+    return delay({ ...settings });
   },
 
   getStatus: () => delay({ paused }),

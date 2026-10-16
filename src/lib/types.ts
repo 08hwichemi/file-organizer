@@ -30,6 +30,38 @@ export interface Settings {
   waitSeconds: number;
   /** 자주 쓰는 폴더 1~6 직접 고른 것(null = 자동) */
   pinnedFavorites: (string | null)[];
+  /** 파일 검색창 단축키("" = 쓰지 않음) */
+  searchShortcut: string;
+}
+
+/** Everything: ready = PC 전체 검색, notRunning = 설치·실행 안 됨, noDll = SDK 빠짐, unsupported = Windows 아님 */
+export type EverythingState = "ready" | "notRunning" | "noDll" | "unsupported";
+
+/** 파일 검색 결과 하나 */
+export interface SearchHit {
+  path: string;
+  name: string;
+  dir: string;
+  size: number;
+  modified: number;
+  year: number | null;
+  term: number | null;
+  class: string | null;
+  /** 규칙으로 넣은 파일이면 그 규칙의 단어 */
+  rule: string | null;
+}
+
+export interface SearchResponse {
+  /** everything = PC 전체, index = 정리 폴더·지켜볼 폴더 */
+  source: "everything" | "index";
+  everything: EverythingState;
+  indexing: boolean;
+  hits: SearchHit[];
+}
+
+export interface SearchInfo {
+  everything: EverythingState;
+  shortcutError: string | null;
 }
 
 /** 프로그램 상태(트레이와 함께 바뀜) */

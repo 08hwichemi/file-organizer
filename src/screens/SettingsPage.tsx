@@ -6,13 +6,23 @@ import FavoriteSettings from "../components/FavoriteSettings";
 import FolderPane, { type Toast } from "../components/FolderPane";
 import ModeChoice from "../components/ModeChoice";
 import WatchFolderEditor from "../components/WatchFolderEditor";
-import { errorMessage, getAppInfo, pickFolder } from "../lib/backend";
-import type { OrganizeMode, PlaceMode } from "../lib/types";
+import { errorMessage, getAppInfo, getSearchInfo, pickFolder, showSearch } from "../lib/backend";
+import type { EverythingState, OrganizeMode, PlaceMode, SearchInfo } from "../lib/types";
 import { useAppStore } from "../store/useAppStore";
 import { useUpdateStore } from "../store/useUpdateStore";
 import "./SettingsPage.css";
 
-type SavedKey = "mode" | "watch" | "place" | "term" | "wait" | "root" | "fav" | "autostart";
+type SavedKey = "mode" | "watch" | "place" | "term" | "wait" | "root" | "fav" | "autostart" | "search";
+
+/** 검색 단축키로 고를 수 있는 것("" = 쓰지 않음) */
+const SHORTCUTS = ["Alt+Space", "Ctrl+Alt+F", "Ctrl+Shift+Space", ""];
+
+const EVERYTHING_TEXT: Record<EverythingState, string> = {
+  ready: "Everything이 켜져 있어요. PC 전체에서 찾아요.",
+  notRunning: "Everything이 꺼져 있거나 설치되어 있지 않아요. 정리 폴더와 지켜볼 폴더에서만 찾아요.",
+  noDll: "Everything 연결 파일이 설치에서 빠졌어요. 정리 폴더와 지켜볼 폴더에서만 찾아요.",
+  unsupported: "이 환경에서는 Everything을 쓸 수 없어요. 정리 폴더와 지켜볼 폴더에서만 찾아요.",
+};
 
 /** "응답이 없으면 n초 뒤" 고를 수 있는 값(0 = 끔) */
 const WAIT_CHOICES = [0, 5, 10, 20, 30];
@@ -31,6 +41,8 @@ export default function SettingsPage() {
   const savePins = useAppStore((s) => s.setPinnedFavorites);
   const saveRoot = useAppStore((s) => s.setRootFolder);
   const [newRoot, setNewRoot] = useState<string | null>(null);
+  const saveShortcut = useAppStore((s) => s.setSearchShortcut);
+  const [searchInfo, setSearchInfo] = useState<SearchInfo | null>(null);
   const known = useAppStore((s) => s.setupInfo);
   const [watchDraft, setWatchDraft] = useState<string[]>(settings?.watchFolders ?? []);
   const [saved, setSaved] = useState<SavedKey | null>(null);
@@ -40,6 +52,9 @@ export default function SettingsPage() {
   const savedTimer = useRef<number>();
 
   useEffect(() => {
+    getSearchInfo()
+      .then(setSearchInfo)
+      .catch(() => setSearchInfo(null));
     getAppInfo()
       .then((info) => setVersion(info.version))
       .catch(() => setVersion(null));
@@ -278,6 +293,38 @@ export default function SettingsPage() {
           />
         </Section>
       )}
+
+      <Section
+        title="파일 검색"
+        description="단축키를 누르면 어디서든 검색창이 떠요. 왼쪽 메뉴의 ‘파일 검색’이나 트레이 메뉴로도 열 수 있어요."
+        saved={saved === "search"}
+        error={errors.search ?? searchInfo?.shortcutError ?? undefined}
+      >
+        <div className="settings__search button-row">
+          <label className="settings__wait">
+            <span>단축키</span>
+            <select
+              value={settings.searchShortcut}
+              onChange={(e) => void save("search", () => saveShortcut(e.target.value))}
+            >
+              {SHORTCUTS.map((k) => (
+                <option key={k} value={k}>
+                  {k === "" ? "쓰지 않기" : k}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="popup__spacer" />
+          <button type="button" className="btn" onClick={() => void showSearch()}>
+            검색창 열기
+          </button>
+        </div>
+        {searchInfo && (
+          <p className={`settings__note${searchInfo.everything === "ready" ? "" : " settings__note--plain"}`}>
+            {EVERYTHING_TEXT[searchInfo.everything]}
+          </p>
+        )}
+      </Section>
 
       <Section title="자동 실행" saved={saved === "autostart"} error={errors.autostart}>
         <label className="settings__toggle">

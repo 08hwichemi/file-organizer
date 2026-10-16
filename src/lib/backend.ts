@@ -15,6 +15,8 @@ import type {
   PopupState,
   PutOutcome,
   PutResult,
+  SearchInfo,
+  SearchResponse,
   Rule,
   RuleInput,
   RuleView,
@@ -29,18 +31,21 @@ import type {
 
 export const usingMocks = !isTauri();
 
-/** 이 화면이 새 파일 팝업 창인지(브라우저 미리보기에서는 주소 뒤 ?window=popup). */
-export async function isPopupWindow(): Promise<boolean> {
-  if (usingMocks) return new URLSearchParams(window.location.search).get("window") === "popup";
-  const { getCurrentWindow } = await import("@tauri-apps/api/window");
-  return getCurrentWindow().label === "popup";
+/** 이 화면이 어느 창인지: main / popup(새 파일) / search(파일 검색). 브라우저 미리보기에서는 주소 뒤 ?window=… */
+export type WindowKind = "main" | "popup" | "search";
+
+export async function windowKind(): Promise<WindowKind> {
+  const label = usingMocks
+    ? new URLSearchParams(window.location.search).get("window")
+    : (await import("@tauri-apps/api/window")).getCurrentWindow().label;
+  return label === "popup" || label === "search" ? label : "main";
 }
 
 /**
  * Rust가 보내는 알림: popup-changed(팝업 차례 바뀜), inbox-changed(정리함 바뀜),
  * status-changed(일시 정지 등), navigate(트레이에서 고른 화면, 값 = "inbox" 등)
  */
-export type BackendEvent = "popup-changed" | "inbox-changed" | "status-changed" | "navigate";
+export type BackendEvent = "popup-changed" | "inbox-changed" | "status-changed" | "navigate" | "search-opened";
 
 /** 알림을 듣는다. 돌려준 함수를 부르면 그만 듣는다. */
 export function onBackendEvent(name: BackendEvent, handler: (payload: unknown) => void): () => void {
@@ -130,6 +135,44 @@ export function setPinnedFavorites(pins: (string | null)[]): Promise<Settings> {
 export function setRootFolder(path: string): Promise<Settings> {
   if (usingMocks) return mockBackend.setRootFolder(path);
   return invoke("set_root_folder", { path });
+}
+
+/** 파일 검색(Everything이 되면 PC 전체, 아니면 정리 폴더·지켜볼 폴더) */
+export function searchFiles(query: string): Promise<SearchResponse> {
+  if (usingMocks) return mockBackend.searchFiles(query);
+  return invoke("search_files", { query });
+}
+
+export function showSearch(): Promise<void> {
+  if (usingMocks) return mockBackend.showSearch();
+  return invoke("show_search");
+}
+
+export function hideSearch(): Promise<void> {
+  if (usingMocks) return mockBackend.hideSearch();
+  return invoke("hide_search");
+}
+
+/** 파일 열기(연결된 프로그램) */
+export function openPath(path: string): Promise<void> {
+  if (usingMocks) return mockBackend.openPath(path);
+  return invoke("open_path", { path });
+}
+
+/** 파일 위치 열기(탐색기에서 골라 둠) */
+export function revealPath(path: string): Promise<void> {
+  if (usingMocks) return mockBackend.revealPath(path);
+  return invoke("reveal_path", { path });
+}
+
+export function getSearchInfo(): Promise<SearchInfo> {
+  if (usingMocks) return mockBackend.searchInfo();
+  return invoke("search_info");
+}
+
+export function setSearchShortcut(shortcut: string): Promise<Settings> {
+  if (usingMocks) return mockBackend.setSearchShortcut(shortcut);
+  return invoke("set_search_shortcut", { shortcut });
 }
 
 export function listFolders(path: string): Promise<FolderEntry[]> {

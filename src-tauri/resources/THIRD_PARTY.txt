@@ -1,0 +1,27 @@
+파일 정리 도우미가 함께 쓰는 프로그램
+
+Everything SDK (Everything64.dll)
+  만든 곳: voidtools (David Carpenter) — https://www.voidtools.com/
+  파일 검색에서 Everything이 켜져 있으면 PC 전체를 찾을 때 씁니다(공식 SDK, 역분석하지 않음).
+  라이선스: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+(Everything64.dll은 저장소에 넣지 않고, 설치 파일을 만들 때 scripts/fetch-everything-sdk.ps1이
+ voidtools 공식 배포본에서 받아 이 폴더에 넣습니다.)

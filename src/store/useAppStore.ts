@@ -23,6 +23,7 @@ interface AppState {
   setWaitSeconds: (seconds: number) => Promise<void>;
   setPinnedFavorites: (pins: (string | null)[]) => Promise<void>;
   setRootFolder: (path: string) => Promise<void>;
+  setSearchShortcut: (shortcut: string) => Promise<void>;
   goTo: (page: Page) => void;
 }
 
@@ -85,6 +86,10 @@ export const useAppStore = create<AppState>((set) => ({
 
   async setRootFolder(path) {
     set({ settings: await backend.setRootFolder(path) });
+  },
+
+  async setSearchShortcut(shortcut) {
+    set({ settings: await backend.setSearchShortcut(shortcut) });
   },
 
   goTo(page) {

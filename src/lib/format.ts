@@ -61,3 +61,13 @@ export function withRo(word: string): string {
   const final = code % 28;
   return final === 0 || final === 8 ? `${word}로` : `${word}으로`;
 }
+
+/** 날짜: 오늘이면 "오늘 14:05", 올해면 "10월 16일", 그 밖에는 "2025. 3. 2." */
+export function formatDate(ms: number, now = new Date()): string {
+  const d = new Date(ms);
+  if (d.toDateString() === now.toDateString()) {
+    return `오늘 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
+  if (d.getFullYear() === now.getFullYear()) return `${d.getMonth() + 1}월 ${d.getDate()}일`;
+  return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}.`;
+}
