@@ -5,7 +5,7 @@
 
 use crate::commands::AppState;
 use crate::everything::{self, Availability};
-use crate::search::{self, Facets, Index, Root};
+use crate::search::{self, Facets, Index, Root, SortBy};
 use crate::settings::{self, Settings};
 use notify::{EventKind, RecursiveMode, Watcher as _};
 use rusqlite::Connection;
@@ -332,6 +332,12 @@ fn rule_labels(conn: &Connection) -> HashMap<String, String> {
     out
 }
 
+fn name_of(path: &Path) -> String {
+    path.file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
 fn hit(path: PathBuf, size: u64, modified: i64, rules: &HashMap<String, String>) -> SearchHit {
     let p = path.to_string_lossy().into_owned();
     SearchHit {
@@ -353,7 +359,12 @@ fn hit(path: PathBuf, size: u64, modified: i64, rules: &HashMap<String, String>)
 
 /// 찾기. 오래 걸릴 수 있어(PC 전체 수십만 개) 화면이 멈추지 않게 뒤에서 돈다.
 #[tauri::command]
-pub async fn search_files(app: AppHandle, query: String) -> Result<SearchResponse, String> {
+pub async fn search_files(
+    app: AppHandle,
+    query: String,
+    sort: Option<SortBy>,
+) -> Result<SearchResponse, String> {
+    let sort = sort.unwrap_or_default();
     let state = app.state::<AppState>();
     let query = query.trim();
     let want_whole_pc = state
@@ -393,16 +404,25 @@ pub async fn search_files(app: AppHandle, query: String) -> Result<SearchRespons
         return Ok(response(source, everything, Vec::new()));
     }
     let rules = state.db.lock().map(|c| rule_labels(&c)).unwrap_or_default();
-    let everything = match everything::search(&dll_path(&app), query, MAX_RESULTS as u32) {
-        Ok(found) => {
-            let hits = found
-                .into_iter()
-                .map(|h| hit(h.path, h.size, h.modified, &rules))
-                .collect();
-            return Ok(response("everything", Availability::Ready, hits));
-        }
-        Err(a) => a,
-    };
+    let everything =
+        match everything::search(&dll_path(&app), query, MAX_RESULTS as u32, sort) {
+            Ok(mut found) => {
+                // 이름 차례는 탐색기처럼(숫자는 크기대로) 맞춘다
+                match sort {
+                    SortBy::NameAsc => found
+                        .sort_by(|a, b| search::natural_cmp(&name_of(&a.path), &name_of(&b.path))),
+                    SortBy::NameDesc => found
+                        .sort_by(|a, b| search::natural_cmp(&name_of(&b.path), &name_of(&a.path))),
+                    _ => {}
+                }
+                let hits = found
+                    .into_iter()
+                    .map(|h| hit(h.path, h.size, h.modified, &rules))
+                    .collect();
+                return Ok(response("everything", Availability::Ready, hits));
+            }
+            Err(a) => a,
+        };
     // Everything이 꺼졌는데 색인이 정리 폴더만이면(켜져 있을 때 읽은 것) PC 전체로 다시 읽는다
     if want_whole_pc && !index_pc && !indexing {
         refresh_index(&app, false);
@@ -412,7 +432,7 @@ pub async fn search_files(app: AppHandle, query: String) -> Result<SearchRespons
         .lock()
         .map(|index| {
             index
-                .find(query, MAX_RESULTS)
+                .find_sorted(query, MAX_RESULTS, sort)
                 .into_iter()
                 .map(|f| hit(f.path, f.size, f.modified, &rules))
                 .collect()
@@ -423,7 +443,7 @@ pub async fn search_files(app: AppHandle, query: String) -> Result<SearchRespons
 
 /// Everything을 지금 쓸 수 있는지(결과 하나만 물어본다)
 fn availability(app: &AppHandle) -> Availability {
-    match everything::search(&dll_path(app), "", 1) {
+    match everything::search(&dll_path(app), "", 1, SortBy::Best) {
         Ok(_) => Availability::Ready,
         Err(a) => a,
     }

@@ -18,6 +18,7 @@ import type {
   PutResult,
   RenamePreview,
   RenameRequest,
+  SearchSort,
   RenameResult,
   SearchInfo,
   SearchResponse,
@@ -168,9 +169,9 @@ export function setRootFolder(path: string): Promise<Settings> {
 }
 
 /** 파일 검색(Everything이 켜져 있으면 Everything, 아니면 이 프로그램이 읽은 목록) */
-export function searchFiles(query: string): Promise<SearchResponse> {
-  if (usingMocks) return mockBackend.searchFiles(query);
-  return invoke("search_files", { query });
+export function searchFiles(query: string, sort: SearchSort = "best"): Promise<SearchResponse> {
+  if (usingMocks) return mockBackend.searchFiles(query, sort);
+  return invoke("search_files", { query, sort });
 }
 
 /** 검색 화면을 열 때: 파일 목록이 없거나 오래됐으면 뒤에서 읽기 시작 */

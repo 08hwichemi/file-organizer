@@ -10,9 +10,9 @@ import {
   revealPath,
   searchFiles,
 } from "../lib/backend";
-import { formatDate } from "../lib/format";
+import { formatDate, formatSize } from "../lib/format";
 import { displayPath } from "../lib/paths";
-import type { SearchResponse } from "../lib/types";
+import type { SearchResponse, SearchSort } from "../lib/types";
 import { useAppStore } from "../store/useAppStore";
 import "./SearchPage.css";
 
@@ -20,6 +20,27 @@ const ALL = "";
 
 // 다른 화면에 갔다 와도 검색어가 그대로 남게
 let lastQuery = "";
+
+const SORTS: { value: SearchSort; label: string }[] = [
+  { value: "best", label: "이름에 맞는 것 먼저" },
+  { value: "newest", label: "최근 수정한 것부터" },
+  { value: "oldest", label: "오래된 것부터" },
+  { value: "nameAsc", label: "이름 가나다순" },
+  { value: "nameDesc", label: "이름 역순" },
+  { value: "largest", label: "큰 파일부터" },
+  { value: "smallest", label: "작은 파일부터" },
+];
+const SORT_KEY = "finder.sort";
+
+/** 고른 정렬은 이 PC에 기억해 둔다(다음에 켜도 그대로) */
+function savedSort(): SearchSort {
+  try {
+    const v = window.localStorage.getItem(SORT_KEY);
+    return SORTS.some((s) => s.value === v) ? (v as SearchSort) : "best";
+  } catch {
+    return "best";
+  }
+}
 
 /** 어디서 찾는지 한 줄로 */
 function scopeText(r: SearchResponse | null, progress: number | null): string {
@@ -54,14 +75,18 @@ export default function SearchPage() {
   const [year, setYear] = useState(ALL);
   const [term, setTerm] = useState(ALL);
   const [klass, setKlass] = useState(ALL);
+  const [sort, setSort] = useState<SearchSort>(savedSort);
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const requestId = useRef(0);
 
+  // 정렬이 바뀌면 다시 찾는다(최대 개수로 자르기 전에 정렬해야 맞으므로 받은 결과만 섞지 않는다)
+  const sortRef = useRef(sort);
+  sortRef.current = sort;
   const run = useCallback((q: string) => {
     const id = ++requestId.current;
-    searchFiles(q)
+    searchFiles(q, sortRef.current)
       .then((r) => {
         if (id !== requestId.current) return; // 늦게 온 예전 결과는 버린다
         setResponse(r);
@@ -76,12 +101,21 @@ export default function SearchPage() {
     void prepareSearch().catch(() => {});
   }, []);
 
-  // 입력이 멈추면 찾는다
+  // 입력이 멈추면(또는 정렬을 바꾸면) 찾는다
   useEffect(() => {
     lastQuery = query;
     const timer = window.setTimeout(() => run(query), 120);
     return () => window.clearTimeout(timer);
-  }, [query, run]);
+  }, [query, sort, run]);
+
+  const changeSort = (v: SearchSort) => {
+    setSort(v);
+    try {
+      window.localStorage.setItem(SORT_KEY, v);
+    } catch {
+      // 기억하지 못해도 이번에는 그대로 쓴다
+    }
+  };
 
   // 단축키·트레이로 열 때마다(그리고 처음에): 입력 칸에 초점, 글자 전체 선택
   useEffect(() => {
@@ -214,8 +248,22 @@ export default function SearchPage() {
               </button>
             )}
           </span>
-          {hasFilters && (
-            <div className="finder__filters">
+          <div className="finder__filters">
+            <select
+              className={`finder__select${sort !== "best" ? " finder__select--on" : ""}`}
+              aria-label="정렬"
+              title="정렬"
+              value={sort}
+              onChange={(e) => changeSort(e.target.value as SearchSort)}
+            >
+              {SORTS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+            {hasFilters && (
+              <>
               <FilterSelect label="연도" value={year} onChange={setYear}>
                 {options.years.map((y) => (
                   <option key={y} value={String(y)}>
@@ -237,8 +285,9 @@ export default function SearchPage() {
                   </option>
                 ))}
               </FilterSelect>
-            </div>
-          )}
+              </>
+            )}
+          </div>
         </div>
 
         {error && <p className="finder__error error-text">{error}</p>}
@@ -263,6 +312,7 @@ export default function SearchPage() {
                   <div className="finder__meta" title={h.dir}>
                     {displayPath(root, h.dir, sep)}
                     {h.modified > 0 && ` · ${formatDate(h.modified)}`}
+                    {` · ${formatSize(h.size)}`}
                     {h.rule && <span className="finder__rule">‘{h.rule}’ 규칙</span>}
                   </div>
                 </div>

@@ -3,6 +3,7 @@
 //! 공식 SDK의 `Everything64.dll`(MIT 라이선스, 배포 때 함께 넣음)을 불러 SDK 함수만 쓴다. 역분석하지 않는다.
 //! Everything이 꺼져 있거나 DLL이 없으면 `Unavailable`을 돌려주고, 부르는 쪽은 자체 색인으로 찾는다.
 
+use crate::search::SortBy;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
@@ -39,6 +40,20 @@ fn filetime_to_ms(ft: u64) -> i64 {
     ((ft - EPOCH_DIFF) / 10_000) as i64
 }
 
+/// 정렬을 SDK(Everything.h)의 EVERYTHING_SORT_* 값으로. Everything에는 "이름에 맞는 것 먼저"가 없고
+/// 이름만 보고 찾으므로 기본은 최근 것부터.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn sort_code(sort: SortBy) -> u32 {
+    match sort {
+        SortBy::NameAsc => 1,
+        SortBy::NameDesc => 2,
+        SortBy::Smallest => 5,
+        SortBy::Largest => 6,
+        SortBy::Oldest => 13,
+        SortBy::Best | SortBy::Newest => 14,
+    }
+}
+
 /// 휴지통·임시 폴더처럼 찾아 줄 필요 없는 곳
 #[cfg_attr(not(windows), allow(dead_code))]
 fn skip_path(lower: &str) -> bool {
@@ -55,7 +70,6 @@ mod imp {
     const REQUEST_FULL_PATH_AND_FILE_NAME: u32 = 0x0000_0004;
     const REQUEST_SIZE: u32 = 0x0000_0010;
     const REQUEST_DATE_MODIFIED: u32 = 0x0000_0040;
-    const SORT_DATE_MODIFIED_DESCENDING: u32 = 14;
     const ERROR_IPC: u32 = 2;
 
     type SetSearchW = unsafe extern "system" fn(*const u16);
@@ -69,7 +83,12 @@ mod imp {
     /// SDK는 한 번에 하나의 검색만 다룬다(전역 상태) → 잠금으로 차례대로.
     static LIB: OnceLock<Mutex<Option<Library>>> = OnceLock::new();
 
-    pub fn search(dll: &Path, query: &str, max: u32) -> Result<Vec<Hit>, Availability> {
+    pub fn search(
+        dll: &Path,
+        query: &str,
+        max: u32,
+        sort: SortBy,
+    ) -> Result<Vec<Hit>, Availability> {
         let lock = LIB.get_or_init(|| Mutex::new(None));
         let mut guard = lock.lock().map_err(|_| Availability::NotRunning)?;
         if guard.is_none() {
@@ -118,8 +137,8 @@ mod imp {
             set_search(text.as_ptr());
             set_flags(REQUEST_FULL_PATH_AND_FILE_NAME | REQUEST_SIZE | REQUEST_DATE_MODIFIED);
             set_max(max);
-            if let Some(sort) = &set_sort {
-                sort(SORT_DATE_MODIFIED_DESCENDING);
+            if let Some(set) = &set_sort {
+                set(sort_code(sort));
             }
             if query_w(1) == 0 {
                 // 대부분 ERROR_IPC(Everything이 꺼져 있음). 그 밖의 오류도 자체 색인으로 넘긴다.
@@ -161,15 +180,15 @@ mod imp {
     }
 }
 
-/// Everything으로 찾는다. 쓸 수 없으면 그 까닭.
-pub fn search(dll: &Path, query: &str, max: u32) -> Result<Vec<Hit>, Availability> {
+/// Everything으로 찾는다(`sort` 차례로 `max`개까지). 쓸 수 없으면 그 까닭.
+pub fn search(dll: &Path, query: &str, max: u32, sort: SortBy) -> Result<Vec<Hit>, Availability> {
     #[cfg(windows)]
     {
-        imp::search(dll, query, max)
+        imp::search(dll, query, max, sort)
     }
     #[cfg(not(windows))]
     {
-        let _ = (dll, query, max);
+        let _ = (dll, query, max, sort);
         Err(Availability::Unsupported)
     }
 }
@@ -198,7 +217,7 @@ mod tests {
     #[test]
     fn unsupported_outside_windows() {
         assert_eq!(
-            search(Path::new("Everything64.dll"), "a", 10).unwrap_err(),
+            search(Path::new("Everything64.dll"), "a", 10, SortBy::Best).unwrap_err(),
             Availability::Unsupported
         );
     }

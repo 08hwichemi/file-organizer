@@ -57,6 +57,9 @@ export interface SearchHit {
   rule: string | null;
 }
 
+/** 검색 결과 정렬(잘라 내기 전에 Rust에서 정렬): best = 이름에 맞는 것 먼저·최근 것부터(기본) */
+export type SearchSort = "best" | "newest" | "oldest" | "nameAsc" | "nameDesc" | "largest" | "smallest";
+
 /** 어디서 찾았는지: everything = Everything(PC 전체), pc = 이 프로그램이 읽은 PC 전체, folders = 정리 폴더·지켜볼 폴더 */
 export type SearchSource = "everything" | "pc" | "folders";
 

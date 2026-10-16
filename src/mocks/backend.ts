@@ -37,6 +37,7 @@ import type {
   RenameResult,
   RosterInfo,
   SearchSource,
+  SearchSort,
   SetupInfo,
   SetupRequest,
   TrashResult,
@@ -953,7 +954,7 @@ export const mockBackend = {
 
   // ---------- 파일 검색(가짜 폴더의 파일 이름을 만들어 찾는다) ----------
   // ?indexing=1 이면 처음 몇 초 동안 "PC 전체를 읽는 중"(그동안은 정리 폴더에서만)을 흉내 낸다.
-  searchFiles(query: string) {
+  searchFiles(query: string, sort: SearchSort = "best") {
     const everything: EverythingState = params.get("everything") === "1" ? "ready" : "notRunning";
     const index = mockIndexState();
     const source: SearchSource = everything === "ready" ? "everything" : index.wholePc ? "pc" : "folders";
@@ -961,9 +962,21 @@ export const mockBackend = {
     const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
     if (terms.length === 0) return delay<SearchResponse>({ ...base, hits: [] });
     const all = source === "folders" ? mockSearchFiles() : [...mockSearchFiles(), ...mockPcFiles()];
+    // 정렬한 뒤 자른다(finder.rs·search.rs find_sorted와 같게)
+    const byName = (a: SearchHit, b: SearchHit) => a.name.localeCompare(b.name, "ko", { numeric: true, sensitivity: "base" });
+    const nameHit = (h: SearchHit) => terms.every((t) => h.name.toLowerCase().includes(t));
+    const order: Record<SearchSort, (a: SearchHit, b: SearchHit) => number> = {
+      best: (a, b) => Number(nameHit(b)) - Number(nameHit(a)) || b.modified - a.modified,
+      newest: (a, b) => b.modified - a.modified,
+      oldest: (a, b) => a.modified - b.modified,
+      nameAsc: byName,
+      nameDesc: (a, b) => byName(b, a),
+      largest: (a, b) => b.size - a.size,
+      smallest: (a, b) => a.size - b.size,
+    };
     const hits = all
       .filter((h) => terms.every((t) => h.path.toLowerCase().includes(t)))
-      .sort((a, b) => b.modified - a.modified)
+      .sort(order[sort])
       .slice(0, 200);
     return delay<SearchResponse>({ ...base, hits });
   },
