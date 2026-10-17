@@ -153,6 +153,23 @@ export interface RecentMove {
   movedAt: number;
 }
 
+/** 정리 기록 한 줄(SPEC 3-2): 넣기·옮기기 · 이름 한꺼번에 바꾸기 · 휴지통 */
+export interface LogEntry {
+  kind: "move" | "rename" | "trash";
+  /** 이동 기록 번호(되돌리기) 또는 휴지통 기록 번호(되살리기) */
+  id: number;
+  name: string;
+  fromPath: string;
+  /** 옮긴 경로(휴지통은 null) */
+  toPath: string | null;
+  at: number;
+  /** 되돌린(되살린) 시각 */
+  revertedAt: number | null;
+  /** 지금도 옮긴 자리에 있는지(휴지통은 아직 휴지통에 있는지) */
+  present: boolean;
+  isFolder: boolean;
+}
+
 export interface FolderEntry {
   name: string;
   path: string;

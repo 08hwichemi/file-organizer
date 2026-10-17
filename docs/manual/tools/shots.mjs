@@ -208,6 +208,13 @@ if (want("inbox") || want("classify")) {
   await p.waitForTimeout(900);
   await mark(p.locator(".ffiles__head"), true);
   await shot(p, "fd1.webp", p.locator(".ifold").first());
+  await unmark(p);
+  // 정리 기록: 나눈 25개와 미리 있던 기록(어제·며칠 전)
+  await p.setViewportSize({ width: 1280, height: 780 });
+  await p.locator(".sidebar__item", { hasText: "정리 기록" }).click();
+  await p.waitForTimeout(700);
+  await mark(p.getByRole("button", { name: "엑셀 파일로 저장" }));
+  await shot(p, "log.webp");
   await p.close();
 
   // 기존 폴더 다시 정리하기: [다른 폴더 정리하기] → 폴더 고르기(가짜) → 나누기 창

@@ -506,6 +506,18 @@ pub fn recent_moves(state: State<'_, AppState>) -> Result<Vec<RecentMove>, Strin
         .collect())
 }
 
+/// 정리 기록 화면(SPEC 3-2): 넣기·옮기기·이름 바꾸기·휴지통 기록, 새것부터.
+#[tauri::command]
+pub fn move_log(state: State<'_, AppState>) -> Result<Vec<crate::movelog::LogEntry>, String> {
+    state.with_db(|conn| crate::movelog::entries(conn, crate::movelog::MAX_ENTRIES).map_err(db_err))
+}
+
+/// 정리 기록 [엑셀 파일로 저장]: 사용자가 저장 창에서 고른 .csv 파일에 쓴다.
+#[tauri::command]
+pub fn save_log_csv(path: String, text: String) -> Result<(), String> {
+    crate::movelog::save_csv(Path::new(&path), &text)
+}
+
 #[tauri::command]
 pub fn create_folder(parent: String, name: String) -> Result<FolderEntry, String> {
     folders::create_folder(Path::new(&parent), &name)

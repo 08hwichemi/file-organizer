@@ -3,6 +3,7 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { mockBackend, mockEvents } from "../mocks/backend";
 import type {
+  LogEntry,
   AppInfo,
   ClassifyPlan,
   DestSegment,
@@ -229,6 +230,22 @@ export function listFiles(path: string): Promise<FileEntry[]> {
 }
 
 /** 최근 정리한 파일(지금 그 자리에 있는 것만, 새것부터) */
+/** 정리 기록: 넣기·옮기기·이름 바꾸기·휴지통 기록, 새것부터(최대 3,000개) */
+export function listMoveLog(): Promise<LogEntry[]> {
+  if (usingMocks) return mockBackend.moveLog();
+  return invoke("move_log");
+}
+
+/** 정리 기록을 CSV(엑셀)로: 저장 창에서 고른 곳에 쓴다. 취소하면 false. */
+export async function saveLogCsv(defaultName: string, text: string): Promise<boolean> {
+  if (usingMocks) return mockBackend.saveLogCsv(text);
+  const { save } = await import("@tauri-apps/plugin-dialog");
+  const path = await save({ title: "정리 기록 저장", defaultPath: defaultName, filters: [{ name: "엑셀(CSV)", extensions: ["csv"] }] });
+  if (!path) return false;
+  await invoke("save_log_csv", { path, text });
+  return true;
+}
+
 export function listRecentMoves(): Promise<RecentMove[]> {
   if (usingMocks) return mockBackend.recentMoves();
   return invoke("recent_moves");

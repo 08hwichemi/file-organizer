@@ -5,7 +5,7 @@ import type { OrganizeMode, PlaceMode, Settings, SetupInfo, SetupRequest, UserKi
 
 /** redo = 설정에서 "처음 설정 다시 하기"를 연 상태(취소하면 ready로) */
 type Status = "loading" | "setup" | "redo" | "ready" | "error";
-export type Page = "inbox" | "search" | "rename" | "rules" | "settings";
+export type Page = "inbox" | "log" | "search" | "rename" | "rules" | "settings";
 /** 설정 화면의 탭: 정리 방식 · 폴더 · 파일 검색 · 프로그램 */
 export type SettingsTab = "organize" | "folders" | "search" | "app";
 

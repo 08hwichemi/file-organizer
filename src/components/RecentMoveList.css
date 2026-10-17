@@ -130,3 +130,10 @@
 .recent__day:first-child .band {
   border-top: 0;
 }
+
+/* 맨 아래 [전체 기록 보기] → 정리 기록 화면 */
+.recent__all {
+  display: flex;
+  justify-content: center;
+  padding: 14px 14px 18px;
+}
