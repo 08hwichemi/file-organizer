@@ -32,6 +32,28 @@ use tauri::Manager;
 /// 컴퓨터를 켤 때 자동 실행되면 붙는 인자(이때는 창 없이 트레이로만 시작)
 const AUTOSTART_ARG: &str = "--autostart";
 
+/// 메인 창 첫 크기(논리 픽셀, 사용자 요청: 켤 때 더 크게): 화면 작업 영역의 85%, 1600×1000을 넘지 않고
+/// 1100×720(tauri.conf.json의 기본)보다 작지 않게. 화면이 그보다 작으면 화면 안에 들어가게.
+fn main_window_size(work_w: f64, work_h: f64) -> (f64, f64) {
+    let fit = |avail: f64, min: f64, max: f64| (avail * 0.85).min(max).max(min).min(avail);
+    (fit(work_w, 1100.0, 1600.0), fit(work_h, 720.0, 1000.0))
+}
+
+/// 메인 창을 지금 화면에 맞는 크기로 키우고 가운데에 둔다(크기를 못 읽으면 기본 크기 그대로).
+fn fit_main_window(window: &tauri::WebviewWindow) {
+    let monitor = window
+        .current_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| window.primary_monitor().ok().flatten());
+    let Some(m) = monitor else { return };
+    let scale = m.scale_factor();
+    let area = m.work_area().size;
+    let (w, h) = main_window_size(area.width as f64 / scale, area.height as f64 / scale);
+    let _ = window.set_size(tauri::LogicalSize::new(w, h));
+    let _ = window.center();
+}
+
 pub fn run() {
     tauri::Builder::default()
         // 한 개만 실행: 이미 켜져 있으면 새로 켜지 않고 켜진 프로그램의 창을 앞으로(가장 먼저 등록해야 한다)
@@ -84,6 +106,9 @@ pub fn run() {
             // "state not managed" 오류가 날 수 있다(tauri.conf.json의 창은 모두 create: false).
             for config in &app.config().app.windows {
                 tauri::WebviewWindowBuilder::from_config(app.handle(), config)?.build()?;
+            }
+            if let Some(main) = app.get_webview_window("main") {
+                fit_main_window(&main);
             }
             tray::create(app.handle())?;
 
@@ -189,6 +214,19 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn main_window_fits_the_screen() {
+        // 1920×1080(작업 표시줄 빼고 1040) 100%: 85%인데 가로는 1600까지
+        assert_eq!(super::main_window_size(1920.0, 1040.0), (1600.0, 884.0));
+        // 같은 화면 125%(학교 PC에 흔함): 1536×832 → 1305.6×720(세로는 최소 720)
+        let (w, h) = super::main_window_size(1536.0, 832.0);
+        assert!((w - 1305.6).abs() < 0.01 && h == 720.0);
+        // 작은 화면: 화면 안에 들어가게
+        assert_eq!(super::main_window_size(1024.0, 700.0), (1024.0, 700.0));
+        // 아주 큰 화면: 1600×1000까지만
+        assert_eq!(super::main_window_size(3840.0, 2100.0), (1600.0, 1000.0));
+    }
+
     /// 창을 Tauri가 먼저 만들면 저장소 준비 전에 화면이 명령을 불러 오류가 난다(0.1.4에서 실제로 발생).
     #[test]
     fn windows_are_created_after_state_is_managed() {
