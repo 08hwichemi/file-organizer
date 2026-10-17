@@ -22,6 +22,7 @@ import WatchFolderEditor from "../components/WatchFolderEditor";
 import { errorMessage, getAppInfo, getSearchInfo, pickFolder } from "../lib/backend";
 import type { OrganizeMode, PlaceMode, SearchInfo } from "../lib/types";
 import { useAppStore, type SettingsTab } from "../store/useAppStore";
+import { BUILD_LABEL } from "../lib/build";
 import { useUpdateStore } from "../store/useUpdateStore";
 import terms from "../../src-tauri/resources/TERMS.txt?raw";
 import thirdParty from "../../src-tauri/resources/THIRD_PARTY.txt?raw";
@@ -464,7 +465,8 @@ export default function SettingsPage() {
             <strong>AutoFolder</strong>
             <span className="settings__toggle-desc">새 파일 자동 정리 · 예전 이름 "파일 정리 도우미"</span>
             <span className="settings__about-line">
-              {version ? `버전 ${version}` : "버전 확인 중"} · 만든 사람 이용휘(화학 교사)
+              {version ? `버전 ${version}${BUILD_LABEL ? ` (${BUILD_LABEL})` : ""}` : "버전 확인 중"} · 만든 사람
+              이용휘(화학 교사)
             </span>
             <span className="settings__toggle-desc">
               파일 이름과 경로는 이 PC 안에서만 쓰고 밖으로 보내지 않아요(인터넷은 업데이트 확인에만 써요).
@@ -615,7 +617,10 @@ function UpdateRow({ version }: { version: string | null }) {
   return (
     <div className="settings__update button-row">
       <div className="settings__update-text">
-        <div>지금 버전 {version ?? "…"}</div>
+        <div>
+          지금 버전 {version ?? "…"}
+          {BUILD_LABEL && ` (${BUILD_LABEL})`}
+        </div>
         {message && <div className="settings__update-msg">{message}</div>}
       </div>
       <button type="button" className="btn" onClick={() => void check()} disabled={status === "checking" || status === "downloading"}>

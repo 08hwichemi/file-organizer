@@ -56,6 +56,13 @@ body {
   /* 한글이 단어 중간에서 줄바꿈되지 않게 */
   word-break: keep-all;
   overflow-wrap: anywhere;
+  /* 마지막 줄에 낱말 하나만 남지 않게 줄을 고르게 나눈다(WebView2·크롬) */
+  text-wrap: pretty;
+}
+
+/* 끊기면 어색한 묶음("학기(3월·9월)", "‘이름 (2)’")은 이 이름표로 한 줄에 */
+.nowrap {
+  white-space: nowrap;
 }
 
 button,

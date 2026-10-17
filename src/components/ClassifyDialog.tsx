@@ -58,8 +58,8 @@ interface Props {
 }
 
 /**
- * 자동 분류 미리보기(SPEC 4-1). 넣을 폴더마다 같은 크기의 네모 카드(포스트잇을 줄 맞춰 붙인 것처럼)에
- * 그 폴더로 갈 파일을 담아 보여 준다. 파일이 많으면 카드 안에서만 내려간다.
+ * 자동 분류 미리보기(SPEC 4-1). 넣을 폴더마다 네모 카드(포스트잇을 줄 맞춰 붙인 것처럼)에
+ * 그 폴더로 갈 파일을 담아 보여 준다. 파일이 많으면 카드가 그만큼 길어져 다 보인다.
  * 파일을 끌어 다른 카드에 놓으면 그 파일만 넣을 곳이 바뀐다. [+ 폴더 추가]로 목록에 없는 폴더 카드를 만든다.
  * 정리 폴더 안의 폴더는 추천된 파일이 없어도 늘 카드로 보인다(빈 카드는 반 높이).
  * 위의 버튼으로 '목록으로 보기'(왼쪽 목록 + 오른쪽 폴더 격자, 아무 폴더에나 놓기)로 바꿀 수 있다.
@@ -366,7 +366,21 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
   );
 }
 
-/** 넣을 폴더 하나 = 같은 크기의 네모 카드. 파일을 끌어 이 카드에 놓으면 이 폴더로 바뀐다. */
+/** 카드 보기의 한 칸 높이(143px)와 칸 사이(14px), 카드 머리·파일 한 줄 높이(ClassifyDialog.css와 맞춤) */
+const ROW = 143;
+const GAP = 14;
+const HEAD = 66;
+const LINE = 34;
+
+/** 파일 n개가 다 보이는 칸 수(적어도 두 칸 = 보통 크기) */
+function cardRows(count: number): number {
+  return Math.max(2, Math.ceil((HEAD + count * LINE + GAP) / (ROW + GAP)));
+}
+
+/**
+ * 넣을 폴더 하나 = 네모 카드. 파일을 끌어 이 카드에 놓으면 이 폴더로 바뀐다.
+ * 카드 보기에서는 파일 수만큼 길어져(칸 단위) 무엇이 들어 있는지 다 보인다. 빈 카드는 반 높이.
+ */
 function Card({
   dest,
   name,
@@ -389,6 +403,8 @@ function Card({
     <section
       ref={setNodeRef}
       data-dest={dest}
+      // 카드 보기: 파일이 많으면 카드가 그만큼 길어져 안에서 내려 보지 않아도 모두 보인다(목록 보기에서는 쓰이지 않음)
+      style={count > 0 ? { gridRow: `span ${cardRows(count)}` } : undefined}
       className={`classify__card${inbox ? " classify__card--inbox" : ""}${count === 0 ? " classify__card--empty" : ""}${isOver ? " classify__card--over" : ""}`}
       aria-label={`${name} ${count}개`}
     >

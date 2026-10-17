@@ -65,7 +65,7 @@ jobs:
         if: steps.ready.outputs.ok == 'true'
         run: npm ci
 
-      # 버전은 실행할 때마다 1씩 올라간다(PR용 설치 파일은 0.1.0이라 항상 이보다 낮다).
+      # 버전은 실행할 때마다 1씩 올라간다(PR용 시험판은 그때 최신 배포 + 1이라, 병합 뒤 정식판이 같거나 높다).
       - name: 버전 정하기
         if: steps.ready.outputs.ok == 'true'
         shell: bash

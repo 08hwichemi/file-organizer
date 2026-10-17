@@ -81,6 +81,27 @@ jobs:
         shell: pwsh
         run: ./scripts/fetch-everything-sdk.ps1
 
+      # 시험판 버전: 지금 배포된 최신 버전보다 하나 높게(0.1.<최신+1>) 만든다.
+      # 예전처럼 0.1.0이면 정식판이 깔린 PC에서 더 낮은 버전이라 설치가 막히거나,
+      # 깔아도 "새 버전이 있어요"로 정식판이 시험판을 덮어써서 PR의 기능을 확인할 수 없었다.
+      # 병합되면 정식판이 같은 번호나 그다음 번호로 나오므로 그때부터는 정식판을 따라간다.
+      # 화면 왼쪽 위·설정에 "시험판 · PR n" 이름표를 붙여 정식판과 구별한다.
+      - name: 시험판 버전 정하기
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          LATEST=$(gh api repos/08hwichemi/file-organizer-releases/releases/latest --jq .tag_name 2>/dev/null || echo "v0.1.0")
+          N="${LATEST##*.}"
+          case "$N" in ''|*[!0-9]*) N=0 ;; esac
+          VERSION="0.1.$((N + 1))"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          if [ -n "${PR_NUMBER:-}" ]; then LABEL="시험판 · PR ${PR_NUMBER}"; else LABEL="시험판"; fi
+          echo "VITE_BUILD_LABEL=$LABEL" >> "$GITHUB_ENV"
+          echo "::notice title=시험판 버전::$VERSION ($LABEL), 최신 배포 $LATEST"
+
       # PR용 설치 파일은 업데이트 서명 없이 만든다(서명 키는 배포 때만 씀).
       - name: 설치 파일 만들기 (NSIS)
         run: npm run tauri build -- --config src-tauri/tauri.pr.conf.json
