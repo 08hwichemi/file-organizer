@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<style>
+  /* 클라우드에서 찍을 수 없는 Windows·브라우저 화면의 예시 그림(실제 캡처로 바꿀 자리). 한 그림에 한 동작. */
+  @font-face { font-family: "Pretendard Variable"; font-weight: 45 920; src: url("../../../node_modules/pretendard/dist/web/variable/woff2/PretendardVariable.woff2") format("woff2"); }
+  body { margin: 0; padding: 24px; background: #DDE1E6; font-family: "Pretendard Variable", sans-serif; color: #1F2328; display: flex; flex-direction: column; gap: 40px; align-items: flex-start; word-break: keep-all; overflow-wrap: anywhere; }
+  .shot { padding: 18px; background: #DDE1E6; }
+  .hl { outline: 4px solid #E8590C; outline-offset: 3px; border-radius: 6px; }
+  /* 크롬 창 */
+  .chrome { width: 720px; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 6px 20px rgba(0,0,0,.16); position: relative; }
+  .tabs { background: #DFE3E8; height: 38px; display: flex; align-items: flex-end; padding: 0 10px; gap: 6px; }
+  .tab { background: #fff; border-radius: 9px 9px 0 0; padding: 8px 14px; font-size: 13px; width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-bottom: 1px solid #E5E7EB; }
+  .nav { color: #5F6368; font-size: 16px; letter-spacing: 8px; white-space: nowrap; }
+  .addr { flex: 1; min-width: 0; background: #F1F3F4; border-radius: 20px; padding: 7px 14px; font-size: 13.5px; color: #202124; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dl { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: #3C4043; font-size: 17px; flex-shrink: 0; }
+  .gh { padding: 20px 28px 26px; }
+  .gh .repo { color: #59636E; font-size: 13px; }
+  .gh h1 { font-size: 24px; margin: 4px 0 6px; font-weight: 650; display: flex; align-items: center; gap: 10px; }
+  .lbl { display: inline-block; border: 1px solid #1A7F37; color: #1A7F37; border-radius: 2em; padding: 0 9px; font-size: 12px; font-weight: 600; }
+  .gh p { color: #59636E; font-size: 13.5px; margin: 8px 0 16px; line-height: 1.55; }
+  .assets { border: 1px solid #D1D9E0; border-radius: 6px; }
+  .assets .h { padding: 9px 14px; font-weight: 650; font-size: 15px; display: flex; gap: 8px; align-items: center; }
+  .assets .h span { background: #EFF2F5; border-radius: 2em; padding: 0 7px; font-size: 12px; }
+  .row { display: flex; justify-content: space-between; align-items: center; padding: 8px 14px; border-top: 1px solid #EEF1F4; font-size: 14px; }
+  .row a { color: #0969DA; font-weight: 600; }
+  .row .m { color: #59636E; font-size: 12.5px; }
+  /* 크롬 다운로드 풍선 */
+  .bubble { position: absolute; right: 10px; top: 86px; width: 350px; background: #fff; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.25); padding: 12px 14px; font-size: 13.5px; }
+  .bubble h4 { margin: 0 0 8px; font-size: 14px; }
+  .file { display: flex; gap: 12px; align-items: center; padding: 8px; border-radius: 8px; }
+  .ico { width: 30px; height: 34px; border-radius: 4px; background: #E8F0FE; display: grid; place-items: center; font-size: 10.5px; color: #1A73E8; font-weight: 700; flex-shrink: 0; }
+  .file small { display: block; color: #5F6368; font-size: 12.5px; }
+  /* 엣지 다운로드 */
+  .edge { width: 470px; background: #fff; border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,.16); padding: 14px 16px 16px; font-size: 13.5px; position: relative; }
+  .edge h4 { margin: 0 0 12px; font-size: 15px; display: flex; justify-content: space-between; }
+  .edge h4 span { color: #616161; font-weight: 400; letter-spacing: 6px; }
+  .item { display: grid; grid-template-columns: 34px 1fr; gap: 10px; padding: 10px; border-radius: 8px; background: #F7F7F7; }
+  .item .w { color: #B4690E; font-size: 18px; }
+  .item b { display: block; font-weight: 650; line-height: 1.45; }
+  .item .s { color: #616161; font-size: 12.5px; margin-top: 2px; }
+  .acts { display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end; align-items: center; }
+  .eb { border: 1px solid #C8CDD3; border-radius: 6px; padding: 4px 12px; background: #fff; font-size: 13px; white-space: nowrap; }
+  .eb.pri { background: #0F6CBD; border-color: #0F6CBD; color: #fff; }
+  .menu { position: absolute; right: 16px; top: 168px; width: 190px; background: #fff; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.22); padding: 6px; font-size: 13.5px; }
+  .menu div { padding: 7px 12px; border-radius: 6px; }
+  .dlg { width: 470px; background: #fff; border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,.16); padding: 20px 22px; font-size: 13.5px; }
+  .dlg h3 { margin: 0 0 10px; font-size: 17px; }
+  .dlg p { color: #444; margin: 0 0 10px; line-height: 1.55; }
+  .link { color: #0F6CBD; display: inline-block; padding: 1px 4px; }
+  .dlg .more { background: #F7F7F7; border-radius: 6px; padding: 10px 12px; color: #444; line-height: 1.6; margin-bottom: 14px; }
+  .dlg .btns { display: flex; justify-content: flex-end; gap: 8px; }
+  /* SmartScreen */
+  .ss { width: 560px; height: 380px; background: #0F5BA7; color: #fff; padding: 30px 34px; box-sizing: border-box; position: relative; }
+  .ss h2 { margin: 0 0 16px; font-size: 27px; font-weight: 500; }
+  .ss p { margin: 0 0 12px; font-size: 14.5px; line-height: 1.6; }
+  .ss .more { text-decoration: underline; font-size: 14.5px; display: inline-block; padding: 2px 4px; }
+  .ss .btns { position: absolute; right: 26px; bottom: 24px; display: flex; gap: 12px; }
+  .ss .b { border: 2px solid #fff; padding: 7px 24px; font-size: 14.5px; white-space: nowrap; }
+  .ss .b.fill { background: #fff; color: #0F5BA7; }
+  /* 설치 창(NSIS 기본 모양) */
+  .win { width: 500px; background: #F0F0F0; border: 1px solid #8C8C8C; box-shadow: 0 6px 20px rgba(0,0,0,.2); font-size: 12.5px; font-family: "Malgun Gothic", "Pretendard Variable", sans-serif; }
+  .win .t { background: #fff; padding: 7px 10px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+  .win .t span:last-child { color: #333; letter-spacing: 14px; }
+  .win .wel { display: flex; height: 300px; background: #fff; border-top: 1px solid #E5E5E5; }
+  .win .side { width: 150px; background: linear-gradient(160deg, #3D6FD6, #1E3F8F); display: grid; place-items: center; }
+  .win .side div { width: 58px; height: 58px; border-radius: 13px; background: #fff; display: grid; place-items: center; }
+  .win .main { flex: 1; padding: 18px 20px; }
+  .win .main h3 { margin: 0 0 14px; font-size: 16px; line-height: 1.4; }
+  .win .main p { margin: 0 0 10px; color: #222; line-height: 1.6; }
+  .win .head { background: #fff; padding: 12px 18px 12px 18px; border-top: 1px solid #E5E5E5; border-bottom: 1px solid #D5D5D5; }
+  .win .head b { display: block; font-size: 12.5px; }
+  .win .head span { display: block; padding-left: 12px; color: #333; margin-top: 2px; }
+  .win .inner { height: 226px; padding: 16px 24px; }
+  .win .inner p { margin: 0 0 12px; line-height: 1.6; color: #222; }
+  .gb { border: 1px solid #C9C9C9; padding: 14px 12px 12px; position: relative; margin-top: 12px; }
+  .gb > i { position: absolute; top: -9px; left: 8px; background: #F0F0F0; padding: 0 4px; font-style: normal; }
+  .gb .r { display: flex; gap: 8px; }
+  .gb .in { flex: 1; background: #fff; border: 1px solid #7A7A7A; padding: 3px 6px; white-space: nowrap; overflow: hidden; }
+  .prog { height: 18px; border: 1px solid #BCBCBC; background: #E6E6E6; margin: 8px 0 12px; }
+  .prog i { display: block; height: 100%; width: 100%; background: #06B025; }
+  .win .foot { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-top: 1px solid #D5D5D5; }
+  .win .foot .brand { flex: 1; color: #9A9A9A; font-size: 11px; }
+  .wb { border: 1px solid #ADADAD; background: #E1E1E1; padding: 3px 0; font-size: 12px; width: 78px; text-align: center; white-space: nowrap; }
+  .wb.def { border-color: #0078D7; box-shadow: inset 0 0 0 1px #0078D7; }
+  .wb.off { color: #A0A0A0; border-color: #CFCFCF; background: #EAEAEA; }
+  .chk { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+  .chk i { width: 13px; height: 13px; border: 1px solid #333; background: #fff; display: grid; place-items: center; font-style: normal; font-size: 11px; line-height: 1; }
+</style></head><body>
+
+<div class="shot" id="r-addr"><div class="chrome">
+  <div class="tabs"><div class="tab">새 탭</div></div>
+  <div class="bar"><span class="nav">←→⟳</span><div class="addr hl">github.com/08hwichemi/file-organizer-releases/releases/latest</div><span class="dl">⋮</span></div>
+  <div class="gh" style="height:150px"></div>
+</div></div>
+
+<div class="shot" id="r-assets"><div class="chrome">
+  <div class="tabs"><div class="tab">Release AutoFolder 0.1.22</div></div>
+  <div class="bar"><span class="nav">←→⟳</span><div class="addr">github.com/08hwichemi/file-organizer-releases/releases/tag/v0.1.22</div><span class="dl">⋮</span></div>
+  <div class="gh">
+    <div class="repo">08hwichemi / file-organizer-releases</div>
+    <h1>AutoFolder 0.1.22 <span class="lbl">Latest</span></h1>
+    <p>아래 Assets에서 AutoFolder_0.1.22_x64-setup.exe를 받아 실행하세요.</p>
+    <div class="assets">
+      <div class="h">▾ Assets <span>5</span></div>
+      <div class="row hl"><a>AutoFolder_0.1.22_x64-setup.exe</a><span class="m">5.2 MB</span></div>
+      <div class="row"><a>AutoFolder_0.1.22_x64-setup.exe.sig</a><span class="m">420 Bytes</span></div>
+      <div class="row"><a>latest.json</a><span class="m">1 KB</span></div>
+      <div class="row"><a>Source code (zip)</a><span class="m"></span></div>
+      <div class="row"><a>Source code (tar.gz)</a><span class="m"></span></div>
+    </div>
+  </div>
+</div></div>
+
+<div class="shot" id="r-done"><div class="chrome">
+  <div class="tabs"><div class="tab">Release AutoFolder 0.1.22</div></div>
+  <div class="bar"><span class="nav">←→⟳</span><div class="addr">github.com/08hwichemi/file-organizer-releases/releases/tag/v0.1.22</div><span class="dl hl">⤓</span><span class="dl">⋮</span></div>
+  <div class="gh" style="height:200px;opacity:.4"><div class="repo">08hwichemi / file-organizer-releases</div><h1>AutoFolder 0.1.22</h1></div>
+  <div class="bubble"><h4>최근 다운로드 기록</h4>
+    <div class="file hl"><div class="ico">EXE</div><div>AutoFolder_0.1.22_x64-setup.exe<small>5.2 MB · 완료</small></div></div>
+  </div>
+</div></div>
+
+<div class="shot" id="r-edge1"><div class="edge" style="height:290px">
+  <h4>다운로드 <span>⌕ ⋯</span></h4>
+  <div class="item"><div class="w">⚠</div><div><b>AutoFolder_0.1.22_x64-setup.exe은(는) 일반적으로 다운로드되지 않습니다.</b><div class="s">열기 전에 AutoFolder_0.1.22_x64-setup.exe을(를) 신뢰할 수 있는지 확인하세요.</div>
+    <div class="acts"><span class="eb">삭제</span><span class="eb hl">⋯</span></div></div></div>
+  <div class="menu"><div class="hl">유지</div><div>안전한 파일로 보고</div><div>자세히 알아보기</div></div>
+</div></div>
+
+<div class="shot" id="r-edge2"><div class="dlg">
+  <h3>이 파일을 열기 전에 확인하세요</h3>
+  <p>Microsoft Defender SmartScreen에서 이 파일이 안전한지 확인할 수 없습니다.</p>
+  <p><span class="link hl">자세히 표시 ⌄</span></p>
+  <div class="more">이름: AutoFolder_0.1.22_x64-setup.exe<br>게시자: 알 수 없음</div>
+  <div class="btns"><span class="eb hl">그래도 계속</span><span class="eb pri">삭제</span></div>
+</div></div>
+
+<div class="shot" id="r-ss1"><div class="ss">
+  <h2>Windows의 PC 보호</h2>
+  <p>Microsoft Defender SmartScreen에서 인식할 수 없는 앱의 시작을 차단했습니다. 이 앱을 실행하면 PC가 위험에 노출될 수 있습니다.</p>
+  <span class="more hl">추가 정보</span>
+  <div class="btns"><span class="b fill">실행 안 함</span></div>
+</div></div>
+
+<div class="shot" id="r-ss2"><div class="ss">
+  <h2>Windows의 PC 보호</h2>
+  <p>Microsoft Defender SmartScreen에서 인식할 수 없는 앱의 시작을 차단했습니다. 이 앱을 실행하면 PC가 위험에 노출될 수 있습니다.</p>
+  <p>앱: AutoFolder_0.1.22_x64-setup.exe<br>게시자: 알 수 없는 게시자</p>
+  <div class="btns"><span class="b hl">실행</span><span class="b fill">실행 안 함</span></div>
+</div></div>
+
+<div class="shot" id="r-nsis1"><div class="win"><div class="t"><span>AutoFolder 설치</span><span>— ✕</span></div>
+  <div class="wel"><div class="side"><div><svg width="34" height="30" viewBox="0 0 18 16"><path d="M1.5 2.5A1.5 1.5 0 0 1 3 1h4l1.6 1.8H15A1.5 1.5 0 0 1 16.5 4.3V13a1.5 1.5 0 0 1-1.5 1.5H3A1.5 1.5 0 0 1 1.5 13z" fill="#F5CB5C"/><path d="M1.5 5h15v8a1.5 1.5 0 0 1-1.5 1.5H3A1.5 1.5 0 0 1 1.5 13z" fill="#E3B23C"/></svg></div></div>
+    <div class="main"><h3>AutoFolder 설치를 시작합니다</h3><p>이 프로그램은 컴퓨터에 AutoFolder를 설치합니다.</p><p>설치를 시작하기 전에 다른 프로그램을 닫아 주세요.</p><p>계속하려면 [다음]을 누르세요.</p></div></div>
+  <div class="foot"><span class="brand"></span><span class="wb def hl">다음(N) &gt;</span><span class="wb">취소</span></div></div></div>
+
+<div class="shot" id="r-nsis2"><div class="win"><div class="t"><span>AutoFolder 설치</span><span>— ✕</span></div>
+  <div class="head"><b>설치 위치 선택</b><span>AutoFolder를 설치할 폴더를 선택해 주세요.</span></div>
+  <div class="inner"><p>AutoFolder를 다음 폴더에 설치합니다. 다른 폴더에 설치하려면 [찾아보기]를 누르세요. 설치를 시작하려면 [설치]를 누르세요.</p>
+    <div class="gb"><i>설치 폴더</i><div class="r"><span class="in">C:\Users\선생님\AppData\Local\AutoFolder</span><span class="wb">찾아보기...</span></div></div>
+    <p style="margin-top:14px">필요한 공간: 14.8 MB</p></div>
+  <div class="foot"><span class="brand">Nullsoft Install System</span><span class="wb">&lt; 뒤로(B)</span><span class="wb def hl">설치(I)</span><span class="wb">취소</span></div></div></div>
+
+<div class="shot" id="r-nsis3"><div class="win"><div class="t"><span>AutoFolder 설치</span><span>— ✕</span></div>
+  <div class="head"><b>설치 완료</b><span>설치가 완료되었습니다.</span></div>
+  <div class="inner"><p>완료</p><div class="prog"><i></i></div><span class="wb" style="width:auto;padding:3px 10px">자세히 보기(D)</span></div>
+  <div class="foot"><span class="brand">Nullsoft Install System</span><span class="wb off">&lt; 뒤로(B)</span><span class="wb def hl">다음(N) &gt;</span><span class="wb off">취소</span></div></div></div>
+
+<div class="shot" id="r-nsis4"><div class="win"><div class="t"><span>AutoFolder 설치</span><span>— ✕</span></div>
+  <div class="wel"><div class="side"><div><svg width="34" height="30" viewBox="0 0 18 16"><path d="M1.5 2.5A1.5 1.5 0 0 1 3 1h4l1.6 1.8H15A1.5 1.5 0 0 1 16.5 4.3V13a1.5 1.5 0 0 1-1.5 1.5H3A1.5 1.5 0 0 1 1.5 13z" fill="#F5CB5C"/><path d="M1.5 5h15v8a1.5 1.5 0 0 1-1.5 1.5H3A1.5 1.5 0 0 1 1.5 13z" fill="#E3B23C"/></svg></div></div>
+    <div class="main"><h3>AutoFolder 설치 완료</h3><p>AutoFolder 설치가 끝났습니다. 설치 프로그램을 닫으려면 [마침]을 누르세요.</p>
+      <div class="chk"><i>✓</i>AutoFolder 실행하기</div><div class="chk"><i>✓</i>바탕화면에 바로가기 만들기</div></div></div>
+  <div class="foot"><span class="brand"></span><span class="wb">&lt; 뒤로(B)</span><span class="wb def hl">마침(F)</span><span class="wb">취소</span></div></div></div>
+</body></html>

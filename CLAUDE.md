@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-이 저장소는 **AutoFolder**(오토폴더, 예전 이름 "파일 정리 도우미") — 바탕화면·다운로드에 새 파일이 저장되면 팝업을 띄워 원하는 폴더로 정리해 주는 Windows 프로그램이다.
+이 저장소는 **AutoFolder**(오토폴더) — 바탕화면·다운로드에 새 파일이 저장되면 팝업을 띄워 원하는 폴더로 정리해 주는 Windows 프로그램이다.
 
 - 무엇을 만드는지: `docs/SPEC.md` (반드시 먼저 읽는다)
 - 화면 시안: `docs/design/popup.dc.html`(새 파일 팝업), `docs/design/inbox.dc.html`(정리함). 색·간격·구성은 시안을 따른다.
@@ -19,6 +19,9 @@
   - 클라우드에서 할 것: React 화면은 브라우저 + 가짜 데이터(`src/mocks/`)로 확인, Rust 로직은 단위 테스트(`cargo test`), 컴파일 확인.
   - Windows 확인: GitHub Actions(windows-latest)가 PR마다 설치 파일을 아티팩트로 만든다. 사용자가 받아서 설치해 확인한다. PR 설명에 무엇을 눌러 보면 되는지 단계별로 적는다.
 - Windows 전용 코드는 `#[cfg(windows)]`로 감싸서 리눅스에서도 컴파일되게 한다.
+- **화면을 바꾸기 전에 시안 이미지부터 보내 확인받는다**(사용자 요청). 코드는 그대로 두고 가짜 데이터 화면에 CSS·DOM을 임시로 덧씌워 찍은 사진을 보여 주고, "좋아"가 나온 뒤에 만든다.
+- 글 줄바꿈 검사: `npx vite --port 5179 --strictPort`로 가짜 데이터 화면을 띄우고 `node scripts/check-linebreaks.mjs`(가장 작은 창은 `min`). 화면 글을 바꾸면 돌려서 "문제 0개"를 확인한다.
+- 사용 설명서·설치 안내 이미지(SPEC 7장): 원본은 `docs/manual`, `docs/install-image`. 화면이 바뀌면 `node docs/manual/tools/shots.mjs`로 그림을 다시 찍고, 설명서는 같은 주소(https://claude.ai/artifact/UjLpBr6AA33DNrLko6JSzG)에 다시 올린다(글꼴은 `node_modules/pretendard`의 PretendardVariable.woff2를 같이 올림).
 - 결정이 SPEC과 달라지면 `docs/SPEC.md`도 같은 PR에서 고친다.
 
 ## 반드시 지킬 것

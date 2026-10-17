@@ -18,3 +18,4 @@ Thumbs.db
 
 # Everything SDK DLL은 설치 파일을 만들 때 받는다(scripts/fetch-everything-sdk.ps1)
 src-tauri/resources/Everything64.dll
+scripts/.linebreaks/

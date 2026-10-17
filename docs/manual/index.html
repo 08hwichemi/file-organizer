@@ -1,0 +1,762 @@
+<title>AutoFolder 사용 설명서</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  /* 한 화면에 한 장면. 위: 차례(장), 가운데: 글+화면이 한 카드, 아래: 이전/진행/다음.
+     색·글꼴은 AutoFolder 프로그램과 같게. 장면 내용은 아래 스크립트의 S 배열만 고치면 된다. */
+  @font-face {
+    font-family: "Pretendard Variable";
+    font-weight: 45 920;
+    font-display: swap;
+    /* 올린 설명서에는 글꼴 파일을 같이 올리고, 저장소에서 열 때는 node_modules의 것을 쓴다 */
+    src: url("PretendardVariable.woff2") format("woff2"), url("../../node_modules/pretendard/dist/web/variable/woff2/PretendardVariable.woff2") format("woff2");
+  }
+  :root {
+    --bg: #F4F5F7;
+    --surface: #FFFFFF;
+    --surface-sub: #F7F8FA;
+    --fg: #17191C;
+    --sub: #5F6670;
+    --line: #E4E6EA;
+    --accent: #2B59C3;
+    --accent-hover: #2349A3;
+    --accent-soft: #E7EEFB;
+    --folder: #E3B23C;
+    --folder-light: #F5CB5C;
+    --ok: #1B6E43;
+    --hl: #E8590C;
+    --hl-soft: #FDEBDD;
+    --ex: #8A5A00;
+    --ex-soft: #FFF3D6;
+    --shot-shadow: 0 10px 28px rgba(23, 25, 28, 0.13);
+    --font: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121418; --surface: #1B1E24; --surface-sub: #22262D; --fg: #EDEFF2; --sub: #A3AAB4;
+      --line: #2E333B; --accent: #6E95F0; --accent-hover: #8EADF5; --accent-soft: #23304D;
+      --ok: #6CC596; --hl: #FF8A4C; --hl-soft: #3A2516; --ex: #F2C46B; --ex-soft: #3A2F16;
+      --shot-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121418; --surface: #1B1E24; --surface-sub: #22262D; --fg: #EDEFF2; --sub: #A3AAB4;
+    --line: #2E333B; --accent: #6E95F0; --accent-hover: #8EADF5; --accent-soft: #23304D;
+    --ok: #6CC596; --hl: #FF8A4C; --hl-soft: #3A2516; --ex: #F2C46B; --ex-soft: #3A2F16;
+    --shot-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+    color-scheme: dark;
+  }
+
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 1.6;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    -webkit-font-smoothing: antialiased;
+  }
+  .app {
+    height: 100%;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    max-width: 1320px;
+    margin: 0 auto;
+    padding-block: 12px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    gap: 12px;
+  }
+  .nw { white-space: nowrap !important; }
+
+  /* 위: 이름 + 차례 */
+  .top { display: flex; align-items: center; gap: 16px; min-width: 0; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 750; font-size: 17px; white-space: nowrap; }
+  .logo { width: 32px; height: 32px; border-radius: 9px; background: var(--accent); display: grid; place-items: center; flex-shrink: 0; }
+  .brand small { font-weight: 500; color: var(--sub); font-size: 14px; }
+  .toc {
+    display: flex; gap: 2px; flex-wrap: nowrap; overflow-x: auto;
+    margin-left: auto; padding: 4px; min-width: 0;
+    border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+    scrollbar-width: none;
+  }
+  .toc::-webkit-scrollbar { display: none; }
+  .toc button {
+    display: inline-flex; align-items: center; gap: 5px;
+    min-height: 36px; padding: 0 11px; flex-shrink: 0;
+    border: 0; border-radius: 9px; background: transparent;
+    color: var(--sub); font: inherit; font-size: 14px; font-weight: 600;
+    white-space: nowrap; cursor: pointer;
+  }
+  .toc button:hover { background: var(--surface-sub); color: var(--fg); }
+  .toc button[aria-current="step"] { background: var(--accent-soft); color: var(--accent); }
+  .toc .star { color: var(--folder); font-size: 11px; }
+
+  /* 가운데: 한 장면 */
+  .stage { flex: 1; min-height: 0; display: flex; }
+  .scene {
+    flex: 1; min-height: 0; min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.45fr);
+    gap: clamp(20px, 3vw, 48px);
+    align-items: center;
+    padding: clamp(20px, 3vw, 44px);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    overflow: auto;
+    animation: in 0.22s ease-out;
+  }
+  .scene:focus { outline: none; }
+  @keyframes in { from { opacity: 0.4; transform: translateX(8px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .scene { animation: none; } }
+
+  .text { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .chip {
+    align-self: flex-start;
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 4px 12px; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent);
+    font-size: 13.5px; font-weight: 700; white-space: nowrap;
+  }
+  .chip span { font-weight: 600; opacity: 0.8; font-variant-numeric: tabular-nums; }
+  h1, h2, h3 { margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+  h1 { font-size: clamp(30px, 3.6vw, 44px); line-height: 1.25; font-weight: 800; }
+  h2 { font-size: clamp(24px, 2.5vw, 31px); line-height: 1.3; font-weight: 800; }
+  .text p { margin: 0; font-size: 17px; color: var(--sub); text-wrap: pretty; }
+  .text p b { color: var(--fg); font-weight: 700; }
+  b.mark { color: var(--fg); font-weight: 750; box-shadow: inset 0 -0.42em 0 var(--hl-soft); }
+  .btnlike {
+    display: inline-block; padding: 0 8px; border-radius: 6px;
+    background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 15px; line-height: 1.65;
+  }
+  .key {
+    display: inline-block; min-width: 1.6em; padding: 0 7px; text-align: center;
+    border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px;
+    background: var(--surface-sub); color: var(--fg); font-size: 14px; font-weight: 650; line-height: 1.6;
+  }
+  .copy {
+    display: flex; align-items: center; gap: 8px; flex-wrap: nowrap;
+    padding: 6px 6px 6px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-sub);
+  }
+  .copy code {
+    flex: 1; min-width: 0; font-family: var(--font); font-size: 15px; font-weight: 650; color: var(--fg);
+    word-break: break-all; line-height: 1.45;
+  }
+  .copy button {
+    flex-shrink: 0; min-height: 36px; padding: 0 14px; border-radius: 9px; border: 0;
+    background: var(--accent); color: #fff; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap;
+  }
+  .copy button:hover { background: var(--accent-hover); }
+  .tip {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 12px 14px; border-radius: 12px; background: var(--surface-sub);
+  }
+  .tip svg { flex-shrink: 0; margin-top: 4px; color: var(--ok); }
+  .tip > span { color: var(--sub); font-size: 15px; text-wrap: pretty; }
+  .legend { display: inline-flex; align-items: center; gap: 8px; color: var(--sub); font-size: 13.5px; }
+  .legend i { width: 18px; height: 12px; border: 2.5px solid var(--hl); border-radius: 4px; flex-shrink: 0; }
+
+  /* 화면 그림 */
+  .fig { margin: 0; min-width: 0; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .fig img {
+    display: block; max-width: 100%; height: auto;
+    max-height: calc(100dvh - 220px);
+    object-fit: contain;
+    border-radius: 14px; border: 1px solid var(--line); box-shadow: var(--shot-shadow); background: #fff;
+  }
+  .extag {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border-radius: 999px; background: var(--ex-soft); color: var(--ex);
+    font-size: 13px; font-weight: 650; white-space: nowrap;
+  }
+
+  /* 첫 장 */
+  .cover { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .cover .text { gap: 18px; }
+  .cover .text p { font-size: 18px; max-width: 30em; }
+  .facts { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--sub); font-size: 15px; }
+  .facts span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .facts svg { color: var(--ok); }
+  .order { margin: 2px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--sub); font-size: 14.5px; }
+  .order li { white-space: nowrap; }
+  .order li b { color: var(--fg); font-weight: 650; }
+  .tiles { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .tile {
+    display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 18px; align-items: center;
+    padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface-sub);
+  }
+  .tile img { width: 132px; height: 104px; object-fit: cover; object-position: top left; border-radius: 10px; border: 1px solid var(--line); background: #fff; }
+  .tile small { display: inline-block; color: var(--accent); font-size: 13px; font-weight: 750; }
+  .tile small .star { color: var(--folder); }
+  .tile strong { display: block; font-size: 19px; line-height: 1.35; margin: 2px 0 4px; }
+  .tile p { margin: 0; color: var(--sub); font-size: 15px; text-wrap: pretty; }
+
+  /* 자주 묻는 것 */
+  .faq { grid-template-columns: 1fr; align-content: start; align-items: start; }
+  .qa { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .qa div { padding: 14px 16px; border-radius: 14px; background: var(--surface-sub); }
+  .qa h3 { margin: 0 0 4px; font-size: 16px; }
+  .qa p { margin: 0; color: var(--sub); font-size: 14.5px; line-height: 1.55; text-wrap: pretty; }
+  .terms { margin: 0; color: var(--sub); font-size: 13.5px; }
+  .faq { gap: 16px; }
+  @media (max-height: 800px) and (min-width: 861px) {
+    .faq { padding-block: 20px; }
+    .qa { gap: 10px; }
+    .qa div { padding: 11px 14px; }
+    .qa p { font-size: 14px; line-height: 1.5; }
+  }
+
+  /* 아래: 이전 / 진행 / 다음 */
+  .nav { display: flex; align-items: center; gap: 14px; flex-wrap: nowrap; }
+  .nav button.go {
+    min-height: 44px; padding: 0 18px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--fg); font: inherit; font-weight: 700; cursor: pointer; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
+  }
+  .nav button.go:hover:not(:disabled) { background: var(--surface-sub); }
+  .nav button.go.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .nav button.go.primary:hover:not(:disabled) { background: var(--accent-hover); }
+  .nav button.go:disabled { opacity: 0.35; cursor: default; }
+  .bar { flex: 1; display: flex; gap: 4px; min-width: 0; }
+  .bar span { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; min-width: 8px; }
+  .bar span i { display: block; height: 100%; background: var(--accent); transition: width 0.2s; }
+  .count { color: var(--sub); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
+
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  @media (max-width: 1000px) {
+    .brand small { display: none; }
+  }
+  @media (max-width: 860px) {
+    .top { flex-direction: column; align-items: stretch; gap: 8px; }
+    .toc { margin-left: 0; }
+    .scene, .cover { grid-template-columns: minmax(0, 1fr); align-items: start; align-content: start; }
+    .fig img { max-height: none; }
+    .qa { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 480px) {
+    .nav { gap: 10px; }
+    .nav button.go { padding: 0 12px; }
+    .tile { grid-template-columns: 96px minmax(0, 1fr); gap: 14px; padding: 14px; }
+    .tile img { width: 96px; height: 80px; }
+  }
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">
+        <svg width="18" height="16" viewBox="0 0 18 16"><path d="M1.5 2.5A1.5 1.5 0 0 1 3 1h4l1.6 1.8H15A1.5 1.5 0 0 1 16.5 4.3V13a1.5 1.5 0 0 1-1.5 1.5H3A1.5 1.5 0 0 1 1.5 13z" fill="#F5CB5C"/><path d="M1.5 5h15v8a1.5 1.5 0 0 1-1.5 1.5H3A1.5 1.5 0 0 1 1.5 13z" fill="#E3B23C"/></svg>
+      </span>
+      AutoFolder <small>사용 설명서</small>
+    </div>
+    <nav class="toc" aria-label="차례" id="toc"></nav>
+  </header>
+
+  <main class="stage" id="stage"></main>
+
+  <footer class="nav">
+    <button type="button" class="go" id="prev">
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>이전
+    </button>
+    <div class="bar" id="bar" aria-hidden="true"></div>
+    <span class="count" id="count" aria-live="polite"></span>
+    <button type="button" class="go primary" id="next"></button>
+  </footer>
+</div>
+
+<script>
+(() => {
+  // 장(차례). star = 주요 기능
+  const CH = [
+    { key: "start", name: "시작" },
+    { key: "install", name: "설치하기" },
+    { key: "setup", name: "처음 설정" },
+    { key: "new", name: "새 파일 정리", star: true },
+    { key: "classify", name: "자동 분류", star: true },
+    { key: "after", name: "정리한 뒤" },
+    { key: "more", name: "그 밖에" },
+    { key: "faq", name: "자주 묻는 것" },
+  ];
+  const URL_RELEASE = "github.com/08hwichemi/file-organizer-releases/releases/latest";
+
+  // 장면. 글 표시법: [[단추]]  {{키}}  ==강조==  (뒤에 붙은 조사·마침표는 같은 줄에 붙어 다닌다)
+  // ex: true = Windows·브라우저 화면이라 예시 그림(실제와 조금 다를 수 있음). hl: true = 그림에 주황 테두리 있음.
+  const S = [
+    { id: "start", ch: "start", cover: true },
+
+    { id: "install-1", ch: "install", ex: true, hl: true, img: "r-addr.png",
+      alt: "크롬 새 탭의 주소 칸에 배포 페이지 주소를 넣은 모습",
+      title: "크롬을 열고 <span class=\"nw\">주소 칸에</span> 배포 주소 넣기",
+      body: [
+        "크롬(또는 엣지)을 열고 맨 위 ==주소 칸==을 누르세요. 아래 [[복사]]를 누른 뒤 주소 칸에 {{Ctrl}}+{{V}}로 붙여 넣고 {{Enter}}.",
+      ],
+      copy: URL_RELEASE,
+      tip: "메신저나 메일로 받은 링크가 있으면 그 링크를 눌러도 같은 페이지가 열려요." },
+
+    { id: "install-2", ch: "install", ex: true, hl: true, img: "r-assets.png",
+      alt: "배포 페이지 아래쪽 Assets 목록에서 AutoFolder_0.1.22_x64-setup.exe를 누르는 모습",
+      title: "Assets에서 <span class=\"nw\">‘…x64-setup.exe’</span> 누르기",
+      body: [
+        "배포 페이지가 열리면 화면을 조금 내려 ==Assets== 목록을 찾으세요.",
+        "이름이 ==x64-setup.exe==로 끝나는 파일 <b>하나만</b> 누르면 내려받기가 시작돼요. 나머지 파일은 받지 않아도 돼요.",
+      ],
+      tip: "Assets가 접혀 있으면 ‘Assets’ 글자를 눌러 펼치세요. 이름 가운데 숫자(0.1.22 같은)는 새 버전마다 달라져요." },
+
+    { id: "install-3", ch: "install", ex: true, hl: true, img: "r-done.png",
+      alt: "크롬 오른쪽 위 다운로드 아이콘을 누르면 최근 다운로드 기록에 설치 파일이 보이는 모습",
+      title: "크롬: 받은 파일 열기",
+      body: [
+        "다 받으면 크롬 오른쪽 위 ==다운로드 아이콘(↓)==을 누르세요.",
+        "목록에 보이는 ==AutoFolder_…_x64-setup.exe==를 누르면 설치가 시작돼요.",
+      ],
+      tip: "목록이 안 보이면 파일 탐색기 → 다운로드 폴더에서 그 파일을 두 번 누르세요." },
+
+    { id: "install-4", ch: "install", ex: true, hl: true, img: "r-edge1.png",
+      alt: "엣지 다운로드 목록에서 파일 옆 점 세 개를 누르고 유지를 고르는 모습",
+      title: "엣지라면 ①: [⋯] → [유지]",
+      body: [
+        "엣지는 ‘일반적으로 다운로드되지 않습니다’라며 파일을 잠시 막아 둘 수 있어요.",
+        "그 파일 옆 [[⋯]]을 누르고 [[유지]]를 고르세요.",
+      ],
+      tip: "크롬으로 받았다면 이 장과 다음 장은 건너뛰세요." },
+
+    { id: "install-5", ch: "install", ex: true, hl: true, img: "r-edge2.png",
+      alt: "이 파일을 열기 전에 확인하세요 창에서 자세히 표시를 누르고 그래도 계속을 누르는 모습",
+      title: "엣지라면 ②: <span class=\"nw\">자세히 표시</span> → [그래도 계속]",
+      body: [
+        "‘이 파일을 열기 전에 확인하세요’ 창이 뜨면 ==자세히 표시==를 누르세요.",
+        "아래에 [[그래도 계속]]이 생기면 누르세요. 그다음 다운로드 목록에서 [[파일 열기]].",
+      ],
+      tip: "파란 [삭제]는 누르지 마세요. 이 확인은 처음 한 번만 나와요." },
+
+    { id: "install-6", ch: "install", ex: true, hl: true, img: "r-ss1.png",
+      alt: "파란 Windows의 PC 보호 창에서 추가 정보 글자를 누르는 모습",
+      title: "파란 경고 창: ‘추가 정보’ 누르기",
+      body: [
+        "설치 파일을 열면 ‘Windows의 PC 보호’라는 파란 창이 뜰 수 있어요. 무료 프로그램이라 처음에 나오는 안내일 뿐, 바이러스라는 뜻이 아니에요.",
+        "글 아래 밑줄 친 ==추가 정보==를 누르세요.",
+      ],
+      tip: "처음에는 [실행 안 함] 버튼만 보여요. 추가 정보를 눌러야 [실행] 버튼이 생겨요." },
+
+    { id: "install-7", ch: "install", ex: true, hl: true, img: "r-ss2.png",
+      alt: "추가 정보를 누른 뒤 생긴 실행 버튼을 누르는 모습",
+      title: "새로 생긴 [실행] 누르기",
+      body: [
+        "앱 이름이 ==AutoFolder_…_x64-setup.exe==인지 확인하고 [[실행]]을 누르세요.",
+      ],
+      tip: "게시자가 ‘알 수 없는 게시자’로 나오는 것도 정상이에요." },
+
+    { id: "install-8", ch: "install", ex: true, hl: true, img: "r-nsis1.png",
+      alt: "AutoFolder 설치 창의 첫 화면에서 다음을 누르는 모습",
+      title: "설치 창: [다음]",
+      body: [
+        "‘AutoFolder 설치를 시작합니다’ 창이 열려요. 오른쪽 아래 [[다음]]을 누르세요.",
+      ],
+      tip: "관리자 비밀번호는 필요 없어요. 설치는 1분이면 끝나요." },
+
+    { id: "install-9", ch: "install", ex: true, hl: true, img: "r-nsis2.png",
+      alt: "설치 위치 선택 화면에서 설치 버튼을 누르는 모습",
+      title: "설치 위치는 그대로 두고 [설치]",
+      body: [
+        "‘설치 위치 선택’ 화면이에요. 폴더는 바꾸지 말고 [[설치]]를 누르세요.",
+      ],
+      tip: "이미 설치한 적이 있으면 이 앞에 다시 설치할지 묻는 화면이 나올 수 있어요. 그대로 [다음]을 누르면 돼요." },
+
+    { id: "install-10", ch: "install", ex: true, hl: true, img: "r-nsis3.png",
+      alt: "설치 완료 화면에서 다음을 누르는 모습",
+      title: "막대가 다 차면 [다음]",
+      body: [
+        "초록 막대가 끝까지 차고 ‘설치 완료’가 보이면 [[다음]]을 누르세요.",
+      ] },
+
+    { id: "install-11", ch: "install", ex: true, hl: true, img: "r-nsis4.png",
+      alt: "설치 완료 마지막 화면에서 AutoFolder 실행하기에 체크된 채 마침을 누르는 모습",
+      title: "[마침]을 누르면 AutoFolder가 켜져요",
+      body: [
+        "==AutoFolder 실행하기==에 체크된 그대로 [[마침]]을 누르세요.",
+        "곧 AutoFolder의 ‘처음 설정’ 창이 열려요. 다음 장부터 이어서 볼게요.",
+      ],
+      tip: "‘바탕화면에 바로가기 만들기’를 켜 두면 바탕화면 아이콘으로도 열 수 있어요." },
+
+    { id: "setup-1", ch: "setup", hl: true, img: "fr1.png",
+      alt: "처음 설정 1단계: 어디에서 쓰시나요? 학교와 일반(회사·개인) 중 고르기",
+      title: "어디에서 쓰는지 고르기",
+      body: [
+        "학교에서 쓰면 ==학교==, 회사나 집에서 쓰면 ==일반(회사·개인)==을 고르고 [[다음]].",
+        "고른 쪽에 맞춰 예시 폴더와 날짜 기준<span class=\"nw\">(학기·학년도)을</span> 준비해 줘요.",
+      ],
+      tip: "처음 설정은 [다음]만 눌러도 괜찮아요. 모두 나중에 설정에서 바꿀 수 있어요." },
+
+    { id: "setup-2", ch: "setup", hl: true, img: "fr2.png",
+      alt: "처음 설정 2단계: 문서 폴더에 새로 만들기를 고른 모습",
+      title: "정리 폴더 위치 정하기",
+      body: [
+        "‘정리 폴더’는 정리한 파일이 모이는 큰 폴더예요. 잘 모르겠으면 맨 위 ==문서 폴더에 새로 만들기== 그대로 [[다음]].",
+      ],
+      tip: "이미 폴더를 나눠 쓰고 있다면 ‘쓰던 폴더 그대로 쓰기’를 고르세요. 안의 파일은 건드리지 않아요." },
+
+    { id: "setup-3", ch: "setup", hl: true, img: "fr3.png",
+      alt: "처음 설정 3단계: 업무, 수업, 평가, 학급 같은 예시 폴더 목록",
+      title: "정리 폴더 안의 폴더 정하기",
+      body: [
+        "==폴더를 정해서 시작==에 예시 폴더<span class=\"nw\">(업무·수업·평가…)가</span> 채워져 있어요.",
+        "이름을 눌러 바꾸고, [[+ 안에 폴더]]로 더하고, 필요 없는 건 <span class=\"nw\">✕로</span> 빼세요. 그대로 두고 아래 [[다음]]만 눌러도 돼요.",
+      ],
+      tip: "폴더는 나중에 정리함에서도 언제든 만들고 이름을 바꿀 수 있어요." },
+
+    { id: "setup-4", ch: "setup", hl: false, img: "fr4.png",
+      alt: "처음 설정 4단계: 다운로드와 바탕화면에 체크된 모습",
+      title: "새 파일을 지켜볼 폴더 확인",
+      body: [
+        "새 파일이 들어오는지 지켜볼 곳이에요. 보통 ==다운로드==와 ==바탕화면== 그대로 두고 [[다음]].",
+      ],
+      tip: "고른 폴더에 바로 저장되는 파일만 봐요. 그 안의 하위 폴더는 보지 않아요." },
+
+    { id: "setup-5", ch: "setup", hl: true, img: "fr5.png",
+      alt: "처음 설정 5단계: 바로 물어보기를 고른 모습",
+      title: "새 파일이 오면 어떻게 할지 고르기",
+      body: [
+        "==바로 물어보기==를 고르면 새 파일마다 화면 오른쪽 아래에 작은 창이 떠요. 이 설명서의 <b>새 파일 정리</b>가 이 방식이에요.",
+      ],
+      tip: "창이 뜨는 게 싫으면 ‘모아 두고 나중에 정리’. 설정에서 언제든 바꿀 수 있어요." },
+
+    { id: "setup-6", ch: "setup", hl: true, img: "fr6.png",
+      alt: "처음 설정 6단계: 고른 내용 요약과 시작하기 버튼",
+      title: "확인하고 [시작하기]",
+      body: [
+        "고른 내용을 한 번 더 보여 줘요. 맞으면 [[시작하기]]. 고칠 곳은 오른쪽 [[바꾸기]].",
+        "그 뒤로는 시계 옆 ==트레이==에 조용히 켜져 있어요. 컴퓨터를 켜면 저절로 켜져요.",
+      ],
+      tip: "처음 설정을 다시 하려면 설정 → 프로그램 → [처음 설정 다시 하기]. 만든 규칙과 파일은 그대로예요." },
+
+    { id: "new-1", ch: "new", img: "pp1.png",
+      alt: "새 파일 창: 맨 위 파일 이름, 추천 위치, 최근 넣은 곳, 폴더 격자, 넣기 버튼",
+      title: "파일을 받으면 오른쪽 아래에 창이 떠요",
+      body: [
+        "다운로드나 바탕화면에 새 파일이 저장되면 화면 ==오른쪽 아래==에 이 창이 떠요.",
+        "맨 위가 방금 받은 파일이에요. 이 창에서 넣을 폴더를 고르면 정리 끝이에요.",
+      ],
+      tip: "아직 받는 중인 파일은 건드리지 않아요. 저장이 끝난 뒤에 창을 띄워요." },
+
+    { id: "new-2", ch: "new", hl: true, img: "pp2.png",
+      alt: "추천 위치 칸과 넣기 버튼에 주황 테두리",
+      title: "추천 위치가 맞으면 [넣기]",
+      body: [
+        "파란 칸이 ==추천 위치==예요. 파일 이름을 보고 어울리는 폴더를 골라 줘요.",
+        "맞으면 [[넣기]]를 누르거나 {{Enter}}. 이게 가장 자주 쓰는 동작이에요.",
+      ],
+      tip: "맨 아래 ‘넣을 곳’에 실제로 들어갈 위치가 보여요." },
+
+    { id: "new-3", ch: "new", hl: true, img: "pp3.png",
+      alt: "최근 넣은 곳 1 회의록, 2 지필고사, 3 상담 단추에 주황 테두리",
+      title: "최근 넣은 곳은 한 번에",
+      body: [
+        "==최근 넣은 곳== 단추를 누르면 그 폴더로 바로 들어가요.",
+        "키보드 숫자 {{1}} {{2}} {{3}}을 눌러도 돼요.",
+      ] },
+
+    { id: "new-4", ch: "new", hl: true, img: "pp4.png",
+      alt: "폴더 격자에서 2학기 폴더를 고르는 모습",
+      title: "다른 폴더는 격자에서 고르기",
+      body: [
+        "폴더 그림을 ==한 번 누르면 선택==, 두 번 누르면 그 안으로 들어가요. 위쪽 경로(정리 폴더 › 평가 ›…)를 누르면 위로 나와요.",
+        "고른 뒤 [[넣기]].",
+      ],
+      tip: "맞는 폴더가 없으면 [새 폴더]. 이름으로 찾으려면 오른쪽 돋보기를 누르세요." },
+
+    { id: "new-5", ch: "new", hl: true, img: "pp6.png",
+      alt: "정리했어요 화면 오른쪽 위 되돌리기에 주황 테두리",
+      title: "잘못 넣었으면 [되돌리기]",
+      body: [
+        "넣고 나면 ==정리했어요==와 함께 어디에 넣었는지 보여 줘요.",
+        "잘못 넣었으면 오른쪽 위 [[되돌리기]]. 파일이 원래 자리로 돌아가요.",
+      ],
+      tip: "남은 파일이 있으면 아래 [다음 파일]로 이어서 정리해요." },
+
+    { id: "new-6", ch: "new", hl: true, img: "pp7.png",
+      alt: "파일 이름의 단어 중 수행평가를 고르고 규칙으로 저장을 누르는 모습",
+      title: "단어 하나 골라 [규칙으로 저장]",
+      body: [
+        "넣고 나면 파란 띠 <span class=\"nw\">‘다음에도 여기에 넣을까요?’</span> 칸이 나와요. 파일 이름의 ==단어 하나==를 고르고 [[규칙으로 저장]].",
+        "다음부터 이 단어가 든 파일은 이 폴더가 먼저 추천돼요. 이번 한 번뿐이면 [[이번만]].",
+      ],
+      tip: "만든 규칙은 왼쪽 메뉴 ‘정리 규칙’에서 고치거나 지울 수 있어요." },
+
+    { id: "new-7", ch: "new", hl: true, img: "pp5.png",
+      alt: "창 왼쪽 아래 나중에 정리 버튼에 주황 테두리",
+      title: "지금 바쁘면 [나중에 정리]",
+      body: [
+        "[[나중에 정리]]를 누르면 파일은 제자리에 두고 프로그램의 ==정리함==에 모아 둬요.",
+        "모인 파일은 다음 장의 <b>자동 분류</b>로 한 번에 정리하면 돼요.",
+      ],
+      tip: "창 위 ‘남은 파일 2개’는 정리를 기다리는 파일 수예요." },
+
+    { id: "classify-1", ch: "classify", hl: true, img: "ib2.png",
+      alt: "정리함 화면에서 지금 있는 파일 가져오기 버튼에 주황 테두리",
+      title: "정리함에서 [지금 있는 파일 가져오기]",
+      body: [
+        "시계 옆 트레이의 AutoFolder 아이콘을 오른쪽 클릭 → ==정리함==을 누르세요.",
+        "[[지금 있는 파일 가져오기]]를 누르면 다운로드·바탕화면에 원래 쌓여 있던 파일이 왼쪽 목록에 모여요.",
+      ],
+      tip: "이때는 목록에 모으기만 해요. 파일은 아직 제자리에 있어요." },
+
+    { id: "classify-2", ch: "classify", hl: true, img: "ib3.png",
+      alt: "정리함 목록 위 자동 분류 버튼에 주황 테두리",
+      title: "[자동 분류] 누르기",
+      body: [
+        "목록 위 [[자동 분류]]를 누르세요.",
+        "파일 이름과 만들어 둔 규칙을 보고, 파일마다 어느 폴더로 갈지 나눠 줘요.",
+      ] },
+
+    { id: "classify-3", ch: "classify", img: "cl1.png",
+      alt: "자동 분류 창: 왼쪽에 정리함에 남기기, 오른쪽에 지필고사·공문·수업 같은 폴더 카드. 카드마다 넣을 파일과 이미 있는 파일",
+      title: "폴더별 카드로 확인하기",
+      body: [
+        "오른쪽에 폴더마다 카드가 있어요. 파란 띠 ==넣을 파일== 아래가 그 폴더로 갈 파일, 회색 띠 ==이미 있는 파일== 아래가 그 폴더에 원래 있던 파일이에요.",
+        "이미 있는 파일을 보면 어떤 폴더인지 알 수 있어요. 맞게 나뉘었는지 훑어보세요.",
+      ],
+      tip: "왼쪽 ‘정리함에 남기기’는 어디로 갈지 모르는 파일이에요. 빼고 싶은 파일은 체크를 끄세요." },
+
+    { id: "classify-4", ch: "classify", hl: true, img: "cl2.png",
+      alt: "수행평가_안내문.hwp를 지필고사 카드로 끌어다 놓는 모습",
+      title: "다른 폴더가 맞으면 끌어다 놓기",
+      body: [
+        "잘못 들어간 파일은 이름을 잡고 맞는 카드 위로 ==끌어다 놓으면== 그 폴더로 옮겨져요.",
+        "아래쪽 카드로 옮길 때는 끄는 채로 창 아래 끝에 대면 저절로 내려가요. 이번에는 옮기지 않을 파일은 왼쪽 <span class=\"nw\">‘정리함에 남기기’로</span> 끌어 두세요.",
+      ],
+      tip: "옮긴 것은 아래 [옮긴 것 모두 되돌리기]로 처음 상태로 돌릴 수 있어요." },
+
+    { id: "classify-5", ch: "classify", hl: true, img: "cl3.png",
+      alt: "자동 분류 창 오른쪽 아래 25개 나누기 버튼에 주황 테두리",
+      title: "[25개 나누기]로 한 번에 정리",
+      body: [
+        "다 확인했으면 오른쪽 아래 [[25개 나누기]]를 누르세요. 숫자는 체크된 파일 수예요.",
+      ],
+      tip: "같은 이름의 파일이 이미 있으면 덮어쓰지 않고 <span class=\"nw\">‘이름 (2)’로</span> 넣어요." },
+
+    { id: "classify-6", ch: "classify", hl: true, img: "cl4.png",
+      alt: "정리함 아래에 25개 파일을 자동으로 나눴어요, 되돌리기 알림",
+      title: "끝! 마음에 안 들면 [되돌리기]",
+      body: [
+        "파일이 각 폴더로 들어가요. 아래에 <span class=\"nw\">‘25개 파일을 자동으로 나눴어요’</span> 알림이 보이면 끝이에요.",
+        "바로 옆 [[되돌리기]]를 누르면 나눈 파일이 한 번에 모두 원래 자리로 돌아가요.",
+      ] },
+
+    { id: "after-1", ch: "after", hl: true, img: "rc1.png",
+      alt: "정리함 왼쪽 최근 정리 탭: 오늘 띠 아래 넣은 파일마다 원래 자리, 넣은 폴더, 위치·되돌리기 버튼",
+      title: "어디로 갔는지는 [최근 정리] 탭",
+      body: [
+        "정리함 왼쪽 위 [[최근 정리]] 탭을 누르면 최근에 넣거나 옮긴 파일이 ==날짜별==로 보여요. ‘다운로드 → 평가 › 지필고사’처럼 어디서 어디로 갔는지 나와요.",
+        "잘못 넣은 게 보이면 그 줄의 [[되돌리기]]. 파일이 원래 자리로 돌아가요.",
+      ],
+      tip: "[위치]를 누르면 Windows 탐색기에서 그 파일을 골라 둔 채로 열어요." },
+
+    { id: "after-2", ch: "after", hl: true, img: "fd1.png",
+      alt: "정리함 오른쪽 폴더 칸: 지필고사 폴더 안의 파일 목록과 위치·열기 버튼",
+      title: "폴더 안 파일 보기",
+      body: [
+        "최근 정리에서 줄을 누르거나 오른쪽에서 폴더를 누르면, 그 폴더 아래쪽에 ==이 폴더의 파일==이 보여요.",
+        "파일을 두 번 누르면 열리고, 다른 폴더 그림 위로 끌어다 놓으면 그 폴더로 옮겨져요.",
+      ],
+      tip: "지우기·복사·이름 바꾸기는 [탐색기에서 열기]를 눌러 Windows 탐색기에서 하세요." },
+
+    { id: "more-1", ch: "more", img: "search.png",
+      alt: "파일 검색 화면: 이름, 위치, 수정한 날짜, 유형, 크기 열",
+      title: "파일 찾기",
+      body: [
+        "왼쪽 메뉴 ==파일 검색==, 또는 어디서든 <span class=\"nw\">{{Alt}}+{{Space}}</span>. 이름 일부만 적으면 PC 전체에서 찾아요.",
+        "열 제목을 누르면 날짜·크기 순으로 정렬되고, 열 사이 경계를 끌면 너비가 바뀌어요. 두 번 누르면 파일이 열려요.",
+      ] },
+
+    { id: "more-2", ch: "more", img: "rename.png",
+      alt: "이름 바꾸기: 고다윤.pdf를 2026년 고다윤으로 적으면 나머지도 같은 모양으로",
+      title: "이름 한꺼번에 바꾸기",
+      body: [
+        "왼쪽 메뉴 ==이름 바꾸기==에서 폴더를 고르고, <b>첫 파일만</b> 원하는 이름으로 적으면 나머지가 같은 모양으로 따라와요.",
+        "번호로 된 파일을 학생 이름으로 바꾸려면 [[명렬표]].",
+      ],
+      tip: "바꾼 이름도 한 번에 되돌릴 수 있어요." },
+
+    { id: "faq", ch: "faq", faq: true },
+  ];
+
+  const FAQ = [
+    ["잘못 넣었어요", "넣은 바로 뒤 [되돌리기]를 누르면 원래 자리로 가요. 나중에라도 정리함의 <span class=\"nw\">[최근 정리]</span> 탭에서 되돌릴 수 있어요."],
+    ["파일이 지워지진 않나요?", "지우기는 Windows 휴지통으로만 보내요. 같은 이름이 있으면 덮어쓰지 않고 <span class=\"nw\">‘이름 (2)’로</span> 넣어요."],
+    ["내려받는 중인 파일은요?", "저장이 끝날 때까지 기다렸다가 창을 띄워요. 받는 중인 파일은 건드리지 않아요."],
+    ["창이 자꾸 떠서 귀찮아요", "<span class=\"nw\">설정 → 정리 방식</span>에서 <span class=\"nw\">‘모아 두고 나중에 정리’</span>. 잠깐 멈추려면 트레이 메뉴의 [일시 정지]."],
+    ["완전히 끄고 싶어요", "창의 ✕는 숨기기만 해요. 시계 옆 <span class=\"nw\">트레이 아이콘 → [끄기]</span>."],
+    ["업데이트는 어떻게 해요?", "새 버전이 나오면 창 위에 <span class=\"nw\">‘새 버전이 있어요’</span>가 떠요. [지금 업데이트]만 누르면 돼요."],
+    ["처음 설정을 다시 하고 싶어요", "<span class=\"nw\">설정 → 프로그램</span> → <span class=\"nw\">[처음 설정 다시 하기]</span>. 규칙과 파일은 그대로예요."],
+    ["내 파일 정보가 밖으로 나가나요?", "아니요. 파일 이름·경로는 이 PC 안에서만 써요. 인터넷은 업데이트 확인에만 써요."],
+    ["다른 선생님께 주려면요?", "이 설명서 링크나 배포 주소를 보내 주세요. 배포 페이지에서 받은 파일만 설치하세요."],
+  ];
+
+  function fmt(s) {
+    return s
+      .replace(/\[\[(.+?)\]\]([가-힣]{0,3}[.,]?)/g, (m, a, b) => `<span class="nw"><span class="btnlike">${a}</span>${b}</span>`)
+      .replace(/\{\{(.+?)\}\}([가-힣]{0,3}[.,]?)/g, (m, a, b) => `<span class="nw"><span class="key">${a}</span>${b}</span>`)
+      .replace(/\[([^\[\]<>]+?)\]([가-힣]{0,3}[.,]?)/g, (m, a, b) => `<span class="nw">[${a}]${b}</span>`)
+      .replace(/‘([^’<]{1,16})’([가-힣]{0,3}[.,]?)/g, (m, a, b) => `<span class="nw">‘${a}’${b}</span>`)
+      .replace(/==(.+?)==([가-힣]{0,3}[.,]?)/g, (m, a, b) =>
+        a.length <= 12 ? `<span class="nw"><b class="mark">${a}</b>${b}</span>` : `<b class="mark">${a}</b>${b}`);
+  }
+  const TIP_ICON = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 7v4M8 4.6v.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  const CHECK = '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 7.5l3 3 6-7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  const chScenes = (key) => S.filter((x) => x.ch === key);
+  const chName = (key) => CH.find((c) => c.key === key).name;
+
+  function coverHTML() {
+    const order = CH.slice(1).map((c, i) => `<li><b>${i + 1}</b> ${c.name}</li>`).join("");
+    return `
+      <div class="text">
+        <span class="chip">새 파일 자동 정리 프로그램</span>
+        <h1>새 파일은 알아서,<br>쌓인 파일은 한&nbsp;번에.</h1>
+        <p>AutoFolder는 <span class="nw">다운로드·바탕화면</span>에 쌓이는 파일을 원하는 폴더에 넣어 주는 <span class="nw">Windows 프로그램</span>이에요. 설치부터 한 장면씩 따라 해 보세요.</p>
+        <div class="facts"><span>${CHECK}설치 5분</span><span>${CHECK}무엇이든 되돌릴 수 있어요</span><span>${CHECK}파일을 지우거나 덮어쓰지 않아요</span></div>
+        <ol class="order" aria-label="이 설명서의 순서">${order}</ol>
+      </div>
+      <div class="tiles">
+        <div class="tile">
+          <img src="img/popup.png" alt="">
+          <div><small><span class="star">★</span> 주요 기능 1</small><strong>새 파일이 오면</strong><p>오른쪽 아래에 뜨는 창에서 <span class="nw">폴더를 고르고</span> <span class="nw">[넣기]</span>. 한 번이면 끝.</p></div>
+        </div>
+        <div class="tile">
+          <img src="img/classify.png" alt="">
+          <div><small><span class="star">★</span> 주요 기능 2</small><strong>쌓여 있던 파일은</strong><p><span class="nw">[자동 분류]</span>가 폴더별로 나눠 줘요. 확인하고 <span class="nw">[나누기]</span>만 누르면 돼요.</p></div>
+        </div>
+      </div>`;
+  }
+
+  function faqHTML() {
+    return `
+      <div class="text"><span class="chip">자주 묻는 것</span><h2>걱정되는 것, 궁금한 것</h2></div>
+      <div class="qa">${FAQ.map(([q, a]) => `<div><h3>${q}</h3><p>${fmt(a)}</p></div>`).join("")}</div>
+      <p class="terms">교육·개인·업무 용도로 무료로 쓸 수 있어요<span class="nw">(판매는 할 수 없어요)</span>. <span class="nw">만든 사람 이용휘(화학 교사)</span> · <span class="nw">© 2026 이용휘</span></p>`;
+  }
+
+  function sceneHTML(sc) {
+    if (sc.cover) return coverHTML();
+    if (sc.faq) return faqHTML();
+    const list = chScenes(sc.ch);
+    const k = list.indexOf(sc) + 1;
+    const star = CH.find((c) => c.key === sc.ch).star ? '<span aria-hidden="true">★</span> ' : "";
+    return `
+      <div class="text">
+        <span class="chip">${star}${chName(sc.ch)}<span>${k} / ${list.length}</span></span>
+        <h2>${fmt(sc.title)}</h2>
+        ${sc.body.map((p) => `<p>${fmt(p)}</p>`).join("")}
+        ${sc.copy ? `<div class="copy"><code>${sc.copy}</code><button type="button" data-copy="${sc.copy}">복사</button></div>` : ""}
+        ${sc.tip ? `<div class="tip">${TIP_ICON}<span>${fmt(sc.tip)}</span></div>` : ""}
+        ${sc.hl ? `<span class="legend"><i></i>주황 테두리가 누를 곳이에요</span>` : ""}
+      </div>
+      <figure class="fig">
+        <img src="img/${sc.img}" alt="${sc.alt}">
+        ${sc.ex ? `<figcaption class="extag">예시 그림 · 실제 화면과 조금 다를 수 있어요</figcaption>` : ""}
+      </figure>`;
+  }
+
+  const stage = document.getElementById("stage");
+  const toc = document.getElementById("toc");
+  const bar = document.getElementById("bar");
+  const count = document.getElementById("count");
+  const prev = document.getElementById("prev");
+  const next = document.getElementById("next");
+  const ARROW = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  let cur = 0;
+
+  CH.forEach((c) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.dataset.ch = c.key;
+    b.innerHTML = (c.star ? '<span class="star" aria-hidden="true">★</span>' : "") + c.name;
+    b.addEventListener("click", () => show(S.findIndex((x) => x.ch === c.key)));
+    toc.appendChild(b);
+    const seg = document.createElement("span");
+    seg.dataset.ch = c.key;
+    seg.style.flex = String(chScenes(c.key).length);
+    seg.innerHTML = "<i></i>";
+    bar.appendChild(seg);
+  });
+
+  function show(i, fromHash) {
+    cur = Math.max(0, Math.min(S.length - 1, i));
+    const sc = S[cur];
+    const sec = document.createElement("section");
+    sec.className = "scene" + (sc.cover ? " cover" : "") + (sc.faq ? " faq" : "");
+    sec.id = sc.id;
+    sec.tabIndex = -1;
+    sec.setAttribute("aria-label", sc.title ? sc.title.replace(/\[\[|\]\]|\{\{|\}\}|==/g, "") : chName(sc.ch));
+    sec.innerHTML = sceneHTML(sc);
+    stage.replaceChildren(sec);
+
+    const ci = CH.findIndex((c) => c.key === sc.ch);
+    [...toc.children].forEach((b, k) => (k === ci ? b.setAttribute("aria-current", "step") : b.removeAttribute("aria-current")));
+    toc.children[ci].scrollIntoView({ block: "nearest", inline: "nearest" });
+    [...bar.children].forEach((seg, k) => {
+      const list = chScenes(CH[k].key);
+      const done = k < ci ? list.length : k === ci ? list.indexOf(sc) + 1 : 0;
+      seg.firstChild.style.width = (done / list.length) * 100 + "%";
+    });
+    count.textContent = `${cur + 1} / ${S.length}`;
+    prev.disabled = cur === 0;
+    next.disabled = cur === S.length - 1;
+    next.innerHTML = (cur === 0 ? "설치부터 보기" : "다음") + ARROW;
+    if (!fromHash) {
+      try { history.replaceState(null, "", "#" + sc.id); } catch (e) {}
+    }
+  }
+
+  // 주소 복사
+  stage.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-copy]");
+    if (!btn) return;
+    const text = "https://" + btn.dataset.copy;
+    let ok = false;
+    try { await navigator.clipboard.writeText(text); ok = true; } catch (err) {}
+    if (!ok) {
+      const ta = document.createElement("textarea");
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { ok = document.execCommand("copy"); } catch (err) {}
+      ta.remove();
+    }
+    if (!ok) {
+      const r = document.createRange(); r.selectNodeContents(btn.previousElementSibling);
+      const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    }
+    btn.textContent = ok ? "복사했어요" : "Ctrl+C로 복사";
+    setTimeout(() => (btn.textContent = "복사"), 1800);
+  });
+
+  prev.addEventListener("click", () => show(cur - 1));
+  next.addEventListener("click", () => show(cur + 1));
+  document.addEventListener("keydown", (e) => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.key === "ArrowRight" || e.key === "PageDown") { e.preventDefault(); show(cur + 1); }
+    if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); show(cur - 1); }
+  });
+
+  // 휴대폰: 옆으로 밀어 넘기기
+  let sx = null, sy = 0;
+  stage.addEventListener("touchstart", (e) => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+  stage.addEventListener("touchend", (e) => {
+    if (sx === null) return;
+    const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) show(cur + (dx < 0 ? 1 : -1));
+    sx = null;
+  });
+
+  const fromHash = () => S.findIndex((x) => "#" + x.id === location.hash);
+  const start = fromHash();
+  show(start >= 0 ? start : 0, true);
+  window.addEventListener("hashchange", () => { const k = fromHash(); if (k >= 0) show(k, true); });
+})();
+</script>
