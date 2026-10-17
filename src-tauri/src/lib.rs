@@ -161,7 +161,7 @@ pub fn run() {
             commands::list_files,
             commands::recent_moves,
             commands::move_log,
-            commands::save_log_csv,
+            commands::save_log_xlsx,
             commands::create_folder,
             commands::search_folders,
             commands::recent_destinations,

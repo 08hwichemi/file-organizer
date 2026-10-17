@@ -170,6 +170,18 @@ export interface LogEntry {
   isFolder: boolean;
 }
 
+/** 엑셀 파일의 한 줄(Rust가 서식 있는 .xlsx로 쓴다) */
+export interface XlsxRow {
+  at: number;
+  kind: string;
+  name: string;
+  from: string;
+  to: string;
+  status: string;
+  fromPath: string;
+  toPath: string;
+}
+
 export interface FolderEntry {
   name: string;
   path: string;

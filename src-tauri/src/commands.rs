@@ -512,10 +512,10 @@ pub fn move_log(state: State<'_, AppState>) -> Result<Vec<crate::movelog::LogEnt
     state.with_db(|conn| crate::movelog::entries(conn, crate::movelog::MAX_ENTRIES).map_err(db_err))
 }
 
-/// 정리 기록 [엑셀 파일로 저장]: 사용자가 저장 창에서 고른 .csv 파일에 쓴다.
+/// 정리 기록 [엑셀 파일로 저장]: 사용자가 저장 창에서 고른 .xlsx 파일에 서식 있는 엑셀로 쓴다.
 #[tauri::command]
-pub fn save_log_csv(path: String, text: String) -> Result<(), String> {
-    crate::movelog::save_csv(Path::new(&path), &text)
+pub fn save_log_xlsx(path: String, rows: Vec<crate::movelog::XlsxRow>) -> Result<(), String> {
+    crate::movelog::save_xlsx(Path::new(&path), &rows)
 }
 
 #[tauri::command]

@@ -103,16 +103,142 @@ pub fn entries(conn: &Connection, limit: usize) -> rusqlite::Result<Vec<LogEntry
     Ok(out)
 }
 
-/// [엑셀 파일로 저장]: 화면이 만든 CSV를 사용자가 고른 곳에 쓴다.
-/// 엑셀이 한글을 바로 읽게 UTF-8 BOM을 붙인다. .csv 파일만 쓴다(다른 파일을 덮어쓰지 않게).
-pub fn save_csv(path: &Path, text: &str) -> Result<(), String> {
-    let is_csv = path
+/// 엑셀 파일 한 줄(화면이 짧은 곳 이름·상태를 만들어 보낸다)
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct XlsxRow {
+    /// 시각(1970년부터 밀리초). 이 PC의 시간대로 날짜·시각 칸에 넣는다.
+    pub at: i64,
+    pub kind: String,
+    pub name: String,
+    pub from: String,
+    pub to: String,
+    pub status: String,
+    pub from_path: String,
+    pub to_path: String,
+}
+
+/// [엑셀 파일로 저장]: 서식이 있는 .xlsx로(사용자 요청: CSV는 칸 너비·색·필터가 없었다).
+/// 파란 제목 줄(고정·필터), 칸 너비, 줄무늬, 상태 색, 진짜 날짜·시각 칸, 가로 인쇄.
+/// .xlsx 파일에만 쓴다(다른 파일을 덮어쓰지 않게).
+pub fn save_xlsx(path: &Path, rows: &[XlsxRow]) -> Result<(), String> {
+    use chrono::{Datelike, TimeZone, Timelike};
+    use rust_xlsxwriter::{Color, ExcelDateTime, Format, FormatAlign, FormatBorder, Workbook};
+
+    let is_xlsx = path
         .extension()
-        .is_some_and(|e| e.to_string_lossy().eq_ignore_ascii_case("csv"));
-    if !is_csv {
-        return Err("CSV 파일(.csv)로만 저장할 수 있어요.".into());
+        .is_some_and(|e| e.to_string_lossy().eq_ignore_ascii_case("xlsx"));
+    if !is_xlsx {
+        return Err("엑셀 파일(.xlsx)로만 저장할 수 있어요.".into());
     }
-    std::fs::write(path, format!("\u{FEFF}{text}")).map_err(|e| format!("저장하지 못했어요: {e}"))
+    let err = |e: rust_xlsxwriter::XlsxError| format!("엑셀 파일을 만들지 못했어요: {e}");
+
+    // 색은 화면과 같게: 강조 #2B59C3, 글자 #17191C, 보조 #5F6670, 선 #E4E6EA, 배경 #F4F5F7
+    let base = |stripe: bool| {
+        let f = Format::new()
+            .set_font_name("맑은 고딕")
+            .set_font_size(10)
+            .set_font_color(Color::RGB(0x17191C))
+            .set_align(FormatAlign::VerticalCenter)
+            .set_border_bottom(FormatBorder::Thin)
+            .set_border_bottom_color(Color::RGB(0xE4E6EA));
+        if stripe {
+            f.set_background_color(Color::RGB(0xF4F5F7))
+        } else {
+            f
+        }
+    };
+    let head = Format::new()
+        .set_font_name("맑은 고딕")
+        .set_font_size(10)
+        .set_bold()
+        .set_font_color(Color::White)
+        .set_background_color(Color::RGB(0x2B59C3))
+        .set_align(FormatAlign::VerticalCenter)
+        .set_indent(1);
+
+    let mut book = Workbook::new();
+    let sheet = book.add_worksheet();
+    sheet.set_name("정리 기록").map_err(err)?;
+    const HEAD: [(&str, f64); 9] = [
+        ("날짜", 12.0),
+        ("시각", 9.0),
+        ("종류", 11.0),
+        ("파일 이름", 38.0),
+        ("원래 있던 곳", 22.0),
+        ("넣은 곳", 24.0),
+        ("상태", 14.0),
+        ("원래 경로", 40.0),
+        ("넣은 경로", 46.0),
+    ];
+    for (c, (title, width)) in HEAD.iter().enumerate() {
+        let c = c as u16;
+        sheet
+            .write_string_with_format(0, c, *title, &head)
+            .map_err(err)?;
+        sheet.set_column_width(c, *width).map_err(err)?;
+    }
+    sheet.set_row_height(0, 24).map_err(err)?;
+
+    for (i, r) in rows.iter().enumerate() {
+        let row = i as u32 + 1;
+        let f = base(i % 2 == 1);
+        let text = f.clone().set_indent(1);
+        let center = f.clone().set_align(FormatAlign::Center);
+        let when = chrono::Local
+            .timestamp_millis_opt(r.at)
+            .single()
+            .ok_or("기록의 시각을 읽지 못했어요.")?;
+        let date =
+            ExcelDateTime::from_ymd(when.year() as u16, when.month() as u8, when.day() as u8)
+                .map_err(err)?;
+        let time =
+            ExcelDateTime::from_hms(when.hour() as u16, when.minute() as u8, 0).map_err(err)?;
+        sheet
+            .write_datetime_with_format(row, 0, &date, &center.clone().set_num_format("yyyy-mm-dd"))
+            .map_err(err)?;
+        sheet
+            .write_datetime_with_format(row, 1, &time, &center.set_num_format("hh:mm"))
+            .map_err(err)?;
+        sheet
+            .write_string_with_format(row, 2, &r.kind, &text)
+            .map_err(err)?;
+        sheet
+            .write_string_with_format(row, 3, &r.name, &text.clone().set_bold())
+            .map_err(err)?;
+        sheet
+            .write_string_with_format(row, 4, &r.from, &text)
+            .map_err(err)?;
+        sheet
+            .write_string_with_format(row, 5, &r.to, &text)
+            .map_err(err)?;
+        let status_color = if r.status == "휴지통에 있음" {
+            0xB42318
+        } else {
+            0x5F6670
+        };
+        let status = text
+            .clone()
+            .set_bold()
+            .set_font_color(Color::RGB(status_color));
+        sheet
+            .write_string_with_format(row, 6, &r.status, &status)
+            .map_err(err)?;
+        let path = text.clone().set_font_color(Color::RGB(0x5F6670));
+        sheet
+            .write_string_with_format(row, 7, &r.from_path, &path)
+            .map_err(err)?;
+        sheet
+            .write_string_with_format(row, 8, &r.to_path, &path)
+            .map_err(err)?;
+        sheet.set_row_height(row, 20).map_err(err)?;
+    }
+
+    sheet.set_freeze_panes(1, 0).map_err(err)?;
+    sheet.autofilter(0, 0, rows.len() as u32, 8).map_err(err)?;
+    sheet.set_landscape();
+    sheet.set_print_fit_to_pages(1, 0);
+    book.save(path).map_err(err)
 }
 
 #[cfg(test)]
@@ -190,14 +316,25 @@ mod tests {
     }
 
     #[test]
-    fn saves_only_csv_with_bom() {
+    fn saves_only_xlsx() {
         let d = tempfile::tempdir().unwrap();
-        let ok = d.path().join("정리 기록.csv");
-        save_csv(&ok, "날짜,파일\n").unwrap();
-        assert_eq!(fs::read_to_string(&ok).unwrap(), "\u{FEFF}날짜,파일\n");
-        let not_csv = d.path().join("중요.hwp");
-        fs::write(&not_csv, b"keep").unwrap();
-        assert!(save_csv(&not_csv, "x").is_err());
-        assert_eq!(fs::read(&not_csv).unwrap(), b"keep");
+        let row = XlsxRow {
+            at: 1_760_690_460_000,
+            kind: "넣기".into(),
+            name: "2학기_지필고사_감독배정표.xlsx".into(),
+            from: "다운로드".into(),
+            to: "평가 › 지필고사".into(),
+            status: "".into(),
+            from_path: "C:\\Users\\선생님\\Downloads".into(),
+            to_path: "C:\\정리 폴더\\평가\\지필고사".into(),
+        };
+        let ok = d.path().join("정리 기록.xlsx");
+        save_xlsx(&ok, &[row.clone(), row.clone()]).unwrap();
+        // 엑셀 파일은 zip(PK로 시작)
+        assert_eq!(&fs::read(&ok).unwrap()[..2], b"PK");
+        let not_xlsx = d.path().join("중요.hwp");
+        fs::write(&not_xlsx, b"keep").unwrap();
+        assert!(save_xlsx(&not_xlsx, &[row]).is_err());
+        assert_eq!(fs::read(&not_xlsx).unwrap(), b"keep");
     }
 }
