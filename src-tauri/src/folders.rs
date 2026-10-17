@@ -34,6 +34,52 @@ pub fn list_subfolders(dir: &Path) -> std::io::Result<Vec<FolderEntry>> {
     Ok(folders)
 }
 
+/// 폴더 안 파일 하나(정리함 오른쪽 폴더 칸에서 보여 줌)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileEntry {
+    pub name: String,
+    pub path: String,
+    pub size: u64,
+    /// 고친 시각(1970년부터 밀리초, 모르면 0)
+    pub modified: i64,
+}
+
+/// `dir` 바로 안의 파일(숨김 제외), 최근에 고친 것부터. 하위 폴더 안은 읽지 않는다.
+/// 지금 열어 본 폴더 하나만 읽으므로 가볍다(폴더 칸의 "파일 n개"를 셀 때도 같은 목록을 읽는다).
+pub fn list_files(dir: &Path) -> std::io::Result<Vec<FileEntry>> {
+    let mut files: Vec<FileEntry> = visible_entries(dir)?
+        .into_iter()
+        .filter(|(_, is_dir)| !*is_dir)
+        .filter_map(|(path, _)| {
+            let meta = fs::metadata(&path).ok()?;
+            let modified = meta
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_millis() as i64)
+                .unwrap_or(0);
+            Some(FileEntry {
+                name: file_name(&path),
+                path: path.to_string_lossy().into_owned(),
+                size: meta.len(),
+                modified,
+            })
+        })
+        .collect();
+    files.sort_by(|a, b| {
+        b.modified
+            .cmp(&a.modified)
+            .then_with(|| a.name.cmp(&b.name))
+    });
+    Ok(files)
+}
+
+/// 정리 폴더 자체이거나 그 안쪽인지(읽기만 하는 곳에 쓴다)
+pub fn is_root_or_inside(root: &Path, path: &Path) -> bool {
+    same_file(root, path) || is_inside(root, path)
+}
+
 /// 파일·폴더 이름으로 쓸 수 있는지(Windows 기준). 문제가 있으면 사용자에게 보여 줄 문장.
 pub fn validate_name(name: &str) -> Result<(), String> {
     let name = name.trim();
@@ -253,6 +299,39 @@ fn file_name(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn list_files_skips_folders_and_hidden_newest_first() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir(dir.path().join("하위")).unwrap();
+        fs::write(dir.path().join("하위").join("안쪽.hwp"), "x").unwrap();
+        fs::write(dir.path().join("~$임시.hwp"), "x").unwrap();
+        fs::write(dir.path().join("옛날.pdf"), "abc").unwrap();
+        let old = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+        fs::File::options()
+            .write(true)
+            .open(dir.path().join("옛날.pdf"))
+            .unwrap()
+            .set_modified(old)
+            .unwrap();
+        fs::write(dir.path().join("새것.hwp"), "x").unwrap();
+        let files = list_files(dir.path()).unwrap();
+        let names: Vec<&str> = files.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names, ["새것.hwp", "옛날.pdf"]);
+        assert_eq!(files[1].size, 3);
+        assert!(files[0].modified > files[1].modified);
+    }
+
+    #[test]
+    fn root_or_inside() {
+        let dir = tempfile::tempdir().unwrap();
+        let inner = dir.path().join("업무");
+        fs::create_dir(&inner).unwrap();
+        assert!(is_root_or_inside(dir.path(), dir.path()));
+        assert!(is_root_or_inside(dir.path(), &inner));
+        let other = tempfile::tempdir().unwrap();
+        assert!(!is_root_or_inside(dir.path(), other.path()));
+    }
 
     #[test]
     fn lists_only_visible_folders_sorted_with_counts() {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, FolderOpen, Pencil, X } from "lucide-react";
+import Band from "../components/Band";
 import FileBadge from "../components/FileBadge";
 import FolderIcon from "../components/FolderIcon";
 import FolderPicker from "../components/FolderPicker";
@@ -436,6 +437,7 @@ export default function Popup() {
         )}
       </section>
 
+      {suggestion && <Band tone="blue" title="추천 위치" hint="Enter로 넣기" />}
       {suggestion && (
         <section className="popup__suggest">
           <button
@@ -446,7 +448,7 @@ export default function Popup() {
           >
             <FolderIcon size={34} tone="blue" />
             <span className="popup__suggest-text">
-              <span className="popup__suggest-label">추천 위치 · {reasonLabel(suggestion.reason)}</span>
+              <span className="popup__suggest-label">{reasonLabel(suggestion.reason)}</span>
               <span className="popup__suggest-path" title={displayPath(root, suggestion.destDir, sep)}>
                 {displayPath(root, suggestion.destDir, sep)}
               </span>
@@ -455,9 +457,9 @@ export default function Popup() {
         </section>
       )}
 
+      {recents.length > 0 && <Band tone="gray" title="최근 넣은 곳" hint="숫자 키 1·2·3" />}
       {recents.length > 0 && (
         <section className="popup__recent" aria-label="최근 넣은 곳">
-          <div className="popup__label">최근 넣은 곳</div>
           <div className="popup__recent-list">
             {recents.map((r, i) => (
               <button
@@ -475,6 +477,7 @@ export default function Popup() {
         </section>
       )}
 
+      <Band tone="gray" title="폴더에서 고르기" hint="두 번 누르면 안으로" />
       <section className="popup__folders" aria-label="폴더 고르기">
         <FolderPicker
           root={root}
@@ -483,6 +486,7 @@ export default function Popup() {
           onSelect={setSelected}
           reveal={reveal}
           recommended={suggestion?.destDir ?? null}
+          hint={false}
         />
       </section>
 

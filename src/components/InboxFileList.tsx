@@ -1,8 +1,10 @@
 import { useDraggable } from "@dnd-kit/core";
-import { ArrowRight, Download, Trash2, Wand2 } from "lucide-react";
+import { Fragment, type ReactNode } from "react";
+import { ArrowRight, Download, History, Trash2, Wand2 } from "lucide-react";
 import { formatAgo } from "../lib/format";
 import { displayPath, friendlyName, samePath, type KnownFolders } from "../lib/paths";
 import type { InboxItem } from "../lib/types";
+import Band from "./Band";
 import FileBadge from "./FileBadge";
 import "./InboxFileList.css";
 
@@ -28,9 +30,13 @@ interface Props {
   root: string | null;
   separator: string;
   busy: boolean;
+  /** '최근 정리' 탭을 고르면 목록 대신 보여 줄 것 */
+  recent: ReactNode;
 }
 
 export const ALL_TAB = "all";
+/** 정리함 파일이 아니라 최근 정리한 파일을 보는 탭 */
+export const RECENT_TAB = "\u0000recent";
 
 /** 정리함 왼쪽 파일 칸(SPEC 3-2): 탭, 체크박스·배지·이름·출처와 시각. 줄을 끌어 폴더에 놓을 수 있다. */
 export default function InboxFileList(props: Props) {
@@ -47,7 +53,25 @@ export default function InboxFileList(props: Props) {
       // 파일이 없는 폴더 탭은 숨긴다(지금 고른 탭은 남김)
       .filter((t) => t.count > 0 || t.key === tab),
   ];
-  const visible = tab === ALL_TAB ? items : items.filter((i) => samePath(i.sourceDir, tab));
+  const showRecent = tab === RECENT_TAB;
+  const visible = showRecent ? [] : tab === ALL_TAB ? items : items.filter((i) => samePath(i.sourceDir, tab));
+  // 추천 위치가 있는 파일([넣기]만 누르면 됨, 파란 띠) / 직접 골라야 하는 파일(끌어다 놓기, 회색 띠)
+  const groups = [
+    {
+      key: "sug",
+      tone: "blue" as const,
+      title: "추천 위치가 있는 파일",
+      hint: "[넣기]로 바로",
+      items: visible.filter((i) => i.suggestion),
+    },
+    {
+      key: "nosug",
+      tone: "gray" as const,
+      title: "직접 골라야 하는 파일",
+      hint: "오른쪽 폴더로 끌어다 놓기",
+      items: visible.filter((i) => !i.suggestion),
+    },
+  ];
   const allVisibleSelected = visible.length > 0 && visible.every((i) => selected.has(i.path));
 
   const importButton = (
@@ -79,6 +103,17 @@ export default function InboxFileList(props: Props) {
               {t.label} <span className="ifiles__count">{t.count}</span>
             </button>
           ))}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={showRecent}
+            className={`ifiles__tab ifiles__tab--recent${showRecent ? " ifiles__tab--on" : ""}`}
+            onClick={() => onTab(RECENT_TAB)}
+            title="최근에 넣거나 옮긴 파일과 어디로 갔는지 보고, 되돌릴 수 있어요"
+          >
+            <History size={13} aria-hidden="true" />
+            최근 정리
+          </button>
         </div>
         {visible.length > 0 && (
           <button
@@ -126,23 +161,34 @@ export default function InboxFileList(props: Props) {
           </div>
         ))}
 
-      {visible.length > 0 ? (
+      {showRecent ? (
+        props.recent
+      ) : visible.length > 0 ? (
         <ul className="ifiles__list">
-          {visible.map((item) => (
-            <FileRow
-              key={item.path}
-              item={item}
-              source={friendlyName(item.sourceDir, known)}
-              checked={selected.has(item.path)}
-              dimmed={!!props.dragging?.includes(item.path)}
-              onToggle={() => onToggle(item.path)}
-              suggestion={
-                item.suggestion ? displayPath(props.root, item.suggestion.destDir, props.separator) : null
-              }
-              onAccept={() => props.onAccept([item.path])}
-              busy={props.busy}
-            />
-          ))}
+          {groups.map((g) =>
+            g.items.length === 0 ? null : (
+              <Fragment key={g.key}>
+                <li className="ifiles__group" role="presentation">
+                  <Band tone={g.tone} title={g.title} count={g.items.length} hint={g.hint} />
+                </li>
+                {g.items.map((item) => (
+                  <FileRow
+                    key={item.path}
+                    item={item}
+                    source={friendlyName(item.sourceDir, known)}
+                    checked={selected.has(item.path)}
+                    dimmed={!!props.dragging?.includes(item.path)}
+                    onToggle={() => onToggle(item.path)}
+                    suggestion={
+                      item.suggestion ? displayPath(props.root, item.suggestion.destDir, props.separator) : null
+                    }
+                    onAccept={() => props.onAccept([item.path])}
+                    busy={props.busy}
+                  />
+                ))}
+              </Fragment>
+            ),
+          )}
         </ul>
       ) : (
         <div className="ifiles__empty">

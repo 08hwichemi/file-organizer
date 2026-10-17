@@ -11,10 +11,11 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { FolderPlus, GripVertical, Inbox, LayoutGrid, List, RotateCcw } from "lucide-react";
-import { classifyPreview, errorMessage, listFolders } from "../lib/backend";
+import { classifyPreview, errorMessage, listFiles, listFolders } from "../lib/backend";
 import { displayPath } from "../lib/paths";
 import { reasonLabel } from "../lib/rules";
-import type { ClassifyPlan } from "../lib/types";
+import type { ClassifyPlan, FileEntry } from "../lib/types";
+import Band from "./Band";
 import Dialog from "./Dialog";
 import FileBadge from "./FileBadge";
 import FolderIcon from "./FolderIcon";
@@ -58,8 +59,8 @@ interface Props {
 }
 
 /**
- * 자동 분류 미리보기(SPEC 4-1). 넣을 폴더마다 같은 크기의 네모 카드(포스트잇을 줄 맞춰 붙인 것처럼)에
- * 그 폴더로 갈 파일을 담아 보여 준다. 파일이 많으면 카드 안에서만 내려간다.
+ * 자동 분류 미리보기(SPEC 4-1). 넣을 폴더마다 네모 카드(포스트잇을 줄 맞춰 붙인 것처럼)에
+ * 그 폴더로 갈 파일을 담아 보여 준다. 카드는 모두 같은 크기이고, 파일이 많으면 카드 안에서 내려 본다.
  * 파일을 끌어 다른 카드에 놓으면 그 파일만 넣을 곳이 바뀐다. [+ 폴더 추가]로 목록에 없는 폴더 카드를 만든다.
  * 정리 폴더 안의 폴더는 추천된 파일이 없어도 늘 카드로 보인다(빈 카드는 반 높이).
  * 위의 버튼으로 '목록으로 보기'(왼쪽 목록 + 오른쪽 폴더 격자, 아무 폴더에나 놓기)로 바꿀 수 있다.
@@ -75,6 +76,8 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
   const [split, setSplit] = useState(0);
   /** 추천은 없었지만 정리 폴더 안에 있어서 카드로 보여 주는 폴더 */
   const [folderCards, setFolderCards] = useState<Set<string>>(new Set());
+  /** 카드 폴더에 이미 들어 있는 파일(무엇이 있는지 보고 나눌 수 있게). 아직 없는 폴더는 빈 목록. */
+  const [existing, setExisting] = useState<Map<string, FileEntry[]>>(new Map());
   const [dragging, setDragging] = useState<ClassifyPlan | null>(null);
   const [adding, setAdding] = useState(false);
   const [view, setViewState] = useState<View>(savedView);
@@ -121,6 +124,24 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
     card?.scrollIntoView({ block: "nearest", behavior: "smooth" });
     setReveal(null);
   }, [reveal, cards]);
+
+  // 카드가 생기면 그 폴더에 이미 있는 파일을 읽는다(폴더 하나씩, 이미 읽은 것은 다시 읽지 않음)
+  useEffect(() => {
+    let alive = true;
+    for (const dest of cards) {
+      if (existing.has(dest)) continue;
+      setExisting((m) => new Map(m).set(dest, []));
+      listFiles(dest)
+        .then((files) => alive && setExisting((m) => new Map(m).set(dest, files)))
+        .catch(() => {
+          // 아직 없는 폴더(새 폴더) 등은 빈 목록 그대로
+        });
+    }
+    return () => {
+      alive = false;
+    };
+    // existing은 일부러 빼 둔다(읽은 결과가 들어올 때마다 다시 돌지 않게)
+  }, [cards]);
 
   const destOf = (p: ClassifyPlan) => overrides.get(p.path) ?? p.target?.destDir ?? INBOX;
 
@@ -204,6 +225,7 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
         path={displayPath(root, dest, separator)}
         isNew={list.length > 0 && list.every((p) => !overrides.has(p.path) && p.target && !p.target.exists)}
         count={list.length}
+        existing={existing.get(dest) ?? []}
       >
         {list.length === 0 && <li className="classify__empty">여기로 끌어다 놓으세요</li>}
         {list.map((p) => (
@@ -237,15 +259,16 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
   );
 
   /**
-   * 카드 보기: 추천된 폴더 → 정리함에 남기기 → 정리 폴더 안의 나머지 폴더(늘 보임).
-   * 목록 보기: 오른쪽에 폴더 격자가 따로 있으므로, 파일이 없는 나머지 폴더 묶음은 뺀다.
+   * 카드 보기: 정리함에 남기기는 왼쪽에 따로 길게 두고, 폴더 카드는 추천된 폴더 → 정리 폴더 안의 나머지 폴더(늘 보임).
+   * 목록 보기: 추천된 폴더 → 정리함에 남기기 → 파일이 든 나머지 폴더(오른쪽에 폴더 격자가 따로 있으므로 빈 묶음은 뺀다).
    */
-  const groupCards = (all: boolean) => {
+  const groupCards = (view: View) => {
+    const all = view === "cards";
     const show = (d: string) => all || !folderCards.has(d) || (byCard.get(d)?.length ?? 0) > 0;
     return (
       <>
         {cards.slice(0, split).map(folderCard)}
-        {inboxCard()}
+        {!all && inboxCard()}
         {cards.slice(split).filter(show).map(folderCard)}
       </>
     );
@@ -296,18 +319,22 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
       {plans && plans.length > 0 && (
         <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
           {view === "cards" ? (
-            <div className="classify__board">
-              {groupCards(true)}
-              <button type="button" className="classify__card classify__card--add" onClick={() => setAdding(true)}>
-                <FolderPlus size={26} aria-hidden="true" />
-                <span>폴더 추가</span>
-                <small>안쪽 폴더나 목록에 없는 폴더로 보낼 때</small>
-              </button>
+            // 왼쪽: 정리함에 남기기(창 높이만큼 길게, 그 안에서 내려 봄) / 오른쪽: 폴더 카드(오른쪽만 내려 봄)
+            <div className="classify-split">
+              {inboxCard()}
+              <div className="classify__board">
+                {groupCards("cards")}
+                <button type="button" className="classify__card classify__card--add" onClick={() => setAdding(true)}>
+                  <FolderPlus size={26} aria-hidden="true" />
+                  <span>폴더 추가</span>
+                  <small>안쪽 폴더나 목록에 없는 폴더로 보낼 때</small>
+                </button>
+              </div>
             </div>
           ) : (
             <div className="classify">
               <div className="classify__list" aria-label="나눌 파일">
-                {groupCards(false)}
+                {groupCards("list")}
               </div>
               <div className="classify__side">
                 <div className="classify__side-title">끌어다 놓을 폴더 · 누르면 안으로 들어가요</div>
@@ -366,7 +393,12 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
   );
 }
 
-/** 넣을 폴더 하나 = 같은 크기의 네모 카드. 파일을 끌어 이 카드에 놓으면 이 폴더로 바뀐다. */
+/**
+ * 넣을 폴더 하나 = 네모 카드. 파일을 끌어 이 카드에 놓으면 이 폴더로 바뀐다.
+ * 카드 보기에서는 모든 카드가 같은 크기(줄 맞춰 깔끔하게). 파란 띠 "넣을 파일 n" 아래에 넣을 파일,
+ * 회색 띠 "이미 있는 파일 n" 아래에 폴더에 원래 있는 파일(회색 바탕)을 보여 줘서 무엇이 들어 있는 폴더인지
+ * 보고 나눌 수 있다. 칸마다 따로 내려 보고, 넣을 파일 칸은 3줄까지(반 줄이 걸치지 않게).
+ */
 function Card({
   dest,
   name,
@@ -374,6 +406,7 @@ function Card({
   isNew,
   count,
   inbox,
+  existing = [],
   children,
 }: {
   dest: string;
@@ -382,6 +415,8 @@ function Card({
   isNew?: boolean;
   count: number;
   inbox?: boolean;
+  /** 이 폴더에 이미 있는 파일 */
+  existing?: FileEntry[];
   children: React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `classify-card:${dest}`, data: { dest } });
@@ -389,7 +424,7 @@ function Card({
     <section
       ref={setNodeRef}
       data-dest={dest}
-      className={`classify__card${inbox ? " classify__card--inbox" : ""}${count === 0 ? " classify__card--empty" : ""}${isOver ? " classify__card--over" : ""}`}
+      className={`classify__card${inbox ? " classify__card--inbox" : ""}${existing.length > 0 ? " classify__card--has" : ""}${isOver ? " classify__card--over" : ""}`}
       aria-label={`${name} ${count}개`}
     >
       <div className="classify__card-head">
@@ -403,9 +438,25 @@ function Card({
           </span>
         </div>
         {isNew && <span className="classify__new">새 폴더</span>}
-        <span className="classify__count">{count}</span>
+        {/* 폴더 카드는 아래 "넣을 파일 n" 띠에 수가 있어 머리에는 두지 않는다 */}
+        {inbox && <span className="classify__count">{count}</span>}
       </div>
+      {!inbox && (
+        <Band tone="blue" title="넣을 파일" count={count} />
+      )}
       <ul className="classify__files">{children}</ul>
+      {existing.length > 0 && (
+        <div className="classify__have">
+          <Band tone="gray" title="이미 있는 파일" count={existing.length} />
+          <ul className="classify__have-list" aria-label={`${name}에 이미 있는 파일`}>
+            {existing.map((f) => (
+              <li key={f.path} title={f.name}>
+                {f.name}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }

@@ -6,9 +6,10 @@
   padding: 48px 16px 32px;
 }
 
+/* 설명이 두세 줄로 어색하게 끊기지 않게 넉넉하게(창 기본 폭 1100px) */
 .setup__card {
   width: 100%;
-  max-width: 640px;
+  max-width: 760px;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
   background: var(--color-surface);

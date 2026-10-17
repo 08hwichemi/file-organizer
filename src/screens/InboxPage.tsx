@@ -11,6 +11,8 @@ import {
 import ClassifyDialog from "../components/ClassifyDialog";
 import FileBadge from "../components/FileBadge";
 import InboxFileList, { ALL_TAB } from "../components/InboxFileList";
+import RecentMoveList from "../components/RecentMoveList";
+import type { FileDragData } from "../components/FolderFileList";
 import FolderPane, { type DropData, type Toast } from "../components/FolderPane";
 import {
   classifyFiles,
@@ -25,7 +27,7 @@ import {
   trashFiles,
   undoMoves,
 } from "../lib/backend";
-import { displayPath } from "../lib/paths";
+import { baseName, displayPath, parentPath, samePath } from "../lib/paths";
 import type { InboxItem } from "../lib/types";
 import { useAppStore } from "../store/useAppStore";
 import "./InboxPage.css";
@@ -47,6 +49,8 @@ export default function InboxPage() {
   const [dragging, setDragging] = useState<string[] | null>(null);
   const [classifying, setClassifying] = useState<string[] | null>(null);
   const [jumpTo, setJumpTo] = useState<{ path: string; n: number } | null>(null);
+  /** 최근 정리에서 누른 파일: 오른쪽 폴더 칸의 파일 목록에서 골라 둔다 */
+  const [focusFile, setFocusFile] = useState<{ path: string; n: number } | null>(null);
 
   const reload = useCallback(() => {
     void listInbox()
@@ -74,12 +78,18 @@ export default function InboxPage() {
   }, [toast]);
 
   const nameOf = useCallback(
-    (path: string) => items?.find((i) => i.path === path)?.name ?? path,
+    (path: string) => items?.find((i) => i.path === path)?.name ?? baseName(path),
     [items],
   );
 
   const put = useCallback(
-    async (paths: string[], destDir: string) => {
+    async (all: string[], destDir: string) => {
+      // 이미 그 폴더에 있는 파일(폴더 칸의 파일을 같은 폴더에 놓음)은 그대로 둔다
+      const paths = all.filter((p) => !samePath(parentPath(p, sep), destDir));
+      if (all.length > 0 && paths.length === 0) {
+        setToast({ message: "이미 이 폴더에 있어요" });
+        return;
+      }
       if (paths.length === 0 || busy) return;
       setBusy(true);
       try {
@@ -222,6 +232,12 @@ export default function InboxPage() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const onDragStart = (e: DragStartEvent) => {
+    // 폴더 칸의 파일: 그 파일 하나만 옮긴다
+    const file = (e.active.data.current as Partial<FileDragData> | undefined)?.file;
+    if (file) {
+      setDragging([file.path]);
+      return;
+    }
     const path = String(e.active.id);
     setDragging(selected.has(path) ? [...selected] : [path]);
   };
@@ -263,7 +279,7 @@ export default function InboxPage() {
           {settings?.organizeMode === "manual"
             ? "새 파일은 여기에 모여요. "
             : "‘나중에 정리’한 파일은 여기에 모여요. "}
-          왼쪽 파일을 오른쪽 폴더 위로 끌어다 놓으면 들어가요. 폴더를 누르면 안으로 들어가요.
+          왼쪽 파일을 오른쪽 폴더 위로 끌어다 놓으면 들어가요. 폴더를 누르면 안으로 들어가고, 그 폴더의 파일도 아래에 보여요.
         </p>
       </div>
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
@@ -288,6 +304,18 @@ export default function InboxPage() {
               root={root}
               separator={sep}
               busy={busy}
+              recent={
+                <RecentMoveList
+                  root={root}
+                  separator={sep}
+                  known={known}
+                  onToast={setToast}
+                  onShow={(m) => {
+                    setJumpTo((j) => ({ path: m.destDir, n: (j?.n ?? 0) + 1 }));
+                    setFocusFile((f) => ({ path: m.movedPath, n: (f?.n ?? 0) + 1 }));
+                  }}
+                />
+              }
             />
           )}
           {root && (
@@ -305,6 +333,9 @@ export default function InboxPage() {
               toast={toast}
               onToast={setToast}
               busy={busy}
+              showFiles
+              focusFile={focusFile}
+              draggingPaths={dragging}
             />
           )}
         </div>

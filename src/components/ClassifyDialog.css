@@ -55,13 +55,27 @@
 }
 
 /* 카드 한 장 = 두 칸(300px). 파일이 없는 카드·폴더 추가는 한 칸(반 높이)이라 폴더가 많아도 한눈에 */
+/* 카드 보기: 왼쪽에 정리함에 남기기(창 높이만큼 길게), 오른쪽에 폴더 카드(오른쪽만 내려 봄) */
+.classify-split {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: clamp(240px, 24%, 320px) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.classify-split > .classify__card--inbox {
+  min-height: 0;
+  margin: 2px 0 10px 2px;
+}
+
 .classify__board {
   flex: 1;
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  grid-auto-rows: 143px;
-  grid-auto-flow: row dense;
+  /* 모든 카드가 같은 크기(사용자 요청: 들쑥날쑥하지 않게). 파일이 많으면 카드 안에서 내려 본다 */
+  grid-auto-rows: 360px;
   gap: 14px;
   align-content: start;
   padding: 2px 4px 10px 2px;
@@ -78,15 +92,6 @@
   background: var(--color-surface);
   box-shadow: 0 1px 2px rgba(23, 25, 28, 0.04);
   transition: border-color 0.1s, background 0.1s, box-shadow 0.1s;
-}
-
-.classify__board .classify__card {
-  grid-row: span 2;
-}
-
-.classify__board .classify__card--empty,
-.classify__board .classify__card--add {
-  grid-row: span 1;
 }
 
 .classify__card--inbox {
@@ -251,6 +256,53 @@
   text-align: center;
 }
 
+/* 칸 제목 띠(Band): 넣을 파일 = 파랑, 이미 있는 파일 = 회색(아래 목록도 회색 바탕) */
+.classify__card {
+  --band-pad: 12px;
+}
+
+/* 이미 있는 파일이 있는 카드: 넣을 파일 칸은 딱 3줄 높이까지(반 줄이 걸치지 않게, 더 있으면 그 안에서 내려 봄),
+   나머지는 이미 있는 파일. 넣을 파일이 없으면 "여기로 끌어다 놓으세요"는 한 줄로 */
+.classify__card--has .classify__files {
+  flex: 0 0 auto;
+  max-height: 110px;
+}
+
+.classify__card--has .classify__empty {
+  height: auto;
+  min-height: 34px;
+  padding: 6px 12px;
+}
+
+/* 폴더에 이미 있는 파일(넣을 파일 아래, 흐리게). 많으면 그 안에서 내려 본다 */
+.classify__have {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface-sub);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+.classify__have-list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 2px 0 6px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.classify__have-list li {
+  overflow: hidden;
+  padding: 0 12px;
+  font-size: 12.5px;
+  line-height: 28px;
+  color: var(--color-text-sub);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .classify__card--add {
   align-items: center;
   justify-content: center;
@@ -391,6 +443,11 @@
 
 .classify__list .classify__empty {
   height: auto;
+}
+
+/* 목록 보기: 이미 있는 파일은 5줄 높이까지, 넘치면 그 안에서 */
+.classify__list .classify__have-list {
+  max-height: 146px;
 }
 
 .classify__side {

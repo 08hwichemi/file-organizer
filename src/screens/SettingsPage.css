@@ -51,23 +51,31 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 20px 22px 22px;
+  padding: 0 22px 22px;
+  overflow: hidden;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
 }
 
+/* 칸 제목 = 회색 띠(Band와 같은 색) */
 .settings__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-height: 38px;
+  margin: 0 -22px 2px;
+  padding: 0 22px;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-band-gray);
 }
 
 .settings__title {
   margin: 0;
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 700;
+  color: var(--color-text-strong);
 }
 
 .settings__desc {

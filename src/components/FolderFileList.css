@@ -1,0 +1,195 @@
+/* 폴더 칸 아래쪽: 지금 폴더 바로 안의 파일 */
+/* 이 폴더의 파일: 회색 띠 + 회색 바탕(이미 있는 파일 = 참고하는 곳, 자동 분류와 같은 색) */
+.ffiles {
+  flex: 1;
+  padding: 4px 14px 16px;
+  background: var(--color-surface-sub);
+}
+
+/* 제목 줄: 폴더가 많아 파일이 아래로 밀려 있으면 폴더 칸 맨 아래에 붙어 보인다(누르면 파일 목록으로) */
+.ffiles__head {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  padding: 6px 14px;
+  border-top: 1px solid var(--color-line-strong);
+  background: var(--color-band-gray);
+  box-shadow: 0 -6px 12px -10px rgba(23, 25, 28, 0.25);
+}
+
+.ffiles__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: var(--control-height);
+  padding: 0 6px;
+  margin-left: -6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-strong);
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ffiles__title:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.ffiles__title:disabled {
+  cursor: default;
+}
+
+/* 띠(Band)의 수와 같은 모양 */
+.ffiles__count {
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-sub);
+  font-size: 11.5px;
+  line-height: 18px;
+}
+
+.ffiles__sort {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.ffiles__sort button {
+  min-height: 32px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-sub);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.ffiles__sort button[aria-pressed="true"] {
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(23, 25, 28, 0.08);
+}
+
+.ffiles__spacer {
+  flex: 1;
+}
+
+.ffiles__explorer {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  min-height: var(--control-height);
+  padding: 0 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-strong);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.ffiles__explorer:hover {
+  background: var(--color-surface-sub);
+}
+
+.ffiles__note {
+  margin: 4px 2px;
+  font-size: 12.5px;
+  color: var(--color-text-sub);
+}
+
+.ffiles__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ffiles__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.ffiles__row:hover {
+  background: var(--color-surface);
+}
+
+.ffiles__row--on,
+.ffiles__row--on:hover {
+  border-color: var(--color-accent-line);
+  background: var(--color-accent-faint);
+}
+
+.ffiles__row--drag {
+  opacity: 0.4;
+}
+
+.ffiles__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ffiles__name {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ffiles__meta {
+  font-size: 11.5px;
+  color: var(--color-text-sub);
+  white-space: nowrap;
+}
+
+.ffiles__acts {
+  display: flex;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+  gap: 4px;
+}
+
+.ffiles__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: var(--control-height);
+  padding: 0 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 7px;
+  background: var(--color-surface);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ffiles__btn--main {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: #fff;
+}

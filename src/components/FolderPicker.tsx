@@ -17,13 +17,15 @@ interface Props {
   reveal: string | null;
   /** 추천 위치(그 폴더 칸에 "추천" 표시) */
   recommended?: string | null;
+  /** 아래 "한 번 누르면 선택…" 안내 줄(위 띠에 같은 안내가 있으면 끈다) */
+  hint?: boolean;
 }
 
 /**
  * 팝업의 폴더 창(SPEC 3-1 ④). 탐색기처럼 폴더 아이콘 격자, 한 줄 4개.
  * 한 번 누르면 선택, 두 번 누르거나 › 를 누르면 안으로. 돋보기 = 폴더 이름 검색. 마지막 칸 = 새 폴더.
  */
-export default function FolderPicker({ root, separator, selected, onSelect, reveal, recommended }: Props) {
+export default function FolderPicker({ root, separator, selected, onSelect, reveal, recommended, hint = true }: Props) {
   const [trail, setTrail] = useState<Crumb[]>([{ name: baseName(root), path: root }]);
   const [folders, setFolders] = useState<FolderEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -240,7 +242,7 @@ export default function FolderPicker({ root, separator, selected, onSelect, reve
                 </button>
               </li>
             </ul>
-            <p className="picker__hint">한 번 누르면 선택, 두 번 누르거나 › 를 누르면 안으로 들어가요</p>
+            {hint && <p className="picker__hint">한 번 누르면 선택, 두 번 누르거나 › 를 누르면 안으로 들어가요</p>}
           </>
         )}
       </div>

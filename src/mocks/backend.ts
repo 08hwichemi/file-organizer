@@ -6,6 +6,7 @@ import type {
   AppInfo,
   AutoMoved,
   DestSegment,
+  FileEntry,
   FolderEntry,
   FolderMatch,
   InboxItem,
@@ -15,6 +16,7 @@ import type {
   PopupState,
   PutOutcome,
   PutResult,
+  RecentMove,
   Rule,
   RuleDraft,
   RuleInput,
@@ -239,6 +241,7 @@ let inbox: StoredItem[] = startReady
       { id: 1, ...file(DOWNLOADS, "2학기_지필고사_감독배정표.xlsx", 22_000), addedAt: Date.now() - 12 * 60_000 },
       { id: 2, ...file(DESKTOP, "3-2_학부모상담_일정.xlsx", 15_000), addedAt: Date.now() - 3 * 3600_000 },
       { id: 3, ...file(DOWNLOADS, "scan_20261013.pdf", 820_000), addedAt: Date.now() - 26 * 3600_000 },
+      { id: 4, ...file(DESKTOP, "화학2 01 원소와 원자 학습지.hwpx", 27_000), addedAt: Date.now() - 2 * 86400_000 },
     ]
   : [];
 
@@ -247,6 +250,7 @@ interface MockMove {
   original: PendingFile;
   destDir: string;
   undone: boolean;
+  movedAt: number;
 }
 
 // 다운로드·바탕화면에 원래 있던 파일(‘지금 있는 파일 가져오기’로 불러옴)
@@ -262,6 +266,65 @@ const moves: MockMove[] = [];
 let recent: string[] = startReady
   ? [`${readyRoot}\\업무\\회의록`, `${readyRoot}\\평가\\지필고사`, `${readyRoot}\\학급\\상담`]
   : [];
+
+// ---------- 가짜 폴더 안 파일 ----------
+// 폴더마다 "파일 n개"에 맞춰 가짜 파일 이름을 처음 볼 때 만들어 두고, 넣은 파일(기록)은 그 위에 더해 보여 준다.
+const fakeFiles = new Map<string, FileEntry[]>();
+
+/** 이 이동으로 넣은 파일이 그 뒤에 다시 옮겨졌는지(지금 그 자리에 없음) */
+function movedAgain(m: MockMove): boolean {
+  const at = m.destDir + SEP + m.original.name;
+  return moves.some((x) => !x.undone && x.id > m.id && x.original.path === at);
+}
+
+function movedInto(path: string): FileEntry[] {
+  return moves
+    .filter((m) => !m.undone && m.destDir === path && !movedAgain(m))
+    .map((m) => ({ name: m.original.name, path: path + SEP + m.original.name, size: m.original.size, modified: m.movedAt }));
+}
+
+function filesIn(path: string, node: MockFolder): FileEntry[] {
+  const mine = movedInto(path);
+  if (!fakeFiles.has(path)) {
+    const name = path.slice(path.lastIndexOf(SEP) + 1);
+    const kinds = ["hwpx", "xlsx", "pdf", "pptx", "jpg", "hwp", "docx"];
+    const words = ["자료", "안내", "정리", "명단", "계획", "결과", "사진"];
+    const n = Math.max(0, node.files - mine.length);
+    fakeFiles.set(
+      path,
+      Array.from({ length: n }, (_, i) => {
+        const file = `${name}_${words[i % words.length]}${i >= words.length ? `_${Math.floor(i / words.length) + 1}` : ""}.${kinds[i % kinds.length]}`;
+        return { name: file, path: path + SEP + file, size: ((i * 37) % 90 + 5) * 12_000, modified: Date.now() - (i + 1) * 1.7 * 86400_000 };
+      }),
+    );
+  }
+  return [...mine, ...fakeFiles.get(path)!].sort((a, b) => b.modified - a.modified);
+}
+
+/** 폴더 안 파일을 다른 폴더로 옮길 때: 그 파일을 꺼낸다(정리함·팝업 파일이 아닐 때) */
+function takeFolderFile(path: string): PendingFile | undefined {
+  const dir = path.slice(0, path.lastIndexOf(SEP));
+  const node = findFolder(dir);
+  if (!node) return undefined;
+  const found = filesIn(dir, node).find((f) => f.path === path);
+  if (!found) return undefined;
+  fakeFiles.set(dir, (fakeFiles.get(dir) ?? []).filter((f) => f.path !== path));
+  node.files -= 1;
+  return { path, name: found.name, sourceDir: dir, size: found.size };
+}
+
+/** 폴더끼리 옮긴 것을 되돌릴 때: 원래 폴더로 */
+function returnFolderFile(original: PendingFile) {
+  const node = findFolder(original.sourceDir);
+  if (!node) return;
+  node.files += 1;
+  // 기록으로 넣었던 파일이면 그 기록이 다시 살아나 보이고, 아니면 가짜 목록에 되돌린다.
+  const fromMove = moves.some((m) => !m.undone && m.destDir + SEP + m.original.name === original.path && !movedAgain(m));
+  if (!fromMove) {
+    const list = fakeFiles.get(original.sourceDir) ?? [];
+    fakeFiles.set(original.sourceDir, [{ name: original.name, path: original.path, size: original.size, modified: Date.now() - 86400_000 }, ...list]);
+  }
+}
 
 // ---------- 가짜 이벤트 ----------
 type Handler = (payload: unknown) => void;
@@ -484,7 +547,7 @@ function putPlanned(paths: string[], plan: (item: StoredItem) => Suggestion | nu
       if (r) r.used += 1;
     }
     const id = ++nextId;
-    moves.push({ id, original: { ...item }, destDir: sug.destDir, undone: false });
+    moves.push({ id, original: { ...item }, destDir: sug.destDir, undone: false, movedAt: Date.now() });
     inbox = inbox.filter((i) => i.path !== path);
     return { path, moveId: id, error: null };
   });
@@ -666,6 +729,28 @@ export const mockBackend = {
     return delay(entries);
   },
 
+  listFiles(path: string) {
+    const node = findFolder(path);
+    if (!node) return fail("폴더를 읽지 못했어요.");
+    return delay(filesIn(path, node));
+  },
+
+  recentMoves() {
+    const list: RecentMove[] = moves
+      .filter((m) => !m.undone && !movedAgain(m))
+      .sort((a, b) => b.movedAt - a.movedAt || b.id - a.id)
+      .slice(0, 100)
+      .map((m) => ({
+        id: m.id,
+        name: m.original.name,
+        movedPath: m.destDir + SEP + m.original.name,
+        destDir: m.destDir,
+        originalDir: m.original.sourceDir,
+        movedAt: m.movedAt,
+      }));
+    return delay(list);
+  },
+
   createFolder(parent: string, name: string) {
     const node = findFolder(parent);
     const trimmed = name.trim();
@@ -732,7 +817,7 @@ export const mockBackend = {
       rule.misses = 0;
     }
     const id = ++nextId;
-    moves.push({ id, original: { ...item }, destDir, undone: false });
+    moves.push({ id, original: { ...item }, destDir, undone: false, movedAt: Date.now() });
     pending = pending.filter((p) => p.path !== path);
     inbox = inbox.filter((i) => i.path !== path);
     recent = [destDir, ...recent.filter((r) => r !== destDir)];
@@ -815,13 +900,13 @@ export const mockBackend = {
   putFiles(paths: string[], destDir: string) {
     const dest = findFolder(destDir);
     const outcomes: PutOutcome[] = paths.map((path) => {
-      const item = inbox.find((i) => i.path === path) ?? pending.find((p) => p.path === path);
+      const item = inbox.find((i) => i.path === path) ?? pending.find((p) => p.path === path) ?? takeFolderFile(path);
       if (!item || !dest) {
         return { path, moveId: null, error: "파일을 찾을 수 없어요. 이미 옮겨졌거나 지워졌을 수 있어요." };
       }
       dest.files += 1;
       const id = ++nextId;
-      moves.push({ id, original: { ...item }, destDir, undone: false });
+      moves.push({ id, original: { ...item }, destDir, undone: false, movedAt: Date.now() });
       inbox = inbox.filter((i) => i.path !== path);
       pending = pending.filter((p) => p.path !== path);
       return { path, moveId: id, error: null };
@@ -842,7 +927,9 @@ export const mockBackend = {
       move.undone = true;
       const dest = findFolder(move.destDir);
       if (dest) dest.files -= 1;
-      inbox = [{ id: ++nextId, ...move.original, addedAt: Date.now() }, ...inbox];
+      // 정리 폴더 안에서 옮긴 것은 원래 폴더로만(정리함에 넣지 않음)
+      if (findFolder(move.original.sourceDir)) returnFolderFile(move.original);
+      else inbox = [{ id: ++nextId, ...move.original, addedAt: Date.now() }, ...inbox];
       result.restored += 1;
     }
     mockEvents.emit("inbox-changed");

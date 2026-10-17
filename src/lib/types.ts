@@ -134,6 +134,25 @@ export interface SetupRequest {
   userKind: UserKind;
 }
 
+/** 폴더 안 파일 하나(정리함 오른쪽 폴더 칸) */
+export interface FileEntry {
+  name: string;
+  path: string;
+  size: number;
+  /** 고친 시각(밀리초, 모르면 0) */
+  modified: number;
+}
+
+/** 최근 정리한 파일 한 줄(정리함의 '최근 정리' 탭) */
+export interface RecentMove {
+  id: number;
+  name: string;
+  movedPath: string;
+  destDir: string;
+  originalDir: string;
+  movedAt: number;
+}
+
 export interface FolderEntry {
   name: string;
   path: string;

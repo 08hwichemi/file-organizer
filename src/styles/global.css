@@ -15,6 +15,8 @@
   --color-accent-line: #c9d6f2;
   --color-accent-faint: #f4f7fd;
   --color-surface-sub: #f6f7f9;
+  /* 회색 띠(Band) 바탕 */
+  --color-band-gray: #e9ebee;
   --color-success: #1b6e43;
   --color-danger: #a8352a;
   --color-bg: #f4f5f7;
@@ -56,6 +58,67 @@ body {
   /* 한글이 단어 중간에서 줄바꿈되지 않게 */
   word-break: keep-all;
   overflow-wrap: anywhere;
+  /* 마지막 줄에 낱말 하나만 남지 않게 줄을 고르게 나눈다(WebView2·크롬) */
+  text-wrap: pretty;
+}
+
+/* 칸 제목 띠(src/components/Band.tsx). 파랑 = 지금 할 일·넣을 곳, 회색 = 고르거나 참고하는 곳 */
+.band {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 var(--band-pad, 14px);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.band__count {
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  line-height: 18px;
+}
+
+.band__hint {
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  font-size: 11.5px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+}
+
+.band--blue {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-hover);
+}
+
+.band--blue .band__count {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.band--gray {
+  border-top: 1px solid var(--color-line-strong);
+  background: var(--color-band-gray);
+  color: var(--color-text-strong);
+}
+
+.band--gray .band__count {
+  background: var(--color-surface);
+  color: var(--color-text-sub);
+}
+
+.band--gray .band__hint {
+  color: var(--color-text-sub);
+}
+
+/* 끊기면 어색한 묶음("학기(3월·9월)", "‘이름 (2)’")은 이 이름표로 한 줄에 */
+.nowrap {
+  white-space: nowrap;
 }
 
 button,
