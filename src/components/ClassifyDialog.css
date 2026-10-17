@@ -227,8 +227,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  cursor: grab;
-  touch-action: none;
 }
 
 .classify__undo {
@@ -351,7 +349,7 @@
   cursor: grabbing;
 }
 
-.classify__drag span:last-child {
+.classify__drag > span {
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -523,4 +521,68 @@
   flex-wrap: nowrap;
   align-items: center;
   gap: 12px;
+}
+
+/* 파일 줄: 누르면 고르기(파란색), 잡고 끌면 옮기기 */
+.classify__file {
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+
+.classify__file--sel,
+.classify__file--sel:hover {
+  background: var(--color-accent-soft);
+  box-shadow: inset 3px 0 0 var(--color-accent);
+  color: var(--color-accent-hover);
+  font-weight: 600;
+}
+
+.classify__file:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+/* 아래 왼쪽: n개 고름 · [정리함에 남기기로] [고르기 풀기] */
+.classify__selbar {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px 3px 12px;
+  border: 1px solid var(--color-accent-line);
+  border-radius: 10px;
+  background: var(--color-accent-faint);
+  white-space: nowrap;
+}
+
+.classify__selbar-text {
+  margin-right: 4px;
+  color: var(--color-accent-hover);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.classify__selbar .btn {
+  white-space: nowrap;
+}
+
+.classify__drag-more {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: #ffffff;
+  font-size: 11px;
+}
+
+/* 왼쪽 칸: 어느 폴더에서 뺀 파일인지(‘PDF에서 뺌’) 늘 보이게 */
+.classify__card--inbox .classify__why--moved {
+  display: inline;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--color-bg);
+  color: var(--color-text-sub);
+  font-size: 11px;
+  font-weight: 500;
 }

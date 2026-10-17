@@ -159,6 +159,29 @@ if (want("inbox") || want("classify")) {
   await p.mouse.up();
   await p.waitForTimeout(500);
   console.log("   옮겨졌나:", (await dst.innerText()).includes("수행평가_안내문"));
+  // 여러 개 골라 한꺼번에 끌기: 다른 창에서(이 창의 다음 그림이 바뀌지 않게)
+  {
+    const m = await page(1100, 720, "?mock=ready&classify=1");
+    await m.getByRole("button", { name: "자동 분류" }).click();
+    await m.waitForTimeout(1200);
+    const md = m.locator(".dialog--classify");
+    const board = md.locator(".classify__board .classify__card");
+    const first = board.nth(0);
+    const rows = first.locator(".classify__file");
+    await rows.nth(0).click();
+    await rows.nth(1).click();
+    await m.waitForTimeout(200);
+    await mark(md.locator(".classify__selbar"));
+    const g = await rows.nth(1).boundingBox();
+    const to = await board.nth(1).boundingBox();
+    await m.mouse.move(g.x + 60, g.y + g.height / 2);
+    await m.mouse.down();
+    await m.mouse.move(g.x + 75, g.y + g.height / 2 + 6, { steps: 6 });
+    await m.mouse.move(to.x + to.width / 2, to.y + 110, { steps: 25 });
+    await m.waitForTimeout(300);
+    await shot(m, "cl5.webp", md);
+    await m.close();
+  }
   await mark(dlg.getByRole("button", { name: /개 나누기/ }));
   await shot(p, "cl3.webp", p.locator(".dialog--classify"));
   await unmark(p);

@@ -189,6 +189,8 @@ pub enum Reason {
     Type { type_name: String },
     /// 기존 폴더 다시 정리하기: 이름에 같은 낱말이 든 파일이 여럿이라 새 폴더를 제안(resort)
     Suggest { word: String, count: usize },
+    /// 기존 폴더 다시 정리하기: 파일 이름으로는 몰라서 원래 있던 폴더 이름으로(예: 생기부 폴더 → 생활기록부)
+    Source { folder: String, word: String },
 }
 
 struct FolderName {
@@ -324,6 +326,22 @@ impl Classifier {
                 type_name: type_name.to_string(),
             },
             target_for(dir),
+        ))
+    }
+
+    /// 원래 있던 폴더 이름으로(파일 이름으로 모를 때, 다시 정리하기): 폴더 이름에 든 가장 긴 단어로 찾는다.
+    pub fn by_source_folder(&self, folder_name: &str) -> Option<(Reason, Target)> {
+        let (reason, target) = self.by_name(&folder_name.to_lowercase())?;
+        let word = match reason {
+            Reason::Folder { word } | Reason::Word { word } => word,
+            _ => return None,
+        };
+        Some((
+            Reason::Source {
+                folder: folder_name.to_string(),
+                word,
+            },
+            target,
         ))
     }
 
@@ -581,6 +599,26 @@ mod tests {
             Some(root.join("문서").join("계약서"))
         );
         assert_eq!(dir("README"), None);
+    }
+
+    #[test]
+    fn source_folder_name_is_a_clue() {
+        let (_d, root) = tree();
+        let c = classifier(&root, vec![]);
+        // '생기부' 폴더 → 자동 분류 단어 '생기부' → 생활기록부(아직 없음 → 넣을 때 만든다)
+        let (r, t) = c.by_source_folder("생기부").unwrap();
+        assert_eq!(
+            r,
+            Reason::Source {
+                folder: "생기부".into(),
+                word: "생기부".into()
+            }
+        );
+        assert_eq!(t.dir, root.join("생활기록부"));
+        // 폴더 이름(상담)도 단서
+        let (_, t) = c.by_source_folder("2학기 상담 자료").unwrap();
+        assert_eq!(t.dir, root.join("학급").join("상담"));
+        assert!(c.by_source_folder("새 폴더").is_none());
     }
 
     #[test]

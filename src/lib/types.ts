@@ -224,7 +224,9 @@ export type Reason =
   /** 이름으로 몰라서 파일 형식으로 */
   | { kind: "type"; typeName: string }
   /** 기존 폴더 다시 정리하기: 이름에 같은 낱말이 든 파일이 여럿이라 새 폴더를 제안 */
-  | { kind: "suggest"; word: string; count: number };
+  | { kind: "suggest"; word: string; count: number }
+  /** 기존 폴더 다시 정리하기: 파일 이름으로 몰라서 원래 있던 폴더 이름으로(예: 생기부 폴더 → 생활기록부) */
+  | { kind: "source"; folder: string; word: string };
 
 /** 자동 분류 단어 묶음: 단어 중 하나가 이름에 있으면 folder(정리 폴더 아래 경로)로 */
 export interface WordGroup {
