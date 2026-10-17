@@ -22,6 +22,65 @@
   z-index: 2;
 }
 
+/* 정리함(이 폴더의 파일을 함께 보일 때): 위쪽 폴더(경로·자주 쓰는 폴더·폴더 격자)는 고정하고 아래 파일 목록만 따로 내려간다
+   (사용자 요청: 파일을 고른 채 내려도 옮길 폴더가 보이게). 폴더가 아주 많으면 폴더 격자도 따로 내려간다. */
+.ifold--split {
+  position: relative;
+  overflow: hidden;
+}
+
+.ifold--split > * {
+  flex-shrink: 0;
+}
+
+.ifold--split > .ifold__tiles {
+  flex: 0 1 auto;
+  min-height: 150px;
+  overflow-y: auto;
+}
+
+.ifold--split > .ffiles {
+  flex: 1 1 0;
+  min-height: 130px;
+  overflow-y: auto;
+}
+
+/* 파일이 없는 폴더: 파일 칸은 한 줄만, 남는 자리는 폴더 격자에 */
+.ifold--split > .ffiles--empty {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+.ifold--split .ifold__toast {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  margin-top: 0;
+}
+
+/* 창이 아주 낮으면(폴더와 파일 칸이 다 들어가지 않으면) 예전처럼 칸 전체가 내려간다 */
+@media (max-height: 680px) {
+  .ifold--split {
+    overflow-y: auto;
+  }
+
+  .ifold--split > .ifold__tiles,
+  .ifold--split > .ffiles {
+    flex: none;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .ifold--split .ifold__toast {
+    position: sticky;
+    right: auto;
+    bottom: 16px;
+    left: auto;
+    margin-top: auto;
+  }
+}
+
 .ifold__bar {
   padding: 12px 14px;
   border-bottom: 1px solid var(--color-line-soft);

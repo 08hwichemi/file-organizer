@@ -16,6 +16,8 @@ interface Props {
   onTab: (tab: string) => void;
   selected: Set<string>;
   onToggle: (path: string) => void;
+  /** 이 파일들을 더 고른다(Shift로 사이 고르기) */
+  onAdd: (paths: string[]) => void;
   onSelectMany: (paths: string[]) => void;
   onClear: () => void;
   dragging: string[] | null;
@@ -40,7 +42,8 @@ export const RECENT_TAB = "\u0000recent";
 
 /**
  * 정리함 왼쪽 파일 칸(SPEC 3-2). 맨 위 [정리할 파일 | 최근 정리], 그 아래 폴더 탭(전체·다운로드·바탕화면…),
- * 체크박스·배지·이름·출처와 시각. 줄을 끌어 폴더에 놓을 수 있다.
+ * 배지·이름·출처와 시각. 자동 분류 창과 같은 고르기(사용자 요청): 누르면 골라지고(파란색) 다시 누르면 풀리며,
+ * Shift를 누른 채 누르면 마지막으로 누른 파일부터 거기까지 모두 고른다. 줄을 끌어 폴더에 놓을 수 있다(고른 파일이면 고른 것 모두).
  */
 export default function InboxFileList(props: Props) {
   const { items, watchFolders, known, tab, onTab, selected, onToggle, onSelectMany, onClear } = props;
@@ -74,6 +77,19 @@ export default function InboxFileList(props: Props) {
     },
   ];
   const allVisibleSelected = visible.length > 0 && visible.every((i) => selected.has(i.path));
+  // Shift로 사이를 고를 때의 기준(마지막으로 그냥 누른 파일)
+  const anchor = useRef<string | null>(null);
+  const pick = (path: string, shift: boolean) => {
+    const order = groups.flatMap((g) => g.items.map((i) => i.path));
+    const from = anchor.current ? order.indexOf(anchor.current) : -1;
+    const to = order.indexOf(path);
+    if (shift && from >= 0 && to >= 0) {
+      props.onAdd(order.slice(Math.min(from, to), Math.max(from, to) + 1));
+      return;
+    }
+    anchor.current = path;
+    onToggle(path);
+  };
   // '최근 정리'에서 '정리할 파일'로 돌아올 때 보던 폴더 탭으로
   const lastSource = useRef(ALL_TAB);
   if (!showRecent) lastSource.current = tab;
@@ -124,7 +140,9 @@ export default function InboxFileList(props: Props) {
       {visible.length > 0 &&
         (selected.size > 0 ? (
           <div className="ifiles__bar ifiles__bar--sel">
-            <span className="ifiles__bar-text">{selected.size}개 선택됨 · ‘여기에 넣기’나 숫자 키로 넣어요</span>
+            <span className="ifiles__bar-text" title="폴더로 끌어다 놓거나, 폴더의 [여기에 넣기]나 숫자 키로 넣어요">
+              <b>{selected.size}개 고름</b> · 숫자 키로도 넣어요
+            </span>
             <button
               type="button"
               className="ifiles__bar-btn ifiles__bar-btn--icon"
@@ -135,19 +153,19 @@ export default function InboxFileList(props: Props) {
               <Trash2 size={15} />
             </button>
             <button type="button" className="ifiles__bar-btn" onClick={onClear}>
-              선택 해제
+              고르기 풀기
             </button>
           </div>
         ) : (
           <div className="ifiles__bar">
-            <label className="ifiles__all">
-              <input
-                type="checkbox"
-                checked={allVisibleSelected}
-                onChange={() => onSelectMany(visible.map((i) => i.path))}
-              />
-              모두 선택
-            </label>
+            <button
+              type="button"
+              className="ifiles__bar-btn ifiles__all"
+              onClick={() => onSelectMany(visible.map((i) => i.path))}
+              title="파일을 누르면 하나씩, Shift를 누른 채 누르면 사이의 파일까지 골라져요"
+            >
+              {allVisibleSelected ? "고르기 풀기" : "모두 고르기"}
+            </button>
             <span className="ifiles__spacer" />
             <button
               type="button"
@@ -179,7 +197,7 @@ export default function InboxFileList(props: Props) {
                     source={friendlyName(item.sourceDir, known)}
                     checked={selected.has(item.path)}
                     dimmed={!!props.dragging?.includes(item.path)}
-                    onToggle={() => onToggle(item.path)}
+                    onToggle={(shift) => pick(item.path, shift)}
                     suggestion={
                       item.suggestion ? displayPath(props.root, item.suggestion.destDir, props.separator) : null
                     }
@@ -361,7 +379,8 @@ function FileRow({
   source: string;
   checked: boolean;
   dimmed: boolean;
-  onToggle: () => void;
+  /** shift = Shift를 누른 채 눌렀는지(사이의 파일까지 고르기) */
+  onToggle: (shift: boolean) => void;
   /** 추천 위치(보여 줄 경로) */
   suggestion: string | null;
   onAccept: () => void;
@@ -374,26 +393,17 @@ function FileRow({
       className={`ifiles__row${checked ? " ifiles__row--on" : ""}${dimmed ? " ifiles__row--drag" : ""}`}
       {...attributes}
       {...listeners}
-      onClick={onToggle}
-      // 키보드: 스페이스로 선택(끌기 대신)
+      onClick={(e) => onToggle(e.shiftKey)}
+      // 키보드: 스페이스로 고르기(끌기 대신)
       onKeyDown={(e) => {
         if (e.key === " " || e.key === "Enter") {
           e.preventDefault();
-          onToggle();
+          onToggle(e.shiftKey);
         }
       }}
       aria-pressed={checked}
-      aria-label={`${item.name} ${checked ? "선택됨" : "선택"}`}
+      aria-label={`${item.name} ${checked ? "고름" : "고르기"}`}
     >
-      <input
-        type="checkbox"
-        tabIndex={-1}
-        aria-hidden="true"
-        checked={checked}
-        onChange={onToggle}
-        onClick={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
-      />
       <div className="ifiles__main">
         <div className="ifiles__top">
           <FileBadge name={item.name} size={36} />
