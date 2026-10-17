@@ -1,0 +1,291 @@
+/* 정리 기록(SPEC 3-2) */
+.log__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.log__export {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* 화면 높이에 맞춘 칸, 목록은 칸 안에서 내려간다 */
+.log {
+  container-type: inline-size;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.log__bar {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-line-soft);
+}
+
+.log__search {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 6px 0 12px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 8px;
+  color: var(--color-text-sub);
+}
+
+.log__search:focus-within {
+  border-color: var(--color-accent);
+}
+
+.log__search input {
+  flex: 1;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+}
+
+.log__clear {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-sub);
+}
+
+.log__clear:hover {
+  background: var(--color-surface-sub);
+}
+
+/* 기간: 정리함 [정리할 파일 | 최근 정리]와 같은 모양 */
+.log__seg {
+  flex-shrink: 0;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 9px;
+  background: var(--color-bg);
+}
+
+.log__seg-btn {
+  min-height: var(--control-height);
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-text-sub);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.log__seg-btn--on {
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(23, 25, 28, 0.12);
+}
+
+.log__notice {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 8px 16px;
+  border-bottom: 1px solid #dce5f7;
+  background: var(--color-accent-faint);
+  color: var(--color-accent-hover);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.log__empty {
+  padding: 48px 16px;
+  color: var(--color-text-sub);
+  text-align: center;
+}
+
+/* 시각 · 파일 · 원래 있던 곳 → 넣은 곳 · 상태/버튼 */
+.log__cols,
+.log__row {
+  display: grid;
+  /* 줄마다 같은 칸 너비(버튼 칸은 [위치] [되돌리기]가 들어가는 고정 너비) */
+  grid-template-columns: 76px minmax(0, 1.25fr) minmax(0, 1.5fr) 196px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+}
+
+.log__cols {
+  flex-shrink: 0;
+  min-height: 34px;
+  border-bottom: 1px solid var(--color-line);
+  color: var(--color-text-sub);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.log__list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+/* 날짜 띠는 내리는 동안 위에 붙는다 */
+.log__day {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.log__row {
+  min-height: 52px;
+  border-bottom: 1px solid #f0f1f3;
+  font-size: 13px;
+}
+
+.log__time {
+  color: var(--color-text-sub);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.log__file {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.log__name {
+  overflow: hidden;
+  color: var(--color-text-strong);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log__where {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-sub);
+  white-space: nowrap;
+}
+
+.log__where > * {
+  flex-shrink: 0;
+}
+
+.log__where .log__from,
+.log__where b {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.log__where b {
+  color: var(--color-text-strong);
+  font-weight: 600;
+}
+
+.log__tag {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--color-surface-sub);
+  font-size: 11.5px;
+}
+
+.log__acts {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.log__acts .btn {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.log__state {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #eef0f3;
+  color: var(--color-text-sub);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* 되돌림·다시 옮김·되살림: 흐리게 */
+.log__row--off .log__name {
+  color: var(--color-text-sub);
+  font-weight: 500;
+}
+
+.log__more {
+  align-self: center;
+  margin: 12px 0 16px;
+}
+
+/* 좁은 창: 시각 칸을 빼고 곳은 이름 아래로 */
+@container (max-width: 640px) {
+  .log__cols {
+    display: none;
+  }
+
+  .log__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "file acts"
+      "where acts";
+    row-gap: 2px;
+    padding-block: 8px;
+  }
+
+  .log__time {
+    display: none;
+  }
+
+  .log__file {
+    grid-area: file;
+  }
+
+  .log__where {
+    grid-area: where;
+    padding-left: 39px;
+    font-size: 12px;
+  }
+
+  .log__acts {
+    grid-area: acts;
+  }
+}

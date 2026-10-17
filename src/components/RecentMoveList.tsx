@@ -1,9 +1,10 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
-import { ArrowRight, Undo2 } from "lucide-react";
+import { ArrowRight, History, Undo2 } from "lucide-react";
 import { errorMessage, listRecentMoves, onBackendEvent, openPath, revealPath, undoMoves } from "../lib/backend";
 import { formatAgo, formatDate, withRo } from "../lib/format";
 import { displayPath, friendlyName, trailFor, type KnownFolders } from "../lib/paths";
 import type { RecentMove } from "../lib/types";
+import { useAppStore } from "../store/useAppStore";
 import Band from "./Band";
 import FileBadge from "./FileBadge";
 import type { Toast } from "./FolderPane";
@@ -41,6 +42,7 @@ interface Props {
  */
 export default function RecentMoveList({ root, separator, known, onShow, onToast }: Props) {
   const [moves, setMoves] = useState<RecentMove[] | null>(null);
+  const goTo = useAppStore((s) => s.goTo);
   const [busy, setBusy] = useState(false);
 
   const reload = useCallback(() => {
@@ -164,6 +166,13 @@ export default function RecentMoveList({ root, separator, known, onShow, onToast
             </Fragment>
           );
         })}
+        {/* 최근 정리는 지금 그 자리에 있는 최근 파일만. 되돌린 것·휴지통까지 모두 보려면 정리 기록 화면으로 */}
+        <li className="recent__all">
+          <button type="button" className="btn" onClick={() => goTo("log")}>
+            <History size={15} aria-hidden="true" />
+            전체 기록 보기
+          </button>
+        </li>
       </ul>
     </>
   );

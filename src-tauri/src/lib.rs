@@ -11,6 +11,7 @@ mod finder;
 mod folders;
 mod history;
 mod inbox;
+mod movelog;
 mod mover;
 mod naming;
 mod popup;
@@ -159,6 +160,8 @@ pub fn run() {
             commands::list_folders,
             commands::list_files,
             commands::recent_moves,
+            commands::move_log,
+            commands::save_log_csv,
             commands::create_folder,
             commands::search_folders,
             commands::recent_destinations,

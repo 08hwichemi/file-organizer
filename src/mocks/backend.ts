@@ -10,6 +10,7 @@ import type {
   FolderEntry,
   FolderMatch,
   InboxItem,
+  LogEntry,
   OrganizeMode,
   PendingFile,
   PlaceMode,
@@ -252,7 +253,17 @@ interface MockMove {
   destDir: string;
   undone: boolean;
   movedAt: number;
+  undoneAt?: number;
 }
+
+// 정리 기록 화면용: 휴지통 기록, 그리고 미리 있던 기록(어제·며칠 전 — 가짜라 되돌리기는 안 됨)
+const trashLog: { id: number; path: string; isFolder: boolean; at: number; restoredAt: number | null }[] = [];
+const DAY = 86_400_000;
+const at = (daysAgo: number, h: number, m: number) => {
+  const d = new Date(Date.now() - daysAgo * DAY);
+  d.setHours(h, m, 0, 0);
+  return d.getTime();
+};
 
 // 다운로드·바탕화면에 원래 있던 파일(‘지금 있는 파일 가져오기’로 불러옴)
 let existingFiles: PendingFile[] = startReady
@@ -931,6 +942,7 @@ export const mockBackend = {
     if (!move) return fail("되돌릴 기록을 찾을 수 없어요.");
     if (move.undone) return fail("이미 되돌렸어요.");
     move.undone = true;
+    move.undoneAt = Date.now();
     autoMoved = autoMoved.filter((a) => a.moveId !== moveId);
     const dest = findFolder(move.destDir);
     if (dest) dest.files -= 1;
@@ -986,6 +998,7 @@ export const mockBackend = {
         continue;
       }
       move.undone = true;
+      move.undoneAt = Date.now();
       const dest = findFolder(move.destDir);
       if (dest) dest.files -= 1;
       // 지켜볼 폴더에서 넣은 것만 정리함으로. 정리 폴더 안·다른 폴더에서 옮긴 것은 원래 폴더로만
@@ -1063,6 +1076,7 @@ export const mockBackend = {
     delete d.parent.children[d.name];
     const id = ++nextId;
     trashed.set(id, { kind: "folder", path, parent: d.parent, name: d.name, node: d.node });
+    trashLog.push({ id, path, isFolder: true, at: Date.now(), restoredAt: null });
     mockEvents.emit("inbox-changed");
     return delay(id);
   },
@@ -1078,6 +1092,7 @@ export const mockBackend = {
       inbox = inbox.filter((i) => i.path !== path);
       const id = ++nextId;
       trashed.set(id, { kind: "file", item });
+      trashLog.push({ id, path, isFolder: false, at: Date.now(), restoredAt: null });
       result.deletionIds.push(id);
     }
     mockEvents.emit("inbox-changed");
@@ -1095,6 +1110,8 @@ export const mockBackend = {
       if (t.kind === "file") inbox = [t.item, ...inbox];
       else t.parent.children[t.name] = t.node;
       trashed.delete(id);
+      const logged = trashLog.find((x) => x.id === id);
+      if (logged) logged.restoredAt = Date.now();
       result.restored += 1;
     }
     mockEvents.emit("inbox-changed");
@@ -1286,6 +1303,61 @@ export const mockBackend = {
     rule.missDir = null;
     mockEvents.emit("inbox-changed");
     return delay(undefined);
+  },
+
+  moveLog() {
+    const name = (p: string) => p.slice(p.lastIndexOf(SEP) + 1);
+    const root = settings.rootFolder ?? readyRoot;
+    const seeds: LogEntry[] = startReady
+      ? [
+          [1, 16, 30, "trash", DOWNLOADS, "scan_20261013.pdf", null],
+          [1, 15, 20, "move", DESKTOP, "화학2 02 주기율표 학습지.hwpx", "수업\\2027 2학기"],
+          [1, 10, 2, "move", DOWNLOADS, "체험학습_사진_01.jpg", "학급\\사진"],
+          [3, 17, 11, "move", DESKTOP, "학업성적관리위원회_회의록.hwp", "업무\\회의록"],
+          [3, 17, 10, "move", DOWNLOADS, "수행평가_채점기준_1학기.hwp", "평가\\수행평가"],
+        ].map(([days, h, m, kind, from, file, to], i) => ({
+          kind: kind as LogEntry["kind"],
+          id: -1 - i,
+          name: file as string,
+          fromPath: `${from}${SEP}${file}`,
+          toPath: to ? `${root}${SEP}${to}${SEP}${file}` : null,
+          at: at(days as number, h as number, m as number),
+          revertedAt: null,
+          present: kind !== "trash",
+          isFolder: false,
+        }))
+      : [];
+    const list: LogEntry[] = [
+      ...moves.map((m) => ({
+        kind: "move" as const,
+        id: m.id,
+        name: m.original.name,
+        fromPath: m.original.path,
+        toPath: m.destDir + SEP + m.original.name,
+        at: m.movedAt,
+        revertedAt: m.undoneAt ?? null,
+        present: !m.undone && !movedAgain(m),
+        isFolder: false,
+      })),
+      ...trashLog.map((t) => ({
+        kind: "trash" as const,
+        id: t.id,
+        name: name(t.path),
+        fromPath: t.path,
+        toPath: null,
+        at: t.at,
+        revertedAt: t.restoredAt,
+        present: t.restoredAt === null,
+        isFolder: t.isFolder,
+      })),
+      ...seeds,
+    ];
+    return delay(list.sort((a, b) => b.at - a.at || b.id - a.id));
+  },
+
+  saveLogCsv(text: string) {
+    (window as unknown as { lastCsv?: string }).lastCsv = text;
+    return delay(true);
   },
 
   pickFolder() {

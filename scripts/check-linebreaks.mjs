@@ -112,7 +112,7 @@ for (const [w, h] of sizes) {
   await p.locator(".dialog--classify").getByRole("button", { name: "취소" }).click(); await p.waitForTimeout(400);
   await p.getByRole("tab", { name: /최근 정리/ }).click(); await p.waitForTimeout(400);
   await audit(p, "정리함-최근 정리");
-  for (const [menu, label] of [["파일 검색", "파일 검색"], ["이름 바꾸기", "이름 바꾸기"], ["정리 규칙", "정리 규칙"]]) {
+  for (const [menu, label] of [["정리 기록", "정리 기록"], ["파일 검색", "파일 검색"], ["이름 바꾸기", "이름 바꾸기"], ["정리 규칙", "정리 규칙"]]) {
     await p.locator(".sidebar__item", { hasText: menu }).click(); await p.waitForTimeout(800);
     if (menu === "파일 검색") { await p.locator("input").first().fill("수행"); await p.waitForTimeout(800); }
     await audit(p, label);
