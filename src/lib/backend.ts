@@ -97,6 +97,12 @@ export function getAppInfo(): Promise<AppInfo> {
   return invoke("app_info");
 }
 
+/** 업데이트 설치 직전: 새 버전으로 다시 켜지면 메인 창을 보이게(자동 실행에서 업데이트해도). */
+export function prepareUpdate(version: string): Promise<void> {
+  if (usingMocks) return Promise.resolve();
+  return invoke("prepare_update", { version });
+}
+
 export function getSetupInfo(): Promise<SetupInfo> {
   if (usingMocks) return mockBackend.setupInfo();
   return invoke("setup_info");

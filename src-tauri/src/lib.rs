@@ -15,6 +15,7 @@ mod mover;
 mod naming;
 mod popup;
 mod recycle;
+mod relaunch;
 mod renamer;
 mod resort;
 mod rules;
@@ -125,8 +126,10 @@ pub fn run() {
 
             // 메인 창은 숨긴 채 만들어 두고, 컴퓨터를 켤 때 자동 실행된 경우(설정을 마쳤으면)에는
             // 트레이로만 시작한다(SPEC 7장).
+            // 업데이트 뒤 다시 켜진 경우에는 자동 실행 인자가 붙어 있어도 창을 보인다(relaunch.rs).
             let autostarted = std::env::args().any(|a| a == AUTOSTART_ARG);
-            if !(autostarted && current.setup_done) {
+            let after_update = relaunch::take(&data_dir, &app.package_info().version.to_string());
+            if after_update || !(autostarted && current.setup_done) {
                 tray::show_main(app.handle(), None);
             }
             // 자동 실행 설정을 실제 등록과 맞춘다(예전 버전에서 업데이트한 경우 기본 켬).
@@ -146,6 +149,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
+            commands::prepare_update,
             commands::setup_info,
             commands::get_settings,
             commands::complete_setup,
