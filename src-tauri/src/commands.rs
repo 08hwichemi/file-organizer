@@ -919,14 +919,29 @@ pub fn folder_classify_preview(
     let mut plans: Vec<ClassifyPlan> = files
         .iter()
         .map(|p| {
+            let stays = |t: &Target| {
+                p.parent()
+                    .is_some_and(|parent| folders::same_dir(parent, &t.dir))
+            };
             let found = classifier
                 .as_ref()
                 .and_then(|c| c.classify(p))
                 .filter(|(reason, _)| !(inside && matches!(reason, Reason::Type { .. })))
-                .filter(|(_, t)| {
-                    !p.parent()
-                        .is_some_and(|parent| folders::same_dir(parent, &t.dir))
-                });
+                .filter(|(_, t)| !stays(t));
+            // 파일 이름으로 모르면(형식으로만 정해졌으면) 원래 있던 폴더 이름으로: 그 파일의 폴더, 고른 폴더 순
+            let found = match found {
+                Some((r, t)) if !matches!(r, Reason::Type { .. }) => Some((r, t)),
+                other => {
+                    let names = [p.parent(), Some(dir.as_path())]
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|d| d.file_name().map(|n| n.to_string_lossy().into_owned()));
+                    names
+                        .filter_map(|n| classifier.as_ref()?.by_source_folder(&n))
+                        .find(|(_, t)| !stays(t))
+                        .or(other)
+                }
+            };
             ClassifyPlan {
                 path: p.to_string_lossy().into_owned(),
                 name: p

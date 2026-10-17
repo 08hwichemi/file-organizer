@@ -40,6 +40,8 @@ export function reasonLabel(reason: Reason): string {
       return `${reason.typeName} 형식`;
     case "suggest":
       return `이름의 ${quote(reason.word)} ${reason.count}개 · 새 폴더 제안`;
+    case "source":
+      return `원래 폴더 ${quote(reason.folder)}`;
   }
 }
 
