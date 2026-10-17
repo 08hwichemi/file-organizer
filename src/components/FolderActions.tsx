@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { errorMessage, moveFolder, renameFolder, restoreDeleted, trashFolder } from "../lib/backend";
-import { baseName, displayPath, parentPath } from "../lib/paths";
+import { displayPath, parentPath, rootLabel } from "../lib/paths";
 import type { FolderEntry } from "../lib/types";
 import Dialog from "./Dialog";
 import FolderPicker from "./FolderPicker";
@@ -125,7 +125,7 @@ export default function FolderActions({ action, folder, root, separator, onClose
           className={`folder-move__root${dest === root ? " folder-move__root--on" : ""}`}
           onClick={() => setDest(root)}
         >
-          맨 위({baseName(root)})로 옮기기
+          맨 위({rootLabel(root)})로 옮기기
         </button>
         <FolderPicker root={root} separator={separator} selected={dest} onSelect={setDest} reveal={null} />
         {error && <p className="error-text">{error}</p>}

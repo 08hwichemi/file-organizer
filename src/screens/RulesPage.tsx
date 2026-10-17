@@ -5,7 +5,7 @@ import Band from "../components/Band";
 import FolderIcon from "../components/FolderIcon";
 import RuleEditor from "../components/RuleEditor";
 import { deleteRule, errorMessage, listRules, moveRule, onBackendEvent, restoreRule } from "../lib/backend";
-import { baseName } from "../lib/paths";
+import { rootLabel } from "../lib/paths";
 import { ruleCondition, segmentsLabel, splitKinds } from "../lib/rules";
 import type { RuleView } from "../lib/types";
 import { useAppStore } from "../store/useAppStore";
@@ -82,7 +82,7 @@ export default function RulesPage() {
     });
 
   if (!root) return null;
-  const rootName = baseName(root);
+  const rootName = rootLabel(root);
 
   return (
     <div className="page rules">

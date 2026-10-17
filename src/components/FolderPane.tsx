@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { ArrowRightLeft, FolderPlus, MoreHorizontal, Pencil, Trash2, Wand2 } from "lucide-react";
 import { createFolder, errorMessage, listFolders, onBackendEvent } from "../lib/backend";
-import { baseName, trailFor, type Crumb } from "../lib/paths";
+import { baseName, type Crumb, rootLabel, trailFor } from "../lib/paths";
 import type { FolderEntry } from "../lib/types";
 import Band from "./Band";
 import FolderActions, { type FolderAction } from "./FolderActions";
@@ -62,7 +62,7 @@ export default function FolderPane(props: Props) {
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [action, setAction] = useState<{ kind: FolderAction; folder: FolderEntry } | null>(null);
   const [undoing, setUndoing] = useState(false);
-  const [trail, setTrail] = useState<Crumb[]>([{ name: baseName(root), path: root }]);
+  const [trail, setTrail] = useState<Crumb[]>([{ name: rootLabel(root), path: root }]);
   const [folders, setFolders] = useState<FolderEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);

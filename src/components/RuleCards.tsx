@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { answerRuleChange, createRule, errorMessage } from "../lib/backend";
 import { withRo } from "../lib/format";
-import { baseName, displayPath } from "../lib/paths";
+import { displayPath, rootLabel } from "../lib/paths";
 import { ruleCondition, ruleName, segmentsLabel, splitKinds } from "../lib/rules";
 import type { Rule, RuleChange, RuleDraft } from "../lib/types";
 import Band from "./Band";
@@ -29,7 +29,7 @@ export function RuleDraftCard({ draft, root, separator, onSkip }: DraftProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const rootName = baseName(root);
+  const rootName = rootLabel(root);
   const useSplit = split && kinds !== "";
   const dest = useSplit ? segmentsLabel(rootName, draft.segments, true) : displayPath(root, draft.destDir, separator);
   const condition =

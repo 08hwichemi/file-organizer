@@ -30,6 +30,18 @@ export function friendlyName(path: string, known: KnownFolders | null): string {
   return baseName(path);
 }
 
+/** 앱이 켜질 때 받은 다운로드·바탕화면·문서 위치(정리 폴더 이름을 쉽게 보여 줄 때 씀) */
+let knownFolders: KnownFolders | null = null;
+
+export function setKnownFolders(known: KnownFolders | null) {
+  knownFolders = known;
+}
+
+/** 정리 폴더를 부르는 이름: 보통 폴더 이름, 바탕화면을 그대로 쓰면 "바탕화면"(경로 "바탕화면 › 업무") */
+export function rootLabel(root: string): string {
+  return friendlyName(root, knownFolders);
+}
+
 export interface Crumb {
   name: string;
   path: string;
@@ -37,7 +49,7 @@ export interface Crumb {
 
 /** 정리 폴더(root)부터 path까지의 경로 조각들. path가 root 밖이면 null. */
 export function trailFor(root: string, path: string, separator: string): Crumb[] | null {
-  const rootName = baseName(root);
+  const rootName = rootLabel(root);
   const base = root.replace(/[\\/]+$/, "");
   if (samePath(base, path)) return [{ name: rootName, path: base }];
   const prefix = base + separator;

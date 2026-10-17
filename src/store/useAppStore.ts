@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import * as backend from "../lib/backend";
+import { setKnownFolders } from "../lib/paths";
 import type { OrganizeMode, PlaceMode, Settings, SetupInfo, SetupRequest, UserKind } from "../lib/types";
 
 /** redo = 설정에서 "처음 설정 다시 하기"를 연 상태(취소하면 ready로) */
@@ -58,6 +59,7 @@ export const useAppStore = create<AppState>((set) => ({
     for (let attempt = 0; attempt < 5; attempt++) {
       try {
         const [settings, setupInfo] = await Promise.all([backend.getSettings(), backend.getSetupInfo()]);
+        setKnownFolders(setupInfo);
         set({ settings, setupInfo, status: settings.setupDone ? "ready" : "setup", loadError: null });
         return;
       } catch (error) {
