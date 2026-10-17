@@ -258,15 +258,16 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
   );
 
   /**
-   * 카드 보기: 추천된 폴더 → 정리함에 남기기 → 정리 폴더 안의 나머지 폴더(늘 보임).
-   * 목록 보기: 오른쪽에 폴더 격자가 따로 있으므로, 파일이 없는 나머지 폴더 묶음은 뺀다.
+   * 카드 보기: 정리함에 남기기는 왼쪽에 따로 길게 두고, 폴더 카드는 추천된 폴더 → 정리 폴더 안의 나머지 폴더(늘 보임).
+   * 목록 보기: 추천된 폴더 → 정리함에 남기기 → 파일이 든 나머지 폴더(오른쪽에 폴더 격자가 따로 있으므로 빈 묶음은 뺀다).
    */
-  const groupCards = (all: boolean) => {
+  const groupCards = (view: View) => {
+    const all = view === "cards";
     const show = (d: string) => all || !folderCards.has(d) || (byCard.get(d)?.length ?? 0) > 0;
     return (
       <>
         {cards.slice(0, split).map(folderCard)}
-        {inboxCard()}
+        {!all && inboxCard()}
         {cards.slice(split).filter(show).map(folderCard)}
       </>
     );
@@ -317,18 +318,22 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
       {plans && plans.length > 0 && (
         <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
           {view === "cards" ? (
-            <div className="classify__board">
-              {groupCards(true)}
-              <button type="button" className="classify__card classify__card--add" onClick={() => setAdding(true)}>
-                <FolderPlus size={26} aria-hidden="true" />
-                <span>폴더 추가</span>
-                <small>안쪽 폴더나 목록에 없는 폴더로 보낼 때</small>
-              </button>
+            // 왼쪽: 정리함에 남기기(창 높이만큼 길게, 그 안에서 내려 봄) / 오른쪽: 폴더 카드(오른쪽만 내려 봄)
+            <div className="classify-split">
+              {inboxCard()}
+              <div className="classify__board">
+                {groupCards("cards")}
+                <button type="button" className="classify__card classify__card--add" onClick={() => setAdding(true)}>
+                  <FolderPlus size={26} aria-hidden="true" />
+                  <span>폴더 추가</span>
+                  <small>안쪽 폴더나 목록에 없는 폴더로 보낼 때</small>
+                </button>
+              </div>
             </div>
           ) : (
             <div className="classify">
               <div className="classify__list" aria-label="나눌 파일">
-                {groupCards(false)}
+                {groupCards("list")}
               </div>
               <div className="classify__side">
                 <div className="classify__side-title">끌어다 놓을 폴더 · 누르면 안으로 들어가요</div>

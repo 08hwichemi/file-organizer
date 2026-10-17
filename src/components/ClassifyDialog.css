@@ -55,6 +55,20 @@
 }
 
 /* 카드 한 장 = 두 칸(300px). 파일이 없는 카드·폴더 추가는 한 칸(반 높이)이라 폴더가 많아도 한눈에 */
+/* 카드 보기: 왼쪽에 정리함에 남기기(창 높이만큼 길게), 오른쪽에 폴더 카드(오른쪽만 내려 봄) */
+.classify-split {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: clamp(240px, 24%, 320px) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.classify-split > .classify__card--inbox {
+  min-height: 0;
+  margin: 2px 0 10px 2px;
+}
+
 .classify__board {
   flex: 1;
   min-height: 0;
