@@ -5,13 +5,13 @@ use crate::folders::{self, FileEntry, FolderEntry, FolderMatch};
 use crate::inbox::{self, InboxItem};
 use crate::naming::{self, DestSegment};
 use crate::rules::{self, Rule, RuleDraft, RuleInput, Target};
-use crate::settings::{self, OrganizeMode, PlaceMode, Settings};
+use crate::settings::{self, OrganizeMode, PlaceMode, Settings, UserKind};
 use crate::setup::{self, SetupRequest};
 use crate::watcher::{self, NewFile, WatchService};
-use crate::{history, mover, popup, recycle, tray};
+use crate::{history, mover, popup, recycle, resort, tray};
 use rusqlite::Connection;
 use serde::Serialize;
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -887,6 +887,108 @@ pub fn classify_preview(state: State<'_, AppState>, paths: Vec<String>) -> Vec<C
         .collect()
 }
 
+/// 기존 폴더 다시 정리하기 미리보기: 고른 폴더의 파일을 읽어 넣을 곳을 정한다.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderPreview {
+    pub plans: Vec<ClassifyPlan>,
+    /// 파일이 너무 많아 앞의 일부만 읽음
+    pub truncated: bool,
+}
+
+/// - 정리 폴더 밖 폴더('다른 폴더 정리하기'): 자동 분류와 같게(이름 → 형식). 안쪽까지 읽어도 정리 폴더는 뺀다.
+/// - 정리 폴더 안 폴더('이 폴더 다시 나누기'): 이름으로 정해지는 파일만 옮기고, 형식만으로는 옮기지 않는다
+///   (개인 폴더의 PDF가 '형식별'로 빠져나가지 않게).
+/// - 지금 있는 폴더가 곧 넣을 곳이면 그대로 둔다.
+/// - 남은 파일은 이름에 같은 낱말이 여럿 있으면 새 폴더를 제안한다: 정리 폴더 안이면 그 폴더 안에,
+///   밖이면 정리 폴더 바로 아래(집·개인은 파일 종류가 같으면 그 종류 폴더 안, 예: 문서 › 계약서).
+#[tauri::command]
+pub fn folder_classify_preview(
+    state: State<'_, AppState>,
+    dir: String,
+    include_sub: bool,
+) -> Result<FolderPreview, String> {
+    let dir = PathBuf::from(&dir);
+    resort::check_dir(&dir)?;
+    let s = state.with_db(settings::load)?;
+    let root = PathBuf::from(s.root_folder.as_deref().ok_or("정리 폴더가 아직 없어요.")?);
+    let inside = folders::is_inside(&root, &dir);
+    let skip = (!folders::is_root_or_inside(&root, &dir)).then_some(root.as_path());
+    let (files, truncated) = resort::list(&dir, include_sub, skip, resort::MAX_FILES);
+    let classifier = state.classifier();
+    let mut plans: Vec<ClassifyPlan> = files
+        .iter()
+        .map(|p| {
+            let found = classifier
+                .as_ref()
+                .and_then(|c| c.classify(p))
+                .filter(|(reason, _)| !(inside && matches!(reason, Reason::Type { .. })))
+                .filter(|(_, t)| {
+                    !p.parent()
+                        .is_some_and(|parent| folders::same_dir(parent, &t.dir))
+                });
+            ClassifyPlan {
+                path: p.to_string_lossy().into_owned(),
+                name: p
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+                target: found.map(Suggestion::new),
+            }
+        })
+        .collect();
+
+    // 새 폴더 제안: 넣을 곳이 없거나 형식으로만 정해진 파일
+    let open: Vec<usize> = (0..plans.len())
+        .filter(|&i| {
+            plans[i]
+                .target
+                .as_ref()
+                .is_none_or(|t| matches!(t.reason, Reason::Type { .. }))
+        })
+        .collect();
+    let names: Vec<String> = open.iter().map(|&i| plans[i].name.clone()).collect();
+    let own_name = dir
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    for (word, members) in resort::suggest(&names, &[own_name]) {
+        let kinds: HashSet<Option<&str>> = members
+            .iter()
+            .map(|&m| classify::kind_folder(&naming::extension(&names[m])))
+            .collect();
+        let base = if inside {
+            dir.clone()
+        } else {
+            match (
+                s.user_kind,
+                kinds.into_iter().collect::<Vec<_>>().as_slice(),
+            ) {
+                (UserKind::General, [Some(k)]) => root.join(k),
+                _ => root.clone(),
+            }
+        };
+        let target = classify::target_for(base.join(&word));
+        let count = members.len();
+        for m in members {
+            let i = open[m];
+            let parent_is_target = Path::new(&plans[i].path)
+                .parent()
+                .is_some_and(|p| folders::same_dir(p, &target.dir));
+            if !parent_is_target {
+                plans[i].target = Some(Suggestion::new((
+                    Reason::Suggest {
+                        word: word.clone(),
+                        count,
+                    },
+                    target.clone(),
+                )));
+            }
+        }
+    }
+    Ok(FolderPreview { plans, truncated })
+}
+
 /// 자동 분류 실행(정리함 [자동 분류] → 미리보기 → 확인). 나누지 못한 파일은 정리함에 남는다.
 #[tauri::command]
 pub fn classify_files(
@@ -975,18 +1077,16 @@ pub fn undo_moves(
         restored: 0,
         errors: Vec::new(),
     };
-    let root = state
+    // 지켜볼 폴더(다운로드·바탕화면 등)에서 넣은 파일만 정리함으로 돌린다. 정리 폴더 안에서 옮긴 것,
+    // '다른 폴더 정리하기'로 옮긴 것은 원래 폴더로만(정리 폴더가 지켜볼 폴더 자체여도 같은 기준).
+    let watch: Vec<PathBuf> = state
         .with_db(settings::load)
-        .ok()
-        .and_then(|s| s.root_folder)
-        .map(PathBuf::from);
+        .map(|s| s.watch_folders.iter().map(PathBuf::from).collect())
+        .unwrap_or_default();
     for id in move_ids {
         match undo_one(&state, id) {
             Ok((restored, source_dir)) => {
-                let in_root = root
-                    .as_deref()
-                    .is_some_and(|r| folders::is_root_or_inside(r, &source_dir));
-                if !in_root {
+                if watch.iter().any(|w| folders::same_dir(w, &source_dir)) {
                     let _ = state.with_db(|conn| {
                         inbox::add(conn, &restored, &source_dir, inbox::Reason::Later)
                             .map_err(db_err)
@@ -1010,14 +1110,31 @@ pub struct PutOutcome {
 }
 
 /// 여러 파일을 한 폴더에 넣는다(정리함). 파일마다 결과를 돌려준다.
+/// `create`면 없는 폴더를 만든다(정리 폴더 안만 — 다시 나누기의 새 폴더 제안).
 #[tauri::command]
 pub fn put_files(
     app: AppHandle,
     state: State<'_, AppState>,
     paths: Vec<String>,
     dest_dir: String,
+    create: Option<bool>,
 ) -> Vec<PutOutcome> {
     let dest = PathBuf::from(&dest_dir);
+    if create.unwrap_or(false) && !dest.is_dir() {
+        let made = state
+            .root()
+            .and_then(|root| rules::ensure_target(&classify::target_for(dest.clone()), &root));
+        if let Err(e) = made {
+            return paths
+                .into_iter()
+                .map(|path| PutOutcome {
+                    path,
+                    move_id: None,
+                    error: Some(e.clone()),
+                })
+                .collect();
+        }
+    }
     let outcomes = paths
         .into_iter()
         .map(|path| {

@@ -37,3 +37,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* 제목 + 오른쪽 [다른 폴더 정리하기] */
+.inbox__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.inbox__resort {
+  flex-shrink: 0;
+  min-height: var(--control-height-main);
+  font-weight: 600;
+  white-space: nowrap;
+}

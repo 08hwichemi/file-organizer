@@ -304,3 +304,9 @@
 .ifold__menu .ifold__menu-danger {
   color: var(--color-danger);
 }
+
+.ifold__menu-line {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--color-line-soft);
+}

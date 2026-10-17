@@ -495,3 +495,32 @@
 .classify__all:hover {
   background: var(--color-accent-faint);
 }
+
+/* 다시 정리하기: 안쪽 폴더의 파일도 */
+.classify__sub {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: var(--control-height);
+  color: var(--color-text-strong);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.classify__sub input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+/* 안쪽 폴더의 파일도 + 보는 방식: 늘 한 줄 */
+.classify__opts {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 12px;
+}

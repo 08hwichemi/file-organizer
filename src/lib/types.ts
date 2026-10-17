@@ -222,12 +222,21 @@ export type Reason =
   /** 이름에 자동 분류 단어가 들어 있음 */
   | { kind: "word"; word: string }
   /** 이름으로 몰라서 파일 형식으로 */
-  | { kind: "type"; typeName: string };
+  | { kind: "type"; typeName: string }
+  /** 기존 폴더 다시 정리하기: 이름에 같은 낱말이 든 파일이 여럿이라 새 폴더를 제안 */
+  | { kind: "suggest"; word: string; count: number };
 
 /** 자동 분류 단어 묶음: 단어 중 하나가 이름에 있으면 folder(정리 폴더 아래 경로)로 */
 export interface WordGroup {
   folder: string[];
   words: string[];
+}
+
+/** 기존 폴더 다시 정리하기 미리보기 */
+export interface FolderPreview {
+  plans: ClassifyPlan[];
+  /** 파일이 너무 많아 앞의 일부만 읽음 */
+  truncated: boolean;
 }
 
 /** 자동 분류 미리보기: 파일마다 넣을 곳(null이면 정리함에 남음) */

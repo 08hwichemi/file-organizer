@@ -38,6 +38,8 @@ export function reasonLabel(reason: Reason): string {
       return `이름의 ${quote(reason.word)}(자동 분류 단어)`;
     case "type":
       return `${reason.typeName} 형식`;
+    case "suggest":
+      return `이름의 ${quote(reason.word)} ${reason.count}개 · 새 폴더 제안`;
   }
 }
 

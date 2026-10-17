@@ -9,6 +9,7 @@ import type {
   FileEntry,
   FolderEntry,
   FolderFiles,
+  FolderPreview,
   FolderMatch,
   InboxItem,
   OrganizeMode,
@@ -269,9 +270,10 @@ export function hidePopup(): Promise<void> {
   return invoke("hide_popup");
 }
 
-export function putFiles(paths: string[], destDir: string): Promise<PutOutcome[]> {
-  if (usingMocks) return mockBackend.putFiles(paths, destDir);
-  return invoke("put_files", { paths, destDir });
+/** `create`면 없는 폴더를 만든다(정리 폴더 안만: 다시 나누기의 새 폴더 제안) */
+export function putFiles(paths: string[], destDir: string, create = false): Promise<PutOutcome[]> {
+  if (usingMocks) return mockBackend.putFiles(paths, destDir, create);
+  return invoke("put_files", { paths, destDir, create });
 }
 
 export function undoMoves(moveIds: number[]): Promise<UndoManyResult> {
@@ -346,6 +348,12 @@ export function putSuggested(paths: string[]): Promise<PutOutcome[]> {
 export function classifyPreview(paths: string[]): Promise<ClassifyPlan[]> {
   if (usingMocks) return mockBackend.classifyPreview(paths);
   return invoke("classify_preview", { paths });
+}
+
+/** 기존 폴더 다시 정리하기 미리보기: 고른 폴더의 파일과 넣을 곳(같은 낱말이 많으면 새 폴더 제안) */
+export function folderClassifyPreview(dir: string, includeSub: boolean): Promise<FolderPreview> {
+  if (usingMocks) return mockBackend.folderClassifyPreview(dir, includeSub);
+  return invoke("folder_classify_preview", { dir, includeSub });
 }
 
 /** 자동 분류 실행(나누지 못한 파일은 정리함에 남음) */

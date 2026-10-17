@@ -175,15 +175,11 @@ pub fn run_over(req: &SetupRequest, current: Settings) -> Result<Settings, Strin
     Ok(s)
 }
 
-pub fn validate_watch_folders(watch: &[String], root: &str) -> Result<(), String> {
+/// 지켜볼 폴더가 하나 이상인지. 정리 폴더와 같아도 된다(바탕화면 그대로 쓰기: 바탕화면에 바로 저장된 파일만
+/// 새 파일로 보고, 바탕화면 안의 폴더로 넣는다 — 감시는 그 폴더 바로 안의 파일만 본다).
+pub fn validate_watch_folders(watch: &[String], _root: &str) -> Result<(), String> {
     if watch.is_empty() {
         return Err("지켜볼 폴더를 하나 이상 골라 주세요.".into());
-    }
-    if watch
-        .iter()
-        .any(|w| same_path(Path::new(w), Path::new(root)))
-    {
-        return Err("정리 폴더와 지켜볼 폴더는 서로 달라야 해요.".into());
     }
     Ok(())
 }
@@ -359,15 +355,21 @@ mod tests {
     }
 
     #[test]
-    fn rejects_root_that_is_also_watched() {
+    fn watched_folder_can_be_the_root_as_is() {
+        // 바탕화면 그대로 쓰기: 지켜볼 폴더를 정리 폴더로 그대로 쓴다(안의 폴더로 정리)
         let dir = tempfile::tempdir().unwrap();
-        let dl = downloads(dir.path());
-        let err = run(&request(
-            Path::new(&dl),
+        let desk = downloads(dir.path());
+        fs::create_dir_all(Path::new(&desk).join("업무")).unwrap();
+        let s = run(&request(
+            Path::new(&desk),
             FolderPreset::Existing,
-            vec![dl.clone()],
-        ));
-        assert!(err.is_err());
+            vec![desk.clone()],
+        ))
+        .unwrap();
+        assert_eq!(s.root_folder.as_deref(), Some(desk.as_str()));
+        assert!(Path::new(&desk).join("업무").is_dir());
+        // 지켜볼 폴더가 없으면 안 됨
+        assert!(run(&request(Path::new(&desk), FolderPreset::Existing, vec![])).is_err());
     }
 
     #[test]

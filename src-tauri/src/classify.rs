@@ -187,6 +187,8 @@ pub enum Reason {
     Word { word: String },
     /// 이름으로는 몰라서 파일 형식으로
     Type { type_name: String },
+    /// 기존 폴더 다시 정리하기: 이름에 같은 낱말이 든 파일이 여럿이라 새 폴더를 제안(resort)
+    Suggest { word: String, count: usize },
 }
 
 struct FolderName {
@@ -252,7 +254,7 @@ fn scan_folders(root: &Path) -> Vec<FolderName> {
     out
 }
 
-fn target_for(dir: PathBuf) -> Target {
+pub fn target_for(dir: PathBuf) -> Target {
     let mut existing = dir.clone();
     while !existing.is_dir() && existing.pop() {}
     Target {

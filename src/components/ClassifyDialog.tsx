@@ -11,8 +11,8 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { FolderPlus, GripVertical, Inbox, LayoutGrid, List, RotateCcw } from "lucide-react";
-import { classifyPreview, errorMessage, listFiles, listFolders } from "../lib/backend";
-import { displayPath } from "../lib/paths";
+import { classifyPreview, errorMessage, folderClassifyPreview, listFiles, listFolders } from "../lib/backend";
+import { baseName, displayPath } from "../lib/paths";
 import { reasonLabel } from "../lib/rules";
 import type { ClassifyPlan, FileEntry } from "../lib/types";
 import Band from "./Band";
@@ -51,6 +51,11 @@ function savedView(): View {
 interface Props {
   /** 나눌 파일(정리함에서 지금 보이는 파일) */
   paths: string[];
+  /**
+   * 기존 폴더 다시 정리하기: 정리함 파일 대신 이 폴더의 파일을 읽어 나눈다(SPEC 3-2).
+   * 모르는 파일은 원래 자리에 그대로 두고, 같은 낱말이 많은 파일은 새 폴더 카드로 제안한다.
+   */
+  source?: { dir: string; title: string };
   root: string;
   separator: string;
   onClose: () => void;
@@ -65,8 +70,11 @@ interface Props {
  * 정리 폴더 안의 폴더는 추천된 파일이 없어도 늘 카드로 보인다(빈 카드는 반 높이).
  * 위의 버튼으로 '목록으로 보기'(왼쪽 목록 + 오른쪽 폴더 격자, 아무 폴더에나 놓기)로 바꿀 수 있다.
  */
-export default function ClassifyDialog({ paths, root, separator, onClose, onRun }: Props) {
+export default function ClassifyDialog({ paths, source, root, separator, onClose, onRun }: Props) {
   const [plans, setPlans] = useState<ClassifyPlan[] | null>(null);
+  /** 다시 정리하기: 안쪽 폴더의 파일도 읽을지, 파일이 많아 일부만 읽었는지 */
+  const [includeSub, setIncludeSub] = useState(false);
+  const [truncated, setTruncated] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   /** 직접 옮긴 파일 → 넣을 폴더(INBOX = 정리함에 남기기) */
   const [overrides, setOverrides] = useState<Map<string, string>>(new Map());
@@ -97,8 +105,17 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
 
   useEffect(() => {
     let alive = true;
+    setPlans(null);
+    setOverrides(new Map());
+    setError(null);
+    const load = source
+      ? folderClassifyPreview(source.dir, includeSub).then((r) => {
+          setTruncated(r.truncated);
+          return r.plans;
+        })
+      : classifyPreview(paths);
     // 폴더 목록을 못 읽어도 자동 분류는 보여 준다
-    Promise.all([classifyPreview(paths), listFolders(root).catch(() => [])])
+    Promise.all([load, listFolders(root).catch(() => [])])
       .then(([p, folders]) => {
         if (!alive) return;
         setPlans(p);
@@ -116,7 +133,7 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
     return () => {
       alive = false;
     };
-  }, [paths, root]);
+  }, [paths, root, source, includeSub]);
 
   useEffect(() => {
     if (!reveal) return;
@@ -212,7 +229,9 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
       if (!checked.has(p.path)) continue;
       const o = overrides.get(p.path);
       if (o === INBOX) continue;
-      if (o) manual.set(o, [...(manual.get(o) ?? []), p.path]);
+      // 다시 정리하기는 미리보기에서 정한 곳(새 폴더 제안 포함)으로 그대로 넣는다
+      const dest = o ?? (source ? p.target?.destDir : undefined);
+      if (dest) manual.set(dest, [...(manual.get(dest) ?? []), p.path]);
       else if (p.target) auto.push(p.path);
     }
     onRun(
@@ -259,14 +278,24 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
   };
 
   const inboxCard = () => (
-    <Card dest={INBOX} name="정리함에 남기기" path="이번에는 나누지 않아요" count={left.length} inbox>
-      {left.length === 0 && <li className="classify__empty">여기로 끌어다 놓으면 정리함에 남아요</li>}
+    <Card
+      dest={INBOX}
+      name={source ? "그대로 두기" : "정리함에 남기기"}
+      path={source ? "원래 폴더에 남아요" : "이번에는 나누지 않아요"}
+      count={left.length}
+      inbox
+    >
+      {left.length === 0 && (
+        <li className="classify__empty">
+          {source ? "여기로 끌어다 놓으면 옮기지 않아요" : "여기로 끌어다 놓으면 정리함에 남아요"}
+        </li>
+      )}
       {left.map((p) => (
         <FileRow
           key={p.path}
           plan={p}
           moved={overrides.has(p.path)}
-          why={overrides.has(p.path) ? "남기기로 함" : "구별 못 함"}
+          why={overrides.has(p.path) ? (source ? "두기로 함" : "남기기로 함") : "구별 못 함"}
           onReset={() => moveTo(p, p.target?.destDir ?? INBOX)}
         />
       ))}
@@ -291,7 +320,7 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
 
   return (
     <Dialog
-      title="자동 분류"
+      title={source ? `${source.title} · ${baseName(source.dir)}` : "자동 분류"}
       onClose={onClose}
       className="dialog--classify"
       actions={
@@ -318,24 +347,45 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
       }
     >
       <div className="classify__top">
-        <p className="dialog__sub">
-          폴더마다 들어갈 파일을 모아 보여 드려요. <strong>다른 폴더에 넣고 싶은 파일은 그 폴더로 끌어다 놓으세요.</strong>{" "}
-          빼고 싶은 파일은 체크를 끄세요. 없는 폴더는 새로 만들고, 나눈 뒤에도 되돌릴 수 있어요.
-        </p>
-        <div className="classify__views" role="group" aria-label="보는 방식">
-          <button type="button" aria-pressed={view === "cards"} onClick={() => setView("cards")}>
-            <LayoutGrid size={15} aria-hidden="true" />
-            카드로 보기
-          </button>
-          <button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}>
-            <List size={15} aria-hidden="true" />
-            목록으로 보기
-          </button>
+        {source ? (
+          <p className="dialog__sub">
+            <strong>{displayPath(root, source.dir, separator)}</strong>
+            {plans ? `의 파일 ${plans.length}개를` : "의 파일을"} 폴더마다 모아 보여 드려요. 다른 폴더에 넣고 싶은 파일은
+            끌어다 놓고, 빼고 싶은 파일은 체크를 끄세요. 모르는 파일은 원래 자리에 그대로 둬요.
+            {truncated && " 파일이 많아 앞의 2,000개만 보여요."}
+          </p>
+        ) : (
+          <p className="dialog__sub">
+            폴더마다 들어갈 파일을 모아 보여 드려요. <strong>다른 폴더에 넣고 싶은 파일은 그 폴더로 끌어다 놓으세요.</strong>{" "}
+            빼고 싶은 파일은 체크를 끄세요. 없는 폴더는 새로 만들고, 나눈 뒤에도 되돌릴 수 있어요.
+          </p>
+        )}
+        <div className="classify__opts">
+          {source && (
+            <label className="classify__sub">
+              <input type="checkbox" checked={includeSub} onChange={(e) => setIncludeSub(e.target.checked)} />
+              안쪽 폴더의 파일도
+            </label>
+          )}
+          <div className="classify__views" role="group" aria-label="보는 방식">
+            <button type="button" aria-pressed={view === "cards"} onClick={() => setView("cards")}>
+              <LayoutGrid size={15} aria-hidden="true" />
+              카드로 보기
+            </button>
+            <button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}>
+              <List size={15} aria-hidden="true" />
+              목록으로 보기
+            </button>
+          </div>
         </div>
       </div>
       {error && <p className="error-text">{error}</p>}
       {!plans && !error && <p className="dialog__sub">살펴보는 중…</p>}
-      {plans && plans.length === 0 && <p className="dialog__sub">나눌 파일이 없어요.</p>}
+      {plans && plans.length === 0 && (
+        <p className="dialog__sub">
+          {source && !includeSub ? "이 폴더 바로 안에는 나눌 파일이 없어요. ‘안쪽 폴더의 파일도’를 켜 보세요." : "나눌 파일이 없어요."}
+        </p>
+      )}
       {plans && plans.length > 0 && (
         <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
           {view === "cards" ? (

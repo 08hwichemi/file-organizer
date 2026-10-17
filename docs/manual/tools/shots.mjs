@@ -185,6 +185,14 @@ if (want("inbox") || want("classify")) {
   await mark(p.locator(".ffiles__head"), true);
   await shot(p, "fd1.webp", p.locator(".ifold").first());
   await p.close();
+
+  // 기존 폴더 다시 정리하기: [다른 폴더 정리하기] → 폴더 고르기(가짜) → 나누기 창
+  const q = await page(1100, 720, "?mock=ready");
+  await q.getByRole("button", { name: "다른 폴더 정리하기" }).click();
+  await q.waitForTimeout(1200);
+  await mark(q.locator(".classify__card").filter({ hasText: "새 폴더" }).first(), true);
+  await shot(q, "rs1.webp", q.locator(".dialog--classify"));
+  await q.close();
 }
 
 // ---------- 그 밖에: 파일 검색 · 이름 바꾸기 ----------

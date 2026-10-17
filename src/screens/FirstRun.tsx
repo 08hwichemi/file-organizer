@@ -69,12 +69,7 @@ export default function FirstRun() {
     return asIs ? baseDir : joinPath(baseDir, info.rootFolderName, info.separator);
   }, [info, baseDir, asIs]);
 
-  const watchProblem =
-    watch.length === 0
-      ? "지켜볼 폴더를 하나 이상 골라 주세요."
-      : rootPreview && watch.some((w) => samePath(w, rootPreview))
-        ? "정리 폴더와 지켜볼 폴더는 서로 달라야 해요."
-        : null;
+  const watchProblem = watch.length === 0 ? "지켜볼 폴더를 하나 이상 골라 주세요." : null;
 
   const structureError = preset === "teacher" ? structureProblem(structure) : null;
 
