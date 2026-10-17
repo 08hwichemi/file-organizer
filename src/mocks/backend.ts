@@ -241,6 +241,7 @@ let inbox: StoredItem[] = startReady
       { id: 1, ...file(DOWNLOADS, "2학기_지필고사_감독배정표.xlsx", 22_000), addedAt: Date.now() - 12 * 60_000 },
       { id: 2, ...file(DESKTOP, "3-2_학부모상담_일정.xlsx", 15_000), addedAt: Date.now() - 3 * 3600_000 },
       { id: 3, ...file(DOWNLOADS, "scan_20261013.pdf", 820_000), addedAt: Date.now() - 26 * 3600_000 },
+      { id: 4, ...file(DESKTOP, "화학2 01 원소와 원자 학습지.hwpx", 27_000), addedAt: Date.now() - 2 * 86400_000 },
     ]
   : [];
 
@@ -286,7 +287,7 @@ function filesIn(path: string, node: MockFolder): FileEntry[] {
   const mine = movedInto(path);
   if (!fakeFiles.has(path)) {
     const name = path.slice(path.lastIndexOf(SEP) + 1);
-    const kinds = ["hwp", "xlsx", "pdf", "pptx", "jpg", "hwp", "docx"];
+    const kinds = ["hwpx", "xlsx", "pdf", "pptx", "jpg", "hwp", "docx"];
     const words = ["자료", "안내", "정리", "명단", "계획", "결과", "사진"];
     const n = Math.max(0, node.files - mine.length);
     fakeFiles.set(

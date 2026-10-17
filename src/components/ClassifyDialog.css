@@ -251,6 +251,60 @@
   text-align: center;
 }
 
+/* 넣을 파일이 없고 이미 있는 파일만 있는 카드: "여기로 끌어다 놓으세요"는 한 줄로 */
+.classify__card--has .classify__files {
+  flex: 0 0 auto;
+}
+
+.classify__card--has .classify__empty {
+  height: auto;
+  min-height: 34px;
+  padding: 6px 12px;
+}
+
+/* 폴더에 이미 있는 파일(넣을 파일 아래, 흐리게). 많으면 그 안에서 내려 본다 */
+.classify__have {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px dashed var(--color-line);
+  background: var(--color-surface-sub);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+.classify__have-title {
+  flex-shrink: 0;
+  padding: 8px 12px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-sub);
+  white-space: nowrap;
+}
+
+.classify__have-title span {
+  font-weight: 500;
+}
+
+.classify__have-list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0 0 6px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.classify__have-list li {
+  overflow: hidden;
+  padding: 0 12px;
+  font-size: 12.5px;
+  line-height: 28px;
+  color: var(--color-text-sub);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .classify__card--add {
   align-items: center;
   justify-content: center;
@@ -391,6 +445,11 @@
 
 .classify__list .classify__empty {
   height: auto;
+}
+
+/* 목록 보기: 이미 있는 파일은 5줄 높이까지, 넘치면 그 안에서 */
+.classify__list .classify__have-list {
+  max-height: 146px;
 }
 
 .classify__side {
