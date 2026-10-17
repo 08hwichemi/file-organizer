@@ -193,6 +193,7 @@
 - 설치: Tauri NSIS, `installMode: currentUser`(관리자 권한 불필요, 이후 업데이트도).
 - 자동 실행: autostart 플러그인(기본 켬, 처음 설정을 마칠 때 등록하고 켤 때마다 설정과 맞춤 — 예전 버전에서 업데이트해도 켜짐), `--autostart` 인자로 켜지면 창 없이 트레이로만. 개발용(디버그) 실행 파일은 등록하지 않는다. single-instance 플러그인: 이미 켜져 있으면 그 창을 앞으로.
 - 업데이트: updater 플러그인. 시작 시 + 하루 한 번 확인 → "새 버전이 있어요 · 지금 업데이트" → 설치 후 재시작.
+  - 다시 켜질 때는 메인 창을 보인다. 설치 프로그램은 처음 켜질 때와 같은 인자로 다시 켜므로, 자동 실행(`--autostart`)으로 켜진 프로그램에서 업데이트하면 트레이로만 켜졌다(사용자 보고). 그래서 설치 직전에 새 버전을 적은 표시(`%APPDATA%\<식별자>\show-after-update`)를 남기고, 켜질 때 표시의 버전이 지금 버전과 같으면 창을 보인다. 표시는 한 번 쓰고 지운다(설치가 안 됐으면 버전이 달라 창을 띄우지 않음). `relaunch.rs`.
   - 업데이트 서명 키: 개인 키는 GitHub Secrets(`TAURI_SIGNING_PRIVATE_KEY`, `..._PASSWORD`)에만, 별도 백업 필수(잃으면 기존 설치본에 업데이트 불가).
   - 개인 키 암호는 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. 공개 키는 `tauri.conf.json`의 `plugins.updater.pubkey`.
   - `latest.json` + 설치 파일은 **공개 저장소 `08hwichemi/file-organizer-releases`의 Releases**(코드는 비공개 저장소에 그대로). 이 저장소에 쓰는 토큰은 Secrets `RELEASES_TOKEN`.

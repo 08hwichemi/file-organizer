@@ -291,6 +291,13 @@ pub fn app_info(app: AppHandle) -> AppInfo {
     }
 }
 
+/// 업데이트를 설치하기 직전에 부른다: 새 버전으로 다시 켜지면 메인 창을 보이게(relaunch.rs).
+#[tauri::command]
+pub fn prepare_update(app: AppHandle, version: String) -> Result<(), String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    crate::relaunch::mark(&dir, &version).map_err(|e| e.to_string())
+}
+
 /// 처음 실행 화면에 필요한 정보. 기본 위치는 Windows에서 Known Folder 기준이라
 /// OneDrive로 옮긴 바탕화면·문서도 실제 위치가 나온다.
 #[derive(Debug, Serialize)]

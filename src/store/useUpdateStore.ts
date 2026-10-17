@@ -1,8 +1,8 @@
-// 자동 업데이트(SPEC 7장): 시작할 때 + 하루 한 번 확인 → "새 버전이 있어요 · 지금 업데이트" → 설치 후 다시 시작.
+// 자동 업데이트(SPEC 7장): 시작할 때 + 하루 한 번 확인 → "새 버전이 있어요 · 지금 업데이트" → 설치 후 다시 시작(메인 창이 보이게).
 // 업데이트 파일은 공개 저장소(08hwichemi/file-organizer-releases)의 Releases에서 받는다.
 // 이 확인은 프로그램 버전만 묻고, 파일 이름·경로 같은 사용자 정보는 보내지 않는다.
 import { create } from "zustand";
-import { usingMocks } from "../lib/backend";
+import { prepareUpdate, usingMocks } from "../lib/backend";
 
 type Status = "idle" | "checking" | "latest" | "available" | "downloading" | "error";
 
@@ -44,6 +44,9 @@ async function findUpdate(): Promise<PendingUpdate | null> {
     install: async (onProgress) => {
       let total = 0;
       let received = 0;
+      // 설치 프로그램은 처음 켜질 때의 인자(--autostart)로 다시 켜서 창이 안 보일 수 있다 → 표시를 남긴다.
+      // 표시를 못 남겨도 업데이트는 한다(창은 트레이에서 열면 됨).
+      await prepareUpdate(found.version).catch(() => undefined);
       await found.downloadAndInstall((event) => {
         if (event.event === "Started") total = event.data.contentLength ?? 0;
         if (event.event === "Progress") {
