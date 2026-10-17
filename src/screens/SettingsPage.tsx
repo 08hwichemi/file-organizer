@@ -463,7 +463,7 @@ export default function SettingsPage() {
         <div className="settings__about">
           <div className="settings__about-text">
             <strong>AutoFolder</strong>
-            <span className="settings__toggle-desc">새 파일 자동 정리 · 예전 이름 "파일 정리 도우미"</span>
+            <span className="settings__toggle-desc">새 파일 자동 정리</span>
             <span className="settings__about-line">
               {version ? `버전 ${version}${BUILD_LABEL ? ` (${BUILD_LABEL})` : ""}` : "버전 확인 중"} · 만든 사람
               이용휘(화학 교사)
