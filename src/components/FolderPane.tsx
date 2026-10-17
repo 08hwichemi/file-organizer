@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { ArrowRightLeft, FolderPlus, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { createFolder, errorMessage, listFolders, onBackendEvent } from "../lib/backend";
@@ -287,6 +287,16 @@ function FolderTile({
   onPut: () => void;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
+  // 메뉴는 ⋯ 오른쪽에 맞춰 왼쪽으로 펼친다. 맨 왼쪽 폴더라 칸 밖으로 잘리면 오른쪽으로 펼친다.
+  useLayoutEffect(() => {
+    const menu = menuRef.current;
+    const pane = menu?.closest(".ifold");
+    if (!menu || !pane) return;
+    if (menu.getBoundingClientRect().left < pane.getBoundingClientRect().left + 4) {
+      menu.style.left = "4px";
+      menu.style.right = "auto";
+    }
+  }, [menuOpen]);
   const { setNodeRef, isOver } = useDroppable({
     id: `tile:${folder.path}`,
     data: { path: folder.path } satisfies DropData,
