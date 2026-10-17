@@ -169,7 +169,7 @@ if (want("inbox") || want("classify")) {
     const first = board.nth(0);
     const rows = first.locator(".classify__file");
     await rows.nth(0).click();
-    await rows.nth(1).click();
+    await rows.nth(1).click({ modifiers: ["Shift"] });
     await m.waitForTimeout(200);
     await mark(md.locator(".classify__selbar"));
     const g = await rows.nth(1).boundingBox();

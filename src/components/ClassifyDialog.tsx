@@ -12,7 +12,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { followCursor } from "../lib/dnd";
-import { FolderPlus, GripVertical, Inbox, LayoutGrid, List, RotateCcw } from "lucide-react";
+import { CircleMinus, FolderPlus, GripVertical, Inbox, LayoutGrid, List, RotateCcw } from "lucide-react";
 import { classifyPreview, errorMessage, folderClassifyPreview, listFiles, listFolders } from "../lib/backend";
 import { baseName, displayPath } from "../lib/paths";
 import { reasonLabel } from "../lib/rules";
@@ -81,6 +81,8 @@ export default function ClassifyDialog({ paths, source, root, separator, onClose
   const [truncated, setTruncated] = useState(false);
   /** 고른 파일(파란색). 끌면 다 같이 옮겨진다 */
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  /** Shift로 사이를 고를 때의 기준(마지막으로 그냥 누른 파일) */
+  const [anchor, setAnchor] = useState<string | null>(null);
   /** 직접 옮긴 파일 → 넣을 폴더(INBOX = 정리함에 남기기) */
   const [overrides, setOverrides] = useState<Map<string, string>>(new Map());
   /** 카드 순서(끌어 옮겨도 카드 자리는 그대로): 파일이 추천된 폴더 → (정리함에 남기기) → 정리 폴더 안의 나머지 폴더 */
@@ -197,6 +199,28 @@ export default function ClassifyDialog({ paths, source, root, separator, onClose
       return next;
     });
 
+  /**
+   * 파일을 눌렀을 때: 그냥 누르면 하나 고르기·풀기, Shift를 누른 채 누르면 Windows 탐색기처럼
+   * 마지막으로 누른 파일부터 여기까지(같은 카드 안) 모두 고른다.
+   */
+  const pickFile = (list: ClassifyPlan[], path: string, shift: boolean) => {
+    const from = anchor ? list.findIndex((p) => p.path === anchor) : -1;
+    const to = list.findIndex((p) => p.path === path);
+    if (shift && from >= 0 && to >= 0) {
+      const [a, b] = from < to ? [from, to] : [to, from];
+      selectMany(list.slice(a, b + 1).map((p) => p.path), true);
+      return;
+    }
+    toggleSelect(path);
+    setAnchor(path);
+  };
+
+  /** 고르기를 모두 푼다 */
+  const clearSelection = () => {
+    setSelected(new Set());
+    setAnchor(null);
+  };
+
   const addCard = (dest: string) => setCards((c) => (c.includes(dest) ? c : [...c, dest]));
 
   const moveTo = (plan: ClassifyPlan, dest: string) => {
@@ -229,13 +253,15 @@ export default function ClassifyDialog({ paths, source, root, separator, onClose
     const dest = data?.dest ?? data?.path;
     if (!dest) return;
     for (const p of moving) if (dest !== destOf(p)) moveTo(p, dest);
-    setSelected(new Set());
+    clearSelection();
   };
 
-  /** 고른 파일을 왼쪽 칸(정리함에 남기기 · 그대로 두기)으로 */
-  const leaveSelected = () => {
-    for (const p of selectedPlans) if (destOf(p) !== INBOX) moveTo(p, INBOX);
-    setSelected(new Set());
+  /** 분류에서 빼기: 고른 파일(`list`가 있으면 그중 그 카드의 것만)을 왼쪽 칸(정리함에 남기기 · 그대로 두기)으로 */
+  const leaveSelected = (list?: ClassifyPlan[]) => {
+    const out = (list ?? selectedPlans).filter((p) => selected.has(p.path) && destOf(p) !== INBOX);
+    for (const p of out) moveTo(p, INBOX);
+    if (list) selectMany(out.map((p) => p.path), false);
+    else clearSelection();
   };
 
   const run = () => {
@@ -276,6 +302,8 @@ export default function ClassifyDialog({ paths, source, root, separator, onClose
         count={list.length}
         allSelected={allSelected(list)}
         onAll={(on) => selectMany(list.map((p) => p.path), on)}
+        picked={list.filter((p) => selected.has(p.path)).length}
+        onLeave={() => leaveSelected(list)}
         existing={existing.get(dest) ?? []}
       >
         {list.length === 0 && <li className="classify__empty">여기로 끌어다 놓으세요</li>}
@@ -286,7 +314,7 @@ export default function ClassifyDialog({ paths, source, root, separator, onClose
             selected={selected.has(p.path)}
             moved={overrides.has(p.path)}
             why={overrides.has(p.path) ? "직접 옮김" : p.target ? reasonLabel(p.target.reason) : ""}
-            onSelect={() => toggleSelect(p.path)}
+            onSelect={(shift) => pickFile(list, p.path, shift)}
             onReset={() => moveTo(p, p.target?.destDir ?? INBOX)}
           />
         ))}
@@ -320,7 +348,7 @@ export default function ClassifyDialog({ paths, source, root, separator, onClose
               ? `${cardName(root, p.target.destDir, separator)}에서 뺌`
               : "구별 못 함"
           }
-          onSelect={() => toggleSelect(p.path)}
+          onSelect={(shift) => pickFile(left, p.path, shift)}
           onReset={() => moveTo(p, p.target?.destDir ?? INBOX)}
         />
       ))}
@@ -351,15 +379,21 @@ export default function ClassifyDialog({ paths, source, root, separator, onClose
       actions={
         <>
           {selected.size > 0 ? (
-            // 고른 파일이 있으면: n개 고름 · [정리함에 남기기로] [고르기 풀기]
+            // 고른 파일이 있으면: n개 고름 · [분류에서 빼기] [고르기 풀기]
             <div className="classify__selbar">
               <span className="classify__selbar-text">{selected.size}개 고름</span>
               {selectedPlans.some((p) => destOf(p) !== INBOX) && (
-                <button type="button" className="btn" onClick={leaveSelected}>
-                  {leftName}로
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => leaveSelected()}
+                  title={`고른 파일을 왼쪽 ‘${leftName}’로 옮겨요`}
+                >
+                  <CircleMinus size={15} aria-hidden="true" />
+                  분류에서 빼기
                 </button>
               )}
-              <button type="button" className="btn btn--ghost" onClick={() => setSelected(new Set())}>
+              <button type="button" className="btn btn--ghost" onClick={clearSelection}>
                 고르기 풀기
               </button>
             </div>
@@ -386,14 +420,15 @@ export default function ClassifyDialog({ paths, source, root, separator, onClose
           <p className="dialog__sub">
             <strong>{displayPath(root, source.dir, separator)}</strong>
             {plans ? `의 파일 ${plans.length}개를` : "의 파일을"} 폴더마다 모아 보여 드려요.{" "}
-            <strong>파일을 누르면 골라지고, 고른 파일을 끌면 한꺼번에 옮겨져요.</strong> 옮기지 않을 파일은 왼쪽
-            ‘그대로 두기’로 옮기세요. 모르는 파일은 원래 자리에 그대로 둬요.
+            <strong>파일을 누르면 골라지고, Shift를 누른 채 누르면 사이의 파일까지 골라져요.</strong> 고른 파일은
+            끌어서 다른 폴더로 옮기거나 [빼기]로 분류에서 뺄 수 있어요. 모르는 파일은 원래 자리에 그대로 둬요.
             {truncated && " 파일이 많아 앞의 2,000개만 보여요."}
           </p>
         ) : (
           <p className="dialog__sub">
-            폴더마다 들어갈 파일을 모아 보여 드려요. <strong>파일을 누르면 골라지고, 고른 파일을 끌면 한꺼번에 옮겨져요.</strong>{" "}
-            넣지 않을 파일은 왼쪽 ‘정리함에 남기기’로 옮기세요. 없는 폴더는 새로 만들고, 나눈 뒤에도 되돌릴 수 있어요.
+            폴더마다 들어갈 파일을 모아 보여 드려요.{" "}
+            <strong>파일을 누르면 골라지고, Shift를 누른 채 누르면 사이의 파일까지 골라져요.</strong> 고른 파일은 끌어서
+            다른 폴더로 옮기거나 [빼기]로 분류에서 뺄 수 있어요. 없는 폴더는 새로 만들고, 나눈 뒤에도 되돌릴 수 있어요.
           </p>
         )}
         <div className="classify__opts">
@@ -514,6 +549,8 @@ function Card({
   count,
   allSelected,
   onAll,
+  picked = 0,
+  onLeave,
   inbox,
   existing = [],
   children,
@@ -527,6 +564,10 @@ function Card({
   allSelected?: boolean;
   /** 이 카드의 파일을 모두 고르거나(true) 고른 것을 푼다(false) */
   onAll?: (on: boolean) => void;
+  /** 이 카드에서 고른 파일 수(폴더 카드에서 [n개 빼기]) */
+  picked?: number;
+  /** 이 카드에서 고른 파일을 분류에서 뺀다 */
+  onLeave?: () => void;
   inbox?: boolean;
   /** 이 폴더에 이미 있는 파일 */
   existing?: FileEntry[];
@@ -562,9 +603,22 @@ function Card({
           hint={
             count > 0 &&
             onAll && (
-              <button type="button" className="classify__all" onClick={() => onAll(!allSelected)}>
-                {allSelected ? "고르기 풀기" : "모두 고르기"}
-              </button>
+              <span className="classify__band-btns">
+                {picked > 0 && onLeave && (
+                  <button
+                    type="button"
+                    className="classify__all"
+                    onClick={onLeave}
+                    title="고른 파일을 이 폴더에 넣지 않아요(왼쪽 칸으로)"
+                  >
+                    <CircleMinus size={13} aria-hidden="true" />
+                    {picked}개 빼기
+                  </button>
+                )}
+                <button type="button" className="classify__all" onClick={() => onAll(!allSelected)}>
+                  {allSelected ? "고르기 풀기" : "모두 고르기"}
+                </button>
+              </span>
             )
           }
         />
@@ -599,7 +653,8 @@ function FileRow({
   selected: boolean;
   moved: boolean;
   why: string;
-  onSelect: () => void;
+  /** shift = Shift를 누른 채 눌렀는지(사이의 파일까지 고르기) */
+  onSelect: (shift: boolean) => void;
   onReset: () => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `classify-file:${plan.path}`, data: { plan } });
@@ -613,11 +668,11 @@ function FileRow({
       role="button"
       aria-pressed={selected}
       aria-label={`${plan.name} ${selected ? "고름" : "고르기"}`}
-      onClick={onSelect}
+      onClick={(e) => onSelect(e.shiftKey)}
       onKeyDown={(e) => {
         if (e.key === " " || e.key === "Enter") {
           e.preventDefault();
-          onSelect();
+          onSelect(e.shiftKey);
         }
       }}
     >
