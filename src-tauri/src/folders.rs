@@ -186,6 +186,17 @@ fn same_file(a: &Path, b: &Path) -> bool {
     matches!((a.canonicalize(), b.canonicalize()), (Ok(x), Ok(y)) if x == y)
 }
 
+/// 같은 폴더인지. 둘 다 있으면 실제 위치로, 하나라도 없으면 글자로(대소문자·끝의 구분자 무시) 비교한다.
+pub fn same_dir(a: &Path, b: &Path) -> bool {
+    let norm = |p: &Path| {
+        p.to_string_lossy()
+            .trim_end_matches(['\\', '/'])
+            .replace('/', "\\")
+            .to_lowercase()
+    };
+    same_file(a, b) || norm(a) == norm(b)
+}
+
 fn describe_io(e: &std::io::Error, what: &str) -> String {
     // Windows ERROR_SHARING_VIOLATION = 32, ERROR_ACCESS_DENIED = 5
     if cfg!(windows) && matches!(e.raw_os_error(), Some(32) | Some(5)) {

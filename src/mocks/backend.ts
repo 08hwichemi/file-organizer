@@ -25,6 +25,7 @@ import type {
   Suggestion,
   WordGroup,
   ClassifyPlan,
+  FolderPreview,
   EverythingState,
   SearchHit,
   SearchInfo,
@@ -59,20 +60,20 @@ const setupInfo: SetupInfo = {
   rootFolderName: "정리 폴더",
   separator: SEP,
   teacherExample: [
-    { name: "업무", children: ["공문", "회의록", "계획서"] },
+    { name: "업무", children: [] },
     { name: "수업", children: [] },
-    { name: "평가", children: ["수행평가", "지필고사"] },
-    { name: "학급", children: ["상담", "사진", "출결"] },
+    { name: "평가", children: [] },
+    { name: "학급", children: [] },
     { name: "생활기록부", children: [] },
     { name: "연수", children: [] },
     { name: "개인", children: [] },
   ],
   generalExample: [
-    { name: "업무", children: ["보고서", "회의록", "계약서"] },
-    { name: "돈 관리", children: ["영수증", "세금", "보험"] },
-    { name: "개인", children: ["병원", "증명서"] },
-    { name: "공부", children: [] },
+    { name: "문서", children: [] },
     { name: "사진", children: [] },
+    { name: "동영상", children: [] },
+    { name: "음악", children: [] },
+    { name: "압축·설치", children: [] },
   ],
 };
 
@@ -534,6 +535,23 @@ function classifyFor(fileName: string, sourceDir: string): Suggestion | null {
     : null;
 }
 
+// ---------- 기존 폴더 다시 정리하기(가짜) ----------
+/** 정리 폴더 밖 폴더(다른 폴더 정리하기)에 있다고 치는 파일 */
+const OUTSIDE_SAMPLES = [
+  "계약서_전세.pdf", "계약서_자동차.pdf", "계약서_보험.hwp", "2026_공문_정보보안.pdf", "중간고사_시험지.hwp",
+  "회의록_3월.hwp", "여행_제주_01.jpg", "여행_제주_02.jpg", "여행_부산.jpg", "IMG_2031.jpg", "setup_hancom.exe",
+];
+const OUTSIDE_SUB_SAMPLES = ["학습지_광합성.hwp", "계약서_휴대폰.pdf"];
+/** 미리보기에서 보여 준 파일(넣기에서 찾을 수 있게) */
+const resortFiles = new Map<string, PendingFile>();
+
+function resortWords(name: string): string[] {
+  const stem = name.replace(/\.[^.]+$/, "");
+  return [...stem.matchAll(/[가-힣]{2,}|[A-Za-z]{3,}/g)]
+    .map((m) => m[0].toLowerCase())
+    .filter((w) => !["최종", "사본", "파일", "자료", "사진", "img", "setup"].includes(w));
+}
+
 function putPlanned(paths: string[], plan: (item: StoredItem) => Suggestion | null): PutOutcome[] {
   return paths.map((path) => {
     const item = inbox.find((i) => i.path === path);
@@ -680,7 +698,6 @@ export const mockBackend = {
     if (req.watchFolders.length === 0) return fail("지켜볼 폴더를 하나 이상 골라 주세요.");
     const root =
       req.preset === "existing" ? req.baseDir : `${req.baseDir}${SEP}${setupInfo.rootFolderName}`;
-    if (req.watchFolders.includes(root)) return fail("정리 폴더와 지켜볼 폴더는 서로 달라야 해요.");
     // 없는 폴더만 더한다(있던 폴더·파일은 그대로) — setup.rs run_over와 같게
     type Spec = { name: string; children: Spec[] };
     const merge = (into: MockFolder, specs: Spec[]) => {
@@ -847,6 +864,47 @@ export const mockBackend = {
     );
   },
 
+  folderClassifyPreview(dir: string, includeSub: boolean) {
+    const root = settings.rootFolder;
+    if (!root) return fail("정리 폴더가 아직 없어요.");
+    const inside = dir.startsWith(root + SEP);
+    const files: PendingFile[] = inside
+      ? filesIn(dir, findFolder(dir) ?? folder(0)).map((f) => ({ path: f.path, name: f.name, sourceDir: dir, size: f.size }))
+      : [
+          ...OUTSIDE_SAMPLES.map((n) => file(dir, n, 40_000)),
+          ...(includeSub ? OUTSIDE_SUB_SAMPLES.map((n) => file(`${dir}${SEP}안쪽`, n, 40_000)) : []),
+        ];
+    const plans: ClassifyPlan[] = files.map((f) => {
+      resortFiles.set(f.path, f);
+      let target = classifyFor(f.name, f.sourceDir);
+      if (target && (target.destDir === f.sourceDir || (inside && target.reason.kind === "type"))) target = null;
+      return { path: f.path, name: f.name, target };
+    });
+    // 같은 낱말이 3개 이상이면 새 폴더 제안
+    const open = plans.filter((p) => !p.target || p.target.reason.kind === "type");
+    const taken = new Set<string>();
+    for (;;) {
+      const count = new Map<string, string[]>();
+      for (const p of open) {
+        if (taken.has(p.path)) continue;
+        for (const w of new Set(resortWords(p.name))) {
+          if (w === dir.slice(dir.lastIndexOf(SEP) + 1).toLowerCase()) continue; // 지금 폴더 이름은 제안하지 않는다
+          count.set(w, [...(count.get(w) ?? []), p.path]);
+        }
+      }
+      const best = [...count.entries()].filter(([, l]) => l.length >= 3).sort((a, b) => b[1].length - a[1].length || b[0].length - a[0].length)[0];
+      if (!best) break;
+      const [word, members] = best;
+      const destDir = (inside ? dir : root) + SEP + word;
+      for (const path of members) {
+        taken.add(path);
+        const p = plans.find((x) => x.path === path)!;
+        p.target = { reason: { kind: "suggest", word, count: members.length }, ...targetOf(destDir) };
+      }
+    }
+    return delay<FolderPreview>({ plans, truncated: false });
+  },
+
   classifyFiles(paths: string[]) {
     const outcomes = putPlanned(paths, (i) => classifyFor(i.name, i.sourceDir));
     mockEvents.emit("inbox-changed");
@@ -897,10 +955,13 @@ export const mockBackend = {
     return delay(undefined);
   },
 
-  putFiles(paths: string[], destDir: string) {
-    const dest = findFolder(destDir);
+  putFiles(paths: string[], destDir: string, create = false) {
+    const dest = findFolder(destDir) ?? (create ? ensureFolder(destDir) : null);
     const outcomes: PutOutcome[] = paths.map((path) => {
-      const item = inbox.find((i) => i.path === path) ?? pending.find((p) => p.path === path) ?? takeFolderFile(path);
+      const outside = resortFiles.get(path);
+      resortFiles.delete(path);
+      const item =
+        inbox.find((i) => i.path === path) ?? pending.find((p) => p.path === path) ?? takeFolderFile(path) ?? outside;
       if (!item || !dest) {
         return { path, moveId: null, error: "파일을 찾을 수 없어요. 이미 옮겨졌거나 지워졌을 수 있어요." };
       }
@@ -927,9 +988,10 @@ export const mockBackend = {
       move.undone = true;
       const dest = findFolder(move.destDir);
       if (dest) dest.files -= 1;
-      // 정리 폴더 안에서 옮긴 것은 원래 폴더로만(정리함에 넣지 않음)
+      // 지켜볼 폴더에서 넣은 것만 정리함으로. 정리 폴더 안·다른 폴더에서 옮긴 것은 원래 폴더로만
       if (findFolder(move.original.sourceDir)) returnFolderFile(move.original);
-      else inbox = [{ id: ++nextId, ...move.original, addedAt: Date.now() }, ...inbox];
+      else if (settings.watchFolders.includes(move.original.sourceDir))
+        inbox = [{ id: ++nextId, ...move.original, addedAt: Date.now() }, ...inbox];
       result.restored += 1;
     }
     mockEvents.emit("inbox-changed");
@@ -1140,7 +1202,6 @@ export const mockBackend = {
   },
 
   setRootFolder(path: string) {
-    if (settings.watchFolders.includes(path)) return fail("정리 폴더와 지켜볼 폴더는 서로 달라야 해요.");
     if (!trees.has(path)) trees.set(path, folder(0, { "새로 고른 폴더 안": folder(2) }));
     settings = { ...settings, rootFolder: path, pinnedFavorites: [] };
     mockEvents.emit("inbox-changed");

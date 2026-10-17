@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
-import { ArrowRightLeft, FolderPlus, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { ArrowRightLeft, FolderPlus, MoreHorizontal, Pencil, Trash2, Wand2 } from "lucide-react";
 import { createFolder, errorMessage, listFolders, onBackendEvent } from "../lib/backend";
-import { baseName, trailFor, type Crumb } from "../lib/paths";
+import { baseName, type Crumb, rootLabel, trailFor } from "../lib/paths";
 import type { FolderEntry } from "../lib/types";
 import Band from "./Band";
 import FolderActions, { type FolderAction } from "./FolderActions";
@@ -42,6 +42,8 @@ interface Props {
   focusFile?: { path: string; n: number } | null;
   /** 지금 끌고 있는 파일(파일 목록에서 흐리게) */
   draggingPaths?: string[] | null;
+  /** ⋯ 메뉴의 '이 폴더 다시 나누기'(정리함에서만) */
+  onResort?: (path: string) => void;
 }
 
 /** 놓을 곳을 알려 주는 데이터(dnd-kit droppable의 data) */
@@ -52,7 +54,7 @@ export interface DropData {
 /**
  * 탐색기처럼 폴더 아이콘 격자(정리함 오른쪽 칸, 설정의 폴더 구성).
  * - 경로 + 자주 쓰는 폴더(숫자 키) + 폴더 격자(누르면 안으로) + 새 폴더
- * - 폴더마다 ⋯ 메뉴: 이름 바꾸기 · 다른 폴더로 옮기기 · 휴지통으로 보내기(모두 되돌리기 가능)
+ * - 폴더마다 ⋯ 메뉴: (정리함) 이 폴더 다시 나누기 · 이름 바꾸기 · 다른 폴더로 옮기기 · 휴지통으로 보내기(모두 되돌리기 가능)
  * - 정리함: 파일을 끌어 폴더 위에 놓거나, 파일을 고른 뒤 "여기에 넣기"
  */
 export default function FolderPane(props: Props) {
@@ -60,7 +62,7 @@ export default function FolderPane(props: Props) {
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [action, setAction] = useState<{ kind: FolderAction; folder: FolderEntry } | null>(null);
   const [undoing, setUndoing] = useState(false);
-  const [trail, setTrail] = useState<Crumb[]>([{ name: baseName(root), path: root }]);
+  const [trail, setTrail] = useState<Crumb[]>([{ name: rootLabel(root), path: root }]);
   const [folders, setFolders] = useState<FolderEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -206,6 +208,13 @@ export default function FolderPane(props: Props) {
               setMenuFor(null);
               setAction({ kind, folder: f });
             }}
+            onResort={
+              props.onResort &&
+              (() => {
+                setMenuFor(null);
+                props.onResort?.(f.path);
+              })
+            }
             onOpen={() => setTrail((t) => [...t, { name: f.name, path: f.path }])}
             onPut={() => onPut?.(f.path)}
           />
@@ -272,6 +281,7 @@ function FolderTile({
   menuOpen,
   onMenu,
   onAction,
+  onResort,
   onOpen,
   onPut,
 }: {
@@ -283,10 +293,21 @@ function FolderTile({
   menuOpen: boolean;
   onMenu: () => void;
   onAction: (kind: FolderAction) => void;
+  onResort?: () => void;
   onOpen: () => void;
   onPut: () => void;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
+  // 메뉴는 ⋯ 오른쪽에 맞춰 왼쪽으로 펼친다. 맨 왼쪽 폴더라 칸 밖으로 잘리면 오른쪽으로 펼친다.
+  useLayoutEffect(() => {
+    const menu = menuRef.current;
+    const pane = menu?.closest(".ifold");
+    if (!menu || !pane) return;
+    if (menu.getBoundingClientRect().left < pane.getBoundingClientRect().left + 4) {
+      menu.style.left = "4px";
+      menu.style.right = "auto";
+    }
+  }, [menuOpen]);
   const { setNodeRef, isOver } = useDroppable({
     id: `tile:${folder.path}`,
     data: { path: folder.path } satisfies DropData,
@@ -305,6 +326,15 @@ function FolderTile({
       </button>
       {menuOpen && (
         <div ref={menuRef} className="ifold__menu" role="menu" onPointerDown={(e) => e.stopPropagation()}>
+          {onResort && (
+            <>
+              <button type="button" role="menuitem" onClick={onResort}>
+                <Wand2 size={15} aria-hidden="true" />
+                이 폴더 다시 나누기
+              </button>
+              <div className="ifold__menu-line" role="separator" />
+            </>
+          )}
           <button type="button" role="menuitem" onClick={() => onAction("rename")}>
             <Pencil size={15} aria-hidden="true" />
             이름 바꾸기

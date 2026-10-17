@@ -8,6 +8,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import { FolderOpen } from "lucide-react";
 import ClassifyDialog from "../components/ClassifyDialog";
 import FileBadge from "../components/FileBadge";
 import InboxFileList, { ALL_TAB } from "../components/InboxFileList";
@@ -21,6 +22,7 @@ import {
   importExisting,
   listInbox,
   onBackendEvent,
+  pickFolder,
   putFiles,
   putSuggested,
   restoreDeleted,
@@ -48,6 +50,8 @@ export default function InboxPage() {
   const [importing, setImporting] = useState(false);
   const [dragging, setDragging] = useState<string[] | null>(null);
   const [classifying, setClassifying] = useState<string[] | null>(null);
+  /** 기존 폴더 다시 정리하기(다른 폴더 정리하기 · 이 폴더 다시 나누기) */
+  const [resort, setResort] = useState<{ dir: string; title: string } | null>(null);
   const [jumpTo, setJumpTo] = useState<{ path: string; n: number } | null>(null);
   /** 최근 정리에서 누른 파일: 오른쪽 폴더 칸의 파일 목록에서 골라 둔다 */
   const [focusFile, setFocusFile] = useState<{ path: string; n: number } | null>(null);
@@ -127,18 +131,20 @@ export default function InboxPage() {
     [busy, nameOf, root, sep],
   );
 
-  // 정해진 곳에 넣기: 줄의 [넣기](추천 위치) 또는 [자동 분류](미리보기에서 확인한 파일 + 직접 옮긴 파일)
+  // 정해진 곳에 넣기: 줄의 [넣기](추천 위치) 또는 [자동 분류](미리보기에서 확인한 파일 + 직접 옮긴 파일).
+  // create: 없는 폴더를 만들며 넣기(다시 정리하기의 새 폴더 제안)
   const accept = async (
     paths: string[],
     how: "suggest" | "classify",
     manual: { destDir: string; paths: string[] }[] = [],
+    create = false,
   ) => {
     if (paths.length + manual.length === 0 || busy) return;
     setBusy(true);
     try {
       const outcomes =
         how === "suggest" ? await putSuggested(paths) : paths.length > 0 ? await classifyFiles(paths) : [];
-      for (const m of manual) outcomes.push(...(await putFiles(m.paths, m.destDir)));
+      for (const m of manual) outcomes.push(...(await putFiles(m.paths, m.destDir, create)));
       const done = outcomes.filter((o) => o.moveId !== null);
       const failed = outcomes.filter((o) => o.error);
       const where = how === "suggest" ? "추천 위치에 넣었어요" : "자동으로 나눴어요";
@@ -196,6 +202,15 @@ export default function InboxPage() {
       setToast({ message: errorMessage(e) });
     } finally {
       setBusy(false);
+    }
+  };
+
+  const pickResort = async () => {
+    try {
+      const dir = await pickFolder("정리할 폴더를 고르세요");
+      if (dir) setResort({ dir, title: "다른 폴더 정리하기" });
+    } catch (e) {
+      setToast({ message: errorMessage(e) });
     }
   };
 
@@ -273,14 +288,27 @@ export default function InboxPage() {
 
   return (
     <div className="page page--fill">
-      <div>
-        <h1 className="page__title">정리함</h1>
-        <p className="page__lead">
-          {settings?.organizeMode === "manual"
-            ? "새 파일은 여기에 모여요. "
-            : "‘나중에 정리’한 파일은 여기에 모여요. "}
-          왼쪽 파일을 오른쪽 폴더 위로 끌어다 놓으면 들어가요. 폴더를 누르면 안으로 들어가고, 그 폴더의 파일도 아래에 보여요.
-        </p>
+      <div className="inbox__head">
+        <div>
+          <h1 className="page__title">정리함</h1>
+          <p className="page__lead">
+            {settings?.organizeMode === "manual"
+              ? "새 파일은 여기에 모여요. "
+              : "‘나중에 정리’한 파일은 여기에 모여요. "}
+            왼쪽 파일을 오른쪽 폴더 위로 끌어다 놓으면 들어가요. 폴더를 누르면 안으로 들어가고, 그 폴더의 파일도 아래에
+            보여요.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn inbox__resort"
+          onClick={() => void pickResort()}
+          disabled={!root}
+          title="예전에 쓰던 폴더나 USB의 파일을 골라 자동 분류처럼 나눠요"
+        >
+          <FolderOpen size={16} aria-hidden="true" />
+          다른 폴더 정리하기
+        </button>
       </div>
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
         <div className="inbox">
@@ -336,11 +364,25 @@ export default function InboxPage() {
               showFiles
               focusFile={focusFile}
               draggingPaths={dragging}
+              onResort={(path) => setResort({ dir: path, title: "폴더 다시 나누기" })}
             />
           )}
         </div>
         <DragOverlay dropAnimation={null}>{overlay}</DragOverlay>
       </DndContext>
+      {resort && root && (
+        <ClassifyDialog
+          paths={[]}
+          source={resort}
+          root={root}
+          separator={sep}
+          onClose={() => setResort(null)}
+          onRun={(_, manual) => {
+            setResort(null);
+            void accept([], "classify", manual, true);
+          }}
+        />
+      )}
       {classifying && root && (
         <ClassifyDialog
           paths={classifying}

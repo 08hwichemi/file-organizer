@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { createRule, describeDest, errorMessage, updateRule } from "../lib/backend";
-import { baseName, displayPath, friendlyName, samePath, type KnownFolders } from "../lib/paths";
+import { displayPath, friendlyName, type KnownFolders, rootLabel, samePath } from "../lib/paths";
 import { parseExtensions, segmentsLabel, splitKinds } from "../lib/rules";
 import type { DestSegment, RuleView } from "../lib/types";
 import Dialog from "./Dialog";
@@ -195,7 +195,7 @@ export default function RuleEditor({ rule, root, separator, known, watchFolders,
             <strong>
               {dest
                 ? kinds && split
-                  ? segmentsLabel(baseName(root), segments, true)
+                  ? segmentsLabel(rootLabel(root), segments, true)
                   : displayPath(root, dest, separator)
                 : "아래에서 폴더를 골라 주세요"}
             </strong>

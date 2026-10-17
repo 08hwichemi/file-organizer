@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronRight, FolderPlus, Search, X } from "lucide-react";
 import { createFolder, errorMessage, listFolders, onBackendEvent, searchFolders } from "../lib/backend";
-import { baseName, parentPath, samePath, trailFor, type Crumb } from "../lib/paths";
+import { type Crumb, parentPath, rootLabel, samePath, trailFor } from "../lib/paths";
 import type { FolderEntry, FolderMatch } from "../lib/types";
 import FolderIcon from "./FolderIcon";
 import PathBar from "./PathBar";
@@ -26,7 +26,7 @@ interface Props {
  * 한 번 누르면 선택, 두 번 누르거나 › 를 누르면 안으로. 돋보기 = 폴더 이름 검색. 마지막 칸 = 새 폴더.
  */
 export default function FolderPicker({ root, separator, selected, onSelect, reveal, recommended, hint = true }: Props) {
-  const [trail, setTrail] = useState<Crumb[]>([{ name: baseName(root), path: root }]);
+  const [trail, setTrail] = useState<Crumb[]>([{ name: rootLabel(root), path: root }]);
   const [folders, setFolders] = useState<FolderEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);

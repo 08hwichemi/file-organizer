@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { Briefcase, FileText, FolderCheck, FolderInput, FolderPlus, FolderTree, Monitor, School, X } from "lucide-react";
+import { FileText, FolderCheck, FolderInput, FolderPlus, FolderTree, House, Monitor, School, X } from "lucide-react";
 import ChoiceCard from "../components/ChoiceCard";
 import FolderIcon from "../components/FolderIcon";
 import ModeChoice from "../components/ModeChoice";
@@ -12,7 +12,7 @@ import { useAppStore } from "../store/useAppStore";
 import "./FirstRun.css";
 
 /** current = 다시 설정할 때 지금 정리 폴더 그대로 */
-type Location = "current" | "documents" | "desktop" | "custom" | "existing";
+type Location = "current" | "documents" | "desktop" | "desktopAsIs" | "custom" | "existing";
 type StepKey = "kind" | "location" | "structure" | "watch" | "mode" | "confirm";
 
 // 처음 실행(SPEC 3-3): 쓰는 곳 → 정리 폴더 → 폴더 구성 → 지켜볼 폴더 → 새 파일 알림 방식 → 시작.
@@ -45,7 +45,7 @@ export default function FirstRun() {
   const [error, setError] = useState<string | null>(null);
 
   /** 고른 폴더를 그대로 정리 폴더로(새로 만들지 않음) */
-  const asIs = location === "existing" || location === "current";
+  const asIs = location === "existing" || location === "current" || location === "desktopAsIs";
   const steps: StepKey[] = ["kind", "location", "structure", "watch", "mode", "confirm"];
   const step = steps[Math.min(stepIndex, steps.length - 1)];
 
@@ -54,7 +54,7 @@ export default function FirstRun() {
       ? currentRoot
       : location === "documents"
         ? info?.documents
-        : location === "desktop"
+        : location === "desktop" || location === "desktopAsIs"
           ? info?.desktop
           : location === "custom"
             ? customDir
@@ -69,12 +69,7 @@ export default function FirstRun() {
     return asIs ? baseDir : joinPath(baseDir, info.rootFolderName, info.separator);
   }, [info, baseDir, asIs]);
 
-  const watchProblem =
-    watch.length === 0
-      ? "지켜볼 폴더를 하나 이상 골라 주세요."
-      : rootPreview && watch.some((w) => samePath(w, rootPreview))
-        ? "정리 폴더와 지켜볼 폴더는 서로 달라야 해요."
-        : null;
+  const watchProblem = watch.length === 0 ? "지켜볼 폴더를 하나 이상 골라 주세요." : null;
 
   const structureError = preset === "teacher" ? structureProblem(structure) : null;
 
@@ -183,9 +178,9 @@ export default function FirstRun() {
                     setKind("general");
                     setStructure(exampleStructure(info, "general"));
                   }}
-                  icon={<Briefcase size={20} />}
-                  title="일반(회사·개인)"
-                  description="업무·돈 관리·개인·공부·사진 폴더, 보고서·영수증·세금 같은 낱말, 연도는 달력의 해"
+                  icon={<House size={20} />}
+                  title="집·개인"
+                  description="문서·사진·동영상·음악·압축·설치처럼 파일 종류로 나눠요. 연도는 달력의 해"
                 />
               </div>
             </>
@@ -237,6 +232,20 @@ export default function FirstRun() {
                     description={joinPath(info.desktop, info.rootFolderName, info.separator)}
                   />
                 )}
+                {/* 바탕화면을 그대로 정리 폴더로: 바탕화면에 바로 저장된 파일을 바탕화면 안의 폴더로 넣는다 */}
+                {info.desktop && !(currentRoot && samePath(currentRoot, info.desktop)) && (
+                  <ChoiceCard
+                    name="location"
+                    checked={location === "desktopAsIs"}
+                    onSelect={() => {
+                      setLocation("desktopAsIs");
+                      setPreset("empty");
+                    }}
+                    icon={<Monitor size={20} />}
+                    title="바탕화면 그대로 쓰기"
+                    description="바탕화면에 있는 폴더들로 정리해요. 정리하다 새로 만드는 폴더도 바탕화면에 생겨요."
+                  />
+                )}
                 <ChoiceCard
                   name="location"
                   checked={location === "custom"}
@@ -282,7 +291,7 @@ export default function FirstRun() {
                   onSelect={() => setPreset("teacher")}
                   icon={<FolderTree size={20} />}
                   title={asIs ? "예시 폴더 더하기" : "폴더를 정해서 시작"}
-                  description={`${kind === "general" ? "일반" : "교사용"} 예시를 고쳐서 써요. 이름을 바꾸고, 더하고, 뺄 수 있어요.${asIs ? " 이미 있는 폴더는 건너뛰어요." : ""}`}
+                  description={`${kind === "general" ? "집·개인" : "교사용"} 예시를 고쳐서 써요. 이름을 바꾸고, 더하고, 뺄 수 있어요.${asIs ? " 이미 있는 폴더는 건너뛰어요." : ""}`}
                 />
                 {preset === "teacher" && (
                   <div className="setup__structure">
@@ -341,16 +350,18 @@ export default function FirstRun() {
               </p>
               <dl className="setup__summary">
                 <SummaryRow label="쓰는 곳" onEdit={() => goTo("kind")}>
-                  {kind === "general" ? "일반(회사·개인)" : "학교"}
+                  {kind === "general" ? "집·개인" : "학교"}
                 </SummaryRow>
                 <SummaryRow label="정리 폴더" onEdit={() => goTo("location")}>
-                  <span className="setup__path">{rootPreview}</span>
+                  <span className="setup__path">{location === "desktopAsIs" ? "바탕화면" : rootPreview}</span>
                   <span className="setup__sub">
                     {location === "current"
                       ? "지금 정리 폴더 그대로"
                       : location === "existing"
                         ? "쓰던 폴더를 그대로 써요"
-                        : "새로 만들어요"}
+                        : location === "desktopAsIs"
+                          ? "바탕화면을 그대로 써요(바탕화면의 폴더로 정리)"
+                          : "새로 만들어요"}
                   </span>
                 </SummaryRow>
                 <SummaryRow label="폴더 구성" onEdit={() => goTo("structure")}>

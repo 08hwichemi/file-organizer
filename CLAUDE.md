@@ -21,7 +21,7 @@
 - Windows 전용 코드는 `#[cfg(windows)]`로 감싸서 리눅스에서도 컴파일되게 한다.
 - **화면을 바꾸기 전에 시안 이미지부터 보내 확인받는다**(사용자 요청). 코드는 그대로 두고 가짜 데이터 화면에 CSS·DOM을 임시로 덧씌워 찍은 사진을 보여 주고, "좋아"가 나온 뒤에 만든다.
 - 글 줄바꿈 검사: `npx vite --port 5179 --strictPort`로 가짜 데이터 화면을 띄우고 `node scripts/check-linebreaks.mjs`(가장 작은 창은 `min`). 화면 글을 바꾸면 돌려서 "문제 0개"를 확인한다.
-- 사용 설명서·설치 안내 이미지(SPEC 7장): 원본은 `docs/manual`, `docs/install-image`. 화면이 바뀌면 `node docs/manual/tools/shots.mjs`로 그림을 다시 찍고, 설명서는 같은 주소(https://claude.ai/artifact/UjLpBr6AA33DNrLko6JSzG)에 다시 올린다(글꼴은 `node_modules/pretendard`의 PretendardVariable.woff2를 같이 올림).
+- 사용 설명서·설치 안내 이미지(SPEC 7장): 원본은 `docs/manual`, `docs/install-image`. 화면이 바뀌면 `node docs/manual/tools/shots.mjs`로 그림을 다시 찍는다(WebP). 설명서는 main에 병합되면 `.github/workflows/manual.yml`이 GitHub Pages(https://08hwichemi.github.io/file-organizer-releases/)에 저절로 올린다. 주소는 늘 같으니 채팅이 바뀌어도 새로 만들지 않는다.
 - 결정이 SPEC과 달라지면 `docs/SPEC.md`도 같은 PR에서 고친다.
 
 ## 반드시 지킬 것

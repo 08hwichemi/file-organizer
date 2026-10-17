@@ -34,7 +34,7 @@ export interface Settings {
   searchShortcut: string;
   /** 파일 검색 범위: PC 전체(true, 기본) / 정리 폴더와 지켜볼 폴더만(false) */
   searchWholePc: boolean;
-  /** 쓰는 곳: school = 학교(교사용 예시 폴더·단어·학기), general = 일반(회사·개인) */
+  /** 쓰는 곳: school = 학교(교사용 예시 폴더·단어·학기), general = 집·개인(파일 종류로 나눔) */
   userKind: UserKind;
 }
 
@@ -110,7 +110,7 @@ export interface SetupInfo {
   rootFolderName: string;
   separator: string;
   teacherExample: ExampleFolder[];
-  /** 일반(회사·개인) 예시 폴더 */
+  /** 집·개인 예시 폴더(파일 종류) */
   generalExample: ExampleFolder[];
 }
 
@@ -222,12 +222,21 @@ export type Reason =
   /** 이름에 자동 분류 단어가 들어 있음 */
   | { kind: "word"; word: string }
   /** 이름으로 몰라서 파일 형식으로 */
-  | { kind: "type"; typeName: string };
+  | { kind: "type"; typeName: string }
+  /** 기존 폴더 다시 정리하기: 이름에 같은 낱말이 든 파일이 여럿이라 새 폴더를 제안 */
+  | { kind: "suggest"; word: string; count: number };
 
 /** 자동 분류 단어 묶음: 단어 중 하나가 이름에 있으면 folder(정리 폴더 아래 경로)로 */
 export interface WordGroup {
   folder: string[];
   words: string[];
+}
+
+/** 기존 폴더 다시 정리하기 미리보기 */
+export interface FolderPreview {
+  plans: ClassifyPlan[];
+  /** 파일이 너무 많아 앞의 일부만 읽음 */
+  truncated: boolean;
 }
 
 /** 자동 분류 미리보기: 파일마다 넣을 곳(null이면 정리함에 남음) */

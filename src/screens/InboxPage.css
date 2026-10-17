@@ -10,7 +10,7 @@
   flex: 1;
   min-height: 360px;
   display: grid;
-  grid-template-columns: clamp(240px, 38%, 400px) minmax(0, 1fr);
+  grid-template-columns: clamp(240px, 38%, 460px) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   align-items: stretch;
   gap: 18px;
@@ -36,4 +36,19 @@
 .inbox-drag span:last-child {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 제목 + 오른쪽 [다른 폴더 정리하기] */
+.inbox__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.inbox__resort {
+  flex-shrink: 0;
+  min-height: var(--control-height-main);
+  font-weight: 600;
+  white-space: nowrap;
 }

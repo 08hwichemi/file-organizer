@@ -1,6 +1,6 @@
 import { useDraggable } from "@dnd-kit/core";
-import { Fragment, type ReactNode } from "react";
-import { ArrowRight, Download, History, Trash2, Wand2 } from "lucide-react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { ArrowRight, ChevronDown, Download, History, Trash2, Wand2 } from "lucide-react";
 import { formatAgo } from "../lib/format";
 import { displayPath, friendlyName, samePath, type KnownFolders } from "../lib/paths";
 import type { InboxItem } from "../lib/types";
@@ -38,21 +38,22 @@ export const ALL_TAB = "all";
 /** 정리함 파일이 아니라 최근 정리한 파일을 보는 탭 */
 export const RECENT_TAB = "\u0000recent";
 
-/** 정리함 왼쪽 파일 칸(SPEC 3-2): 탭, 체크박스·배지·이름·출처와 시각. 줄을 끌어 폴더에 놓을 수 있다. */
+/**
+ * 정리함 왼쪽 파일 칸(SPEC 3-2). 맨 위 [정리할 파일 | 최근 정리], 그 아래 폴더 탭(전체·다운로드·바탕화면…),
+ * 체크박스·배지·이름·출처와 시각. 줄을 끌어 폴더에 놓을 수 있다.
+ */
 export default function InboxFileList(props: Props) {
   const { items, watchFolders, known, tab, onTab, selected, onToggle, onSelectMany, onClear } = props;
 
-  const tabs = [
-    { key: ALL_TAB, label: "전체", count: items.length },
-    ...watchFolders
-      .map((dir) => ({
-        key: dir,
-        label: friendlyName(dir, known),
-        count: items.filter((i) => samePath(i.sourceDir, dir)).length,
-      }))
-      // 파일이 없는 폴더 탭은 숨긴다(지금 고른 탭은 남김)
-      .filter((t) => t.count > 0 || t.key === tab),
-  ];
+  const sources = watchFolders
+    .map((dir) => ({
+      key: dir,
+      label: friendlyName(dir, known),
+      count: items.filter((i) => samePath(i.sourceDir, dir)).length,
+    }))
+    // 파일이 없는 폴더 탭은 숨긴다(지금 고른 탭은 남김)
+    .filter((t) => t.count > 0 || t.key === tab);
+  const tabs = [{ key: ALL_TAB, label: "전체", count: items.length }, ...sources];
   const showRecent = tab === RECENT_TAB;
   const visible = showRecent ? [] : tab === ALL_TAB ? items : items.filter((i) => samePath(i.sourceDir, tab));
   // 추천 위치가 있는 파일([넣기]만 누르면 됨, 파란 띠) / 직접 골라야 하는 파일(끌어다 놓기, 회색 띠)
@@ -73,6 +74,9 @@ export default function InboxFileList(props: Props) {
     },
   ];
   const allVisibleSelected = visible.length > 0 && visible.every((i) => selected.has(i.path));
+  // '최근 정리'에서 '정리할 파일'로 돌아올 때 보던 폴더 탭으로
+  const lastSource = useRef(ALL_TAB);
+  if (!showRecent) lastSource.current = tab;
 
   const importButton = (
     <button
@@ -90,44 +94,32 @@ export default function InboxFileList(props: Props) {
   return (
     <section className="ifiles" aria-label="정리할 파일">
       <div className="ifiles__head">
-        <div className="ifiles__tabs" role="tablist">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              role="tab"
-              aria-selected={tab === t.key}
-              className={`ifiles__tab${tab === t.key ? " ifiles__tab--on" : ""}`}
-              onClick={() => onTab(t.key)}
-            >
-              {t.label} <span className="ifiles__count">{t.count}</span>
-            </button>
-          ))}
+        <div className="ifiles__seg" role="tablist" aria-label="보기">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!showRecent}
+            className={`ifiles__seg-btn${showRecent ? "" : " ifiles__seg-btn--on"}`}
+            onClick={() => showRecent && onTab(lastSource.current)}
+          >
+            정리할 파일 <b>{items.length}</b>
+          </button>
           <button
             type="button"
             role="tab"
             aria-selected={showRecent}
-            className={`ifiles__tab ifiles__tab--recent${showRecent ? " ifiles__tab--on" : ""}`}
+            className={`ifiles__seg-btn${showRecent ? " ifiles__seg-btn--on" : ""}`}
             onClick={() => onTab(RECENT_TAB)}
             title="최근에 넣거나 옮긴 파일과 어디로 갔는지 보고, 되돌릴 수 있어요"
           >
-            <History size={13} aria-hidden="true" />
+            <History size={14} aria-hidden="true" />
             최근 정리
           </button>
         </div>
-        {visible.length > 0 && (
-          <button
-            type="button"
-            className="ifiles__accept-all"
-            onClick={() => props.onClassify(visible.map((i) => i.path))}
-            disabled={props.busy}
-            title="파일 이름과 형식을 보고 폴더로 나눠요(먼저 보여 드리고 확인하면 넣어요)"
-          >
-            <Wand2 size={14} aria-hidden="true" />
-            자동 분류
-          </button>
-        )}
       </div>
+
+      {/* 폴더가 하나뿐이면 '전체'와 같으므로 탭 줄을 두지 않는다 */}
+      {!showRecent && (sources.length > 1 || tab !== ALL_TAB) && <SourceTabs tabs={tabs} tab={tab} onTab={onTab} />}
 
       {visible.length > 0 &&
         (selected.size > 0 ? (
@@ -157,7 +149,16 @@ export default function InboxFileList(props: Props) {
               모두 선택
             </label>
             <span className="ifiles__spacer" />
-            {importButton}
+            <button
+              type="button"
+              className="ifiles__accept-all"
+              onClick={() => props.onClassify(visible.map((i) => i.path))}
+              disabled={props.busy}
+              title="파일 이름과 형식을 보고 폴더로 나눠요(먼저 보여 드리고 확인하면 넣어요)"
+            >
+              <Wand2 size={14} aria-hidden="true" />
+              자동 분류
+            </button>
           </div>
         ))}
 
@@ -189,6 +190,11 @@ export default function InboxFileList(props: Props) {
               </Fragment>
             ),
           )}
+          {/* 처음에 한 번쯤 쓰는 버튼이라 목록 맨 아래에 둔다(목록이 비면 가운데에 크게) */}
+          <li className="ifiles__more" role="presentation">
+            <span>다운로드·바탕화면에 원래 있던 파일도</span>
+            {importButton}
+          </li>
         </ul>
       ) : (
         <div className="ifiles__empty">
@@ -200,6 +206,144 @@ export default function InboxFileList(props: Props) {
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * 폴더 탭(전체·다운로드·바탕화면…). 늘 한 줄이고, 자리가 모자라면 들어가는 만큼만 보이고
+ * 나머지는 끝의 [더 보기 n ▾]에 넣는다. 고른 탭은 늘 보인다.
+ */
+function SourceTabs({
+  tabs,
+  tab,
+  onTab,
+}: {
+  tabs: { key: string; label: string; count: number }[];
+  tab: string;
+  onTab: (tab: string) => void;
+}) {
+  const row = useRef<HTMLDivElement>(null);
+  const ruler = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState(tabs.length);
+  const [open, setOpen] = useState(false);
+  const sig = tabs.map((t) => `${t.key}\u0000${t.label}\u0000${t.count}`).join("\u0001");
+
+  // 숨긴 자(ruler)에 모든 탭과 [더 보기]를 그려 너비를 재고, 줄에 들어가는 개수를 정한다
+  useLayoutEffect(() => {
+    const el = row.current;
+    const r = ruler.current;
+    if (!el || !r) return;
+    const GAP = 2;
+    const calc = () => {
+      const style = getComputedStyle(el);
+      const avail = el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      const widths = [...r.children].map((c) => (c as HTMLElement).offsetWidth);
+      const more = widths.pop() ?? 0;
+      const all = widths.reduce((a, w) => a + w + GAP, -GAP);
+      if (all <= avail) {
+        setFit(widths.length);
+        return;
+      }
+      let used = 0;
+      let n = 0;
+      for (const w of widths) {
+        if (used + w + GAP + more > avail) break;
+        used += w + GAP;
+        n += 1;
+      }
+      setFit(Math.max(1, n));
+    };
+    calc();
+    const ro = new ResizeObserver(calc);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [sig]);
+
+  // 메뉴는 바깥을 누르거나 Esc로 닫는다
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: PointerEvent) => {
+      if (!row.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+
+  let shown = tabs.slice(0, fit);
+  // 고른 탭이 [더 보기] 안에 있으면 마지막 자리에 꺼내 보인다
+  if (!shown.some((t) => t.key === tab)) {
+    const cur = tabs.find((t) => t.key === tab);
+    if (cur) shown = [...shown.slice(0, -1), cur];
+  }
+  const hidden = tabs.filter((t) => !shown.includes(t));
+
+  const label = (t: { label: string; count: number }) => (
+    <>
+      {t.label} <span className="ifiles__src-count">{t.count}</span>
+    </>
+  );
+
+  return (
+    <div className="ifiles__src" ref={row} role="tablist" aria-label="보낸 폴더">
+      <div className="ifiles__src-ruler" ref={ruler} aria-hidden="true">
+        {tabs.map((t) => (
+          <span key={t.key} className="ifiles__src-tab">
+            {label(t)}
+          </span>
+        ))}
+        <span className="ifiles__src-tab">
+          더 보기 <span className="ifiles__src-count">{tabs.length}</span>
+          <ChevronDown size={13} />
+        </span>
+      </div>
+      {shown.map((t) => (
+        <button
+          key={t.key}
+          type="button"
+          role="tab"
+          aria-selected={tab === t.key}
+          className={`ifiles__src-tab${tab === t.key ? " ifiles__src-tab--on" : ""}`}
+          onClick={() => onTab(t.key)}
+        >
+          {label(t)}
+        </button>
+      ))}
+      {hidden.length > 0 && (
+        <button
+          type="button"
+          className="ifiles__src-tab ifiles__src-more"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onClick={() => setOpen((o) => !o)}
+        >
+          더 보기 <span className="ifiles__src-count">{hidden.length}</span>
+          <ChevronDown size={13} aria-hidden="true" />
+        </button>
+      )}
+      {open && hidden.length > 0 && (
+        <div className="ifiles__src-menu" role="menu">
+          {hidden.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                onTab(t.key);
+                setOpen(false);
+              }}
+            >
+              <span>{t.label}</span>
+              <span className="ifiles__src-count">{t.count}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

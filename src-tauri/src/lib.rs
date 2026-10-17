@@ -16,6 +16,7 @@ mod naming;
 mod popup;
 mod recycle;
 mod renamer;
+mod resort;
 mod rules;
 mod search;
 mod settings;
@@ -152,6 +153,7 @@ pub fn run() {
             commands::dismiss_auto,
             commands::put_suggested,
             commands::classify_preview,
+            commands::folder_classify_preview,
             commands::classify_files,
             commands::get_auto_words,
             commands::set_auto_words,

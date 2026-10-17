@@ -9,24 +9,26 @@ use std::path::{Path, PathBuf};
 /// 새로 만들 때 정리 폴더 이름.
 pub const ROOT_FOLDER_NAME: &str = "정리 폴더";
 
-/// 교사용 예시 폴더(맨 위 폴더, 그 안의 폴더). 기본 목록은 SPEC 10장에서 확정 전.
+/// 교사용 예시 폴더(맨 위 폴더, 그 안의 폴더). 큰 분야만 만들고, 안쪽 폴더(업무 › 공문 등)는
+/// 그런 파일이 처음 들어올 때 자동 분류가 만든다(사람마다 안 쓰는 빈 폴더가 생기지 않게, 사용자 요청).
 pub const TEACHER_EXAMPLE: &[(&str, &[&str])] = &[
-    ("업무", &["공문", "회의록", "계획서"]),
+    ("업무", &[]),
     ("수업", &[]),
-    ("평가", &["수행평가", "지필고사"]),
-    ("학급", &["상담", "사진", "출결"]),
+    ("평가", &[]),
+    ("학급", &[]),
     ("생활기록부", &[]),
     ("연수", &[]),
     ("개인", &[]),
 ];
 
-/// 일반(회사·개인) 예시 폴더
+/// 집·개인 예시 폴더: 파일 종류(사용자 결정 — 쓰임새로 나누면 사람마다 맞지 않음).
+/// 이름은 classify::kind_folder와 같다.
 pub const GENERAL_EXAMPLE: &[(&str, &[&str])] = &[
-    ("업무", &["보고서", "회의록", "계약서"]),
-    ("돈 관리", &["영수증", "세금", "보험"]),
-    ("개인", &["병원", "증명서"]),
-    ("공부", &[]),
+    ("문서", &[]),
     ("사진", &[]),
+    ("동영상", &[]),
+    ("음악", &[]),
+    ("압축·설치", &[]),
 ];
 
 /// 쓰는 곳에 맞는 예시 폴더
@@ -173,15 +175,11 @@ pub fn run_over(req: &SetupRequest, current: Settings) -> Result<Settings, Strin
     Ok(s)
 }
 
-pub fn validate_watch_folders(watch: &[String], root: &str) -> Result<(), String> {
+/// 지켜볼 폴더가 하나 이상인지. 정리 폴더와 같아도 된다(바탕화면 그대로 쓰기: 바탕화면에 바로 저장된 파일만
+/// 새 파일로 보고, 바탕화면 안의 폴더로 넣는다 — 감시는 그 폴더 바로 안의 파일만 본다).
+pub fn validate_watch_folders(watch: &[String], _root: &str) -> Result<(), String> {
     if watch.is_empty() {
         return Err("지켜볼 폴더를 하나 이상 골라 주세요.".into());
-    }
-    if watch
-        .iter()
-        .any(|w| same_path(Path::new(w), Path::new(root)))
-    {
-        return Err("정리 폴더와 지켜볼 폴더는 서로 달라야 해요.".into());
     }
     Ok(())
 }
@@ -238,9 +236,10 @@ mod tests {
         assert!(s.setup_done);
         assert_eq!(s.watch_folders, watch);
         assert_eq!(s.organize_mode, OrganizeMode::Manual);
-        assert!(root.join("평가").join("수행평가").is_dir());
-        assert!(root.join("학급").join("출결").is_dir());
+        assert!(root.join("평가").is_dir());
         assert!(root.join("생활기록부").is_dir());
+        // 안쪽 폴더는 미리 만들지 않는다(파일이 들어올 때 자동 분류가 만듦)
+        assert!(!root.join("평가").join("수행평가").exists());
     }
 
     #[test]
@@ -251,7 +250,8 @@ mod tests {
         req.user_kind = UserKind::General;
         let s = run(&req).unwrap();
         let root = PathBuf::from(s.root_folder.as_ref().unwrap());
-        assert!(root.join("돈 관리").join("영수증").is_dir());
+        assert!(root.join("문서").is_dir());
+        assert!(root.join("압축·설치").is_dir());
         assert!(!root.join("평가").exists());
         assert_eq!(s.user_kind, UserKind::General);
         // 일반: 1월부터 '올해'(학년도가 아니라 달력의 해)
@@ -295,12 +295,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let watch = vec![downloads(dir.path())];
         run(&request(dir.path(), FolderPreset::Teacher, watch.clone())).unwrap();
-        let file = dir
-            .path()
-            .join(ROOT_FOLDER_NAME)
-            .join("업무")
-            .join("공문")
-            .join("a.hwp");
+        let file = dir.path().join(ROOT_FOLDER_NAME).join("업무").join("a.hwp");
         fs::write(&file, b"data").unwrap();
         run(&request(dir.path(), FolderPreset::Teacher, watch)).unwrap();
         assert_eq!(fs::read(&file).unwrap(), b"data");
@@ -326,8 +321,8 @@ mod tests {
         req.structure = Some(example_structure(UserKind::General));
         let s = run_over(&req, current.clone()).unwrap();
         assert_eq!(s.root_folder, current.root_folder);
-        assert!(root.join("돈 관리").join("영수증").is_dir()); // 없던 폴더는 만들고
-        assert!(root.join("평가").join("수행평가").is_dir()); // 있던 폴더와
+        assert!(root.join("문서").is_dir()); // 없던 폴더는 만들고
+        assert!(root.join("평가").is_dir()); // 있던 폴더와
         assert_eq!(fs::read(root.join("업무").join("a.hwp")).unwrap(), b"data"); // 파일은 그대로
         assert_eq!(s.pinned_favorites, current.pinned_favorites); // 정리 폴더가 같으면 자주 쓰는 폴더도
         assert!(!s.search_whole_pc); // 다른 설정도 그대로
@@ -360,15 +355,21 @@ mod tests {
     }
 
     #[test]
-    fn rejects_root_that_is_also_watched() {
+    fn watched_folder_can_be_the_root_as_is() {
+        // 바탕화면 그대로 쓰기: 지켜볼 폴더를 정리 폴더로 그대로 쓴다(안의 폴더로 정리)
         let dir = tempfile::tempdir().unwrap();
-        let dl = downloads(dir.path());
-        let err = run(&request(
-            Path::new(&dl),
+        let desk = downloads(dir.path());
+        fs::create_dir_all(Path::new(&desk).join("업무")).unwrap();
+        let s = run(&request(
+            Path::new(&desk),
             FolderPreset::Existing,
-            vec![dl.clone()],
-        ));
-        assert!(err.is_err());
+            vec![desk.clone()],
+        ))
+        .unwrap();
+        assert_eq!(s.root_folder.as_deref(), Some(desk.as_str()));
+        assert!(Path::new(&desk).join("업무").is_dir());
+        // 지켜볼 폴더가 없으면 안 됨
+        assert!(run(&request(Path::new(&desk), FolderPreset::Existing, vec![])).is_err());
     }
 
     #[test]
