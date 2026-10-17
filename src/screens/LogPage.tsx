@@ -2,9 +2,9 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowRight, Download, Search, Undo2, X } from "lucide-react";
 import Band from "../components/Band";
 import FileBadge from "../components/FileBadge";
-import { errorMessage, listMoveLog, onBackendEvent, restoreDeleted, revealPath, saveLogCsv, undoMoves } from "../lib/backend";
+import { errorMessage, listMoveLog, onBackendEvent, restoreDeleted, revealPath, saveLogXlsx, undoMoves } from "../lib/backend";
 import { friendlyName, trailFor } from "../lib/paths";
-import type { LogEntry } from "../lib/types";
+import type { LogEntry, XlsxRow } from "../lib/types";
 import { useAppStore } from "../store/useAppStore";
 import "./LogPage.css";
 
@@ -56,30 +56,6 @@ function status(e: LogEntry): string {
 }
 
 const KIND_LABEL: Record<LogEntry["kind"], string> = { move: "넣기", rename: "이름 바꾸기", trash: "휴지통" };
-
-/** 엑셀에서 열 수 있게 CSV로(칸마다 큰따옴표) */
-function toCsv(list: LogEntry[]): string {
-  const cell = (v: string) => `"${v.replace(/"/g, '""')}"`;
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const lines = [["날짜", "시각", "종류", "이름", "원래 있던 곳", "옮긴 곳", "상태"].map(cell).join(",")];
-  for (const e of list) {
-    const d = new Date(e.at);
-    lines.push(
-      [
-        `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
-        `${pad(d.getHours())}:${pad(d.getMinutes())}`,
-        KIND_LABEL[e.kind],
-        e.name,
-        e.kind === "rename" ? e.fromPath : dirOf(e.fromPath),
-        e.kind === "trash" ? "휴지통" : e.kind === "rename" ? (e.toPath ?? "") : dirOf(e.toPath ?? ""),
-        status(e),
-      ]
-        .map(cell)
-        .join(","),
-    );
-  }
-  return lines.join("\r\n") + "\r\n";
-}
 
 /**
  * 정리 기록(SPEC 3-2, 사용자 요청): AutoFolder로 넣고 옮긴 파일을 모두 — 언제, 어디에서, 어디로.
@@ -166,15 +142,27 @@ export default function LogPage() {
     }
   };
 
-  const exportCsv = async () => {
+  // 엑셀 한 줄: 곳은 화면처럼 짧게("평가 › 지필고사"), 맨 뒤에 전체 경로
+  const toRow = (e: LogEntry): XlsxRow => ({
+    at: e.at,
+    kind: KIND_LABEL[e.kind],
+    name: e.name,
+    from: e.kind === "rename" ? nameOf(e.fromPath) : where(dirOf(e.fromPath)),
+    to: e.kind === "trash" ? "휴지통" : e.kind === "rename" ? e.name : where(dirOf(e.toPath ?? "")),
+    status: status(e),
+    fromPath: e.kind === "rename" ? e.fromPath : dirOf(e.fromPath),
+    toPath: e.kind === "trash" ? "" : e.kind === "rename" ? (e.toPath ?? "") : dirOf(e.toPath ?? ""),
+  });
+
+  const exportXlsx = async () => {
     const d = new Date();
     const pad = (n: number) => String(n).padStart(2, "0");
     try {
-      const saved = await saveLogCsv(
-        `정리 기록 ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.csv`,
-        toCsv(filtered),
+      const saved = await saveLogXlsx(
+        `정리 기록 ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.xlsx`,
+        filtered.map(toRow),
       );
-      if (saved) setNotice(`기록 ${filtered.length}줄을 엑셀(CSV) 파일로 저장했어요`);
+      if (saved) setNotice(`기록 ${filtered.length}줄을 엑셀 파일로 저장했어요`);
     } catch (e) {
       setNotice(errorMessage(e));
     }
@@ -195,9 +183,9 @@ export default function LogPage() {
         <button
           type="button"
           className="btn log__export"
-          onClick={() => void exportCsv()}
+          onClick={() => void exportXlsx()}
           disabled={filtered.length === 0}
-          title="지금 보이는 기록(찾기·기간 적용)을 엑셀에서 열 수 있는 CSV 파일로 저장해요"
+          title="지금 보이는 기록(찾기·기간 적용)을 엑셀 파일(.xlsx)로 저장해요. 제목 줄 필터로 골라 볼 수 있어요"
         >
           <Download size={16} aria-hidden="true" />
           엑셀 파일로 저장

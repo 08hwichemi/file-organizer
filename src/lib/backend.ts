@@ -3,6 +3,7 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { mockBackend, mockEvents } from "../mocks/backend";
 import type {
+  XlsxRow,
   LogEntry,
   AppInfo,
   ClassifyPlan,
@@ -236,13 +237,13 @@ export function listMoveLog(): Promise<LogEntry[]> {
   return invoke("move_log");
 }
 
-/** 정리 기록을 CSV(엑셀)로: 저장 창에서 고른 곳에 쓴다. 취소하면 false. */
-export async function saveLogCsv(defaultName: string, text: string): Promise<boolean> {
-  if (usingMocks) return mockBackend.saveLogCsv(text);
+/** 정리 기록을 서식 있는 엑셀(.xlsx)로: 저장 창에서 고른 곳에 쓴다. 취소하면 false. */
+export async function saveLogXlsx(defaultName: string, rows: XlsxRow[]): Promise<boolean> {
+  if (usingMocks) return mockBackend.saveLogXlsx(rows);
   const { save } = await import("@tauri-apps/plugin-dialog");
-  const path = await save({ title: "정리 기록 저장", defaultPath: defaultName, filters: [{ name: "엑셀(CSV)", extensions: ["csv"] }] });
+  const path = await save({ title: "정리 기록 저장", defaultPath: defaultName, filters: [{ name: "엑셀 파일", extensions: ["xlsx"] }] });
   if (!path) return false;
-  await invoke("save_log_csv", { path, text });
+  await invoke("save_log_xlsx", { path, rows });
   return true;
 }
 

@@ -3,6 +3,7 @@
 // - 주소 뒤 ?window=popup: 새 파일 팝업 창(새 파일 3개가 기다리는 상태)
 //   &auto=1: "바로 정리"로 옮긴 알림부터, &rules=0: 규칙 없이
 import type {
+  XlsxRow,
   AppInfo,
   AutoMoved,
   DestSegment,
@@ -1355,8 +1356,8 @@ export const mockBackend = {
     return delay(list.sort((a, b) => b.at - a.at || b.id - a.id));
   },
 
-  saveLogCsv(text: string) {
-    (window as unknown as { lastCsv?: string }).lastCsv = text;
+  saveLogXlsx(rows: XlsxRow[]) {
+    (window as unknown as { lastXlsx?: XlsxRow[] }).lastXlsx = rows;
     return delay(true);
   },
 
