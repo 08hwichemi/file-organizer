@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   DndContext,
   DragOverlay,
+  pointerWithin,
   PointerSensor,
   useDraggable,
   useDroppable,
@@ -10,6 +11,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import { followCursor } from "../lib/dnd";
 import { FolderPlus, GripVertical, Inbox, LayoutGrid, List, RotateCcw } from "lucide-react";
 import { classifyPreview, errorMessage, folderClassifyPreview, listFiles, listFolders } from "../lib/backend";
 import { baseName, displayPath } from "../lib/paths";
@@ -421,7 +423,7 @@ export default function ClassifyDialog({ paths, source, root, separator, onClose
         </p>
       )}
       {plans && plans.length > 0 && (
-        <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
+        <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
           {view === "cards" ? (
             // 왼쪽: 정리함에 남기기(창 높이만큼 길게, 그 안에서 내려 봄) / 오른쪽: 폴더 카드(오른쪽만 내려 봄)
             <div className="classify-split">
@@ -454,7 +456,7 @@ export default function ClassifyDialog({ paths, source, root, separator, onClose
               </div>
             </div>
           )}
-          <DragOverlay dropAnimation={null}>
+          <DragOverlay dropAnimation={null} modifiers={[followCursor]}>
             {dragging && (
               <div className="classify__drag">
                 <FileBadge name={dragging.lead.name} size={24} />

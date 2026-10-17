@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   DndContext,
   DragOverlay,
+  pointerWithin,
   PointerSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import { followCursor } from "../lib/dnd";
 import { FolderOpen } from "lucide-react";
 import ClassifyDialog from "../components/ClassifyDialog";
 import FileBadge from "../components/FileBadge";
@@ -310,7 +312,7 @@ export default function InboxPage() {
           다른 폴더 정리하기
         </button>
       </div>
-      <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
+      <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
         <div className="inbox">
           {items && (
             <InboxFileList
@@ -368,7 +370,7 @@ export default function InboxPage() {
             />
           )}
         </div>
-        <DragOverlay dropAnimation={null}>{overlay}</DragOverlay>
+        <DragOverlay dropAnimation={null} modifiers={[followCursor]}>{overlay}</DragOverlay>
       </DndContext>
       {resort && root && (
         <ClassifyDialog
