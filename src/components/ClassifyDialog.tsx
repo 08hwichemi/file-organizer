@@ -162,6 +162,17 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
       return next;
     });
 
+  /** 파일 여럿을 한꺼번에 체크하거나 끈다 */
+  const setMany = (list: string[], on: boolean) =>
+    setChecked((c) => {
+      const next = new Set(c);
+      for (const p of list) {
+        if (on) next.add(p);
+        else next.delete(p);
+      }
+      return next;
+    });
+
   const addCard = (dest: string) => setCards((c) => (c.includes(dest) ? c : [...c, dest]));
 
   const moveTo = (plan: ClassifyPlan, dest: string) => {
@@ -211,6 +222,8 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
   };
 
   const count = (plans ?? []).filter((p) => checked.has(p.path) && destOf(p) !== INBOX).length;
+  /** 넣을 폴더가 있는 파일(정리함에 남기기 빼고) — [전체 체크 해제]·[전체 체크]의 대상 */
+  const placed = (plans ?? []).filter((p) => destOf(p) !== INBOX).map((p) => p.path);
   const moved = overrides.size;
   const left = byCard.get(INBOX) ?? [];
 
@@ -225,6 +238,8 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
         path={displayPath(root, dest, separator)}
         isNew={list.length > 0 && list.every((p) => !overrides.has(p.path) && p.target && !p.target.exists)}
         count={list.length}
+        allOff={list.length > 0 && list.every((p) => !checked.has(p.path))}
+        onAll={(on) => setMany(list.map((p) => p.path), on)}
         existing={existing.get(dest) ?? []}
       >
         {list.length === 0 && <li className="classify__empty">여기로 끌어다 놓으세요</li>}
@@ -285,6 +300,11 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
             <button type="button" className="btn btn--ghost classify__reset" onClick={() => setOverrides(new Map())}>
               <RotateCcw size={15} aria-hidden="true" />
               옮긴 것 모두 되돌리기({moved})
+            </button>
+          )}
+          {placed.length > 0 && (
+            <button type="button" className="btn" onClick={() => setMany(placed, count === 0)}>
+              {count === 0 ? "전체 체크" : "전체 체크 해제"}
             </button>
           )}
           <span className="classify__spacer" />
@@ -405,6 +425,8 @@ function Card({
   path,
   isNew,
   count,
+  allOff,
+  onAll,
   inbox,
   existing = [],
   children,
@@ -414,6 +436,10 @@ function Card({
   path: string;
   isNew?: boolean;
   count: number;
+  /** 넣을 파일이 모두 체크가 꺼져 있음 */
+  allOff?: boolean;
+  /** 이 카드의 넣을 파일을 모두 체크(true)하거나 끈다(false) */
+  onAll?: (on: boolean) => void;
   inbox?: boolean;
   /** 이 폴더에 이미 있는 파일 */
   existing?: FileEntry[];
@@ -442,7 +468,19 @@ function Card({
         {inbox && <span className="classify__count">{count}</span>}
       </div>
       {!inbox && (
-        <Band tone="blue" title="넣을 파일" count={count} />
+        <Band
+          tone="blue"
+          title="넣을 파일"
+          count={count}
+          hint={
+            count > 0 &&
+            onAll && (
+              <button type="button" className="classify__all" onClick={() => onAll(!!allOff)}>
+                {allOff ? "모두 체크" : "모두 해제"}
+              </button>
+            )
+          }
+        />
       )}
       <ul className="classify__files">{children}</ul>
       {existing.length > 0 && (

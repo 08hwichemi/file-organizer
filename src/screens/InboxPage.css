@@ -10,7 +10,7 @@
   flex: 1;
   min-height: 360px;
   display: grid;
-  grid-template-columns: clamp(240px, 38%, 400px) minmax(0, 1fr);
+  grid-template-columns: clamp(240px, 38%, 460px) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   align-items: stretch;
   gap: 18px;

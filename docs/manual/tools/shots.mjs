@@ -130,9 +130,13 @@ if (want("popup")) {
 if (want("inbox") || want("classify")) {
   console.log("정리함 · 자동 분류");
   const p = await page(1100, 720, "?mock=ready&classify=1");
+  // [지금 있는 파일 가져오기]는 목록 맨 아래에 있다
+  const list = p.locator(".ifiles__list");
+  await list.evaluate((el) => (el.scrollTop = el.scrollHeight));
   await mark(p.getByRole("button", { name: "지금 있는 파일 가져오기" }));
   await shot(p, "ib2.webp");
   await unmark(p);
+  await list.evaluate((el) => (el.scrollTop = 0));
   await mark(p.getByRole("button", { name: "자동 분류" }));
   await shot(p, "ib3.webp");
   await unmark(p);

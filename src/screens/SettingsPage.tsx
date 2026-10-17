@@ -398,8 +398,8 @@ export default function SettingsPage() {
           <span>
             <strong>PC 전체에서 찾기</strong>
             <span className="settings__toggle-desc">
-              Everything을 깔지 않아도 이 프로그램이 PC의 파일 목록을 직접 읽어 찾아요(Windows·프로그램 폴더 같은
-              시스템 폴더는 빼요). 처음 읽을 때는 몇 분 걸릴 수 있지만, 컴퓨터가 느려지지 않게 뒤에서 천천히 읽어요.
+              Everything을 깔지 않아도 이 프로그램이 PC의 파일 목록을 직접 읽어 찾아요. Windows·프로그램 폴더 같은
+              시스템 폴더는 빼요. 처음 읽을 때는 몇 분 걸릴 수 있지만, 컴퓨터가 느려지지 않게 뒤에서 천천히 읽어요.
               끄면 정리 폴더와 지켜볼 폴더에서만 찾아요.
             </span>
           </span>
@@ -469,7 +469,7 @@ export default function SettingsPage() {
               이용휘(화학 교사)
             </span>
             <span className="settings__toggle-desc">
-              파일 이름과 경로는 이 PC 안에서만 쓰고 밖으로 보내지 않아요(인터넷은 업데이트 확인에만 써요).
+              파일 이름과 경로는 이 PC 안에서만 쓰고 밖으로 보내지 않아요. 인터넷은 업데이트 확인에만 써요.
             </span>
             <span className="settings__toggle-desc">교육·개인·업무 용도로 무료로 쓸 수 있어요. 판매는 할 수 없어요.</span>
             <span className="settings__copyright">© 2026 이용휘</span>
