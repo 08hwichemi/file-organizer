@@ -177,7 +177,8 @@ if (want("inbox") || want("classify")) {
     await m.mouse.move(g.x + 60, g.y + g.height / 2);
     await m.mouse.down();
     await m.mouse.move(g.x + 75, g.y + g.height / 2 + 6, { steps: 6 });
-    await m.mouse.move(to.x + to.width / 2, to.y + 110, { steps: 25 });
+    // 끌리는 표시는 마우스 오른쪽 아래에 붙으므로 카드 왼쪽을 가리켜 창 안에 다 보이게
+    await m.mouse.move(to.x + 70, to.y + 110, { steps: 25 });
     await m.waitForTimeout(300);
     await shot(m, "cl5.webp", md);
     await m.close();
