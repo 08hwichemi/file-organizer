@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import AutoWords from "../components/AutoWords";
+import Band from "../components/Band";
 import FolderIcon from "../components/FolderIcon";
 import RuleEditor from "../components/RuleEditor";
 import { deleteRule, errorMessage, listRules, moveRule, onBackendEvent, restoreRule } from "../lib/backend";
@@ -105,12 +106,15 @@ export default function RulesPage() {
         <div className="rules__empty">
           <div className="rules__empty-title">아직 규칙이 없어요</div>
           <p>
-            새 파일 팝업에서 파일을 넣고 나면 ‘다음에도 비슷한 파일은 여기에 넣을까요?’가 나와요. 파일 이름의 단어를
+            새 파일 팝업에서 파일을 넣고 나면 ‘다음에도 여기에 넣을까요?’가 나와요. 파일 이름의 단어를
             골라 ‘규칙으로 저장’을 누르면 여기에 생겨요.
           </p>
         </div>
       )}
 
+      {rules && rules.length > 0 && (
+        <Band tone="gray" title="내 규칙" count={rules.length} hint="위에서부터 먼저 맞는 규칙 하나로 추천해요" className="rules__band" />
+      )}
       {rules && rules.length > 0 && (
         <ol className="rules__list">
           {rules.map((r, i) => (

@@ -342,15 +342,24 @@ export default function SearchPage() {
           )}
         </div>
 
-        <div className="finder__sub">
-          <span className="finder__scope">
-            {scopeText(response, progress)}
-            {onlyFolders && (
-              <button type="button" className="finder__link" onClick={() => openSettings("search")}>
-                범위 바꾸기
-              </button>
+        {/* 결과 위 회색 띠(Band와 같은 모양): 찾은 파일 수 + 어디서 찾았는지 + 거르기 */}
+        <div className="finder__sub band band--gray">
+          <div className="finder__lead">
+            {response && response.hits.length > 0 && (
+              <>
+                <span className="band__title">찾은 파일</span>
+                <b className="band__count">{filtered ? `${hits.length} / ${response.hits.length}` : response.hits.length}</b>
+              </>
             )}
-          </span>
+            <span className="finder__scope">
+              {scopeText(response, progress)}
+              {onlyFolders && (
+                <button type="button" className="finder__link" onClick={() => openSettings("search")}>
+                  범위 바꾸기
+                </button>
+              )}
+            </span>
+          </div>
           <div className="finder__filters">
             {sort !== "best" && (
               <button type="button" className="finder__link" onClick={() => changeSort("best")}>

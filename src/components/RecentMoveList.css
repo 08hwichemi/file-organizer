@@ -110,3 +110,23 @@
 .recent__btn:disabled {
   opacity: 0.5;
 }
+
+/* 날짜 띠(오늘·어제·그 전): 목록 양끝까지, 내리는 동안 위에 붙어 있다 */
+.recent__day {
+  position: sticky;
+  top: -6px;
+  z-index: 1;
+  margin: 0 -8px;
+}
+
+.recent__day:first-child {
+  margin-top: -6px;
+}
+
+.recent__day .band {
+  --band-pad: 16px;
+}
+
+.recent__day:first-child .band {
+  border-top: 0;
+}

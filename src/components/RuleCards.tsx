@@ -4,6 +4,7 @@ import { withRo } from "../lib/format";
 import { baseName, displayPath } from "../lib/paths";
 import { ruleCondition, ruleName, segmentsLabel, splitKinds } from "../lib/rules";
 import type { Rule, RuleChange, RuleDraft } from "../lib/types";
+import Band from "./Band";
 import WordMatchChoice from "./WordMatchChoice";
 import "./RuleCards.css";
 
@@ -16,7 +17,7 @@ interface DraftProps {
 }
 
 /**
- * 넣은 뒤 "다음에도 비슷한 파일은 여기에 넣을까요?"(SPEC 3-1 ⑥, 시안 popup.dc.html).
+ * 넣은 뒤 "다음에도 여기에 넣을까요?"(SPEC 3-1 ⑥, 시안 popup.dc.html).
  * 파일 이름의 단어를 눌러 조건으로 고르고, 연도·학기 폴더는 파일마다 나눌 수 있다.
  */
 export function RuleDraftCard({ draft, root, separator, onSkip }: DraftProps) {
@@ -75,11 +76,9 @@ export function RuleDraftCard({ draft, root, separator, onSkip }: DraftProps) {
   }
 
   return (
-    <div className="rule-card">
-      <div>
-        <div className="rule-card__title">다음에도 비슷한 파일은 여기에 넣을까요?</div>
-        <div className="rule-card__sub">파일 이름에서 기준이 될 단어를 골라 주세요.</div>
-      </div>
+    <div className="rule-card rule-card--ask">
+      <Band tone="blue" title="다음에도 여기에 넣을까요?" hint="단어를 고르면 다음부터 추천" />
+      <div className="rule-card__sub">파일 이름에서 기준이 될 단어를 골라 주세요.</div>
       {draft.words.length > 0 ? (
         <div className="rule-card__words" role="group" aria-label="기준 단어">
           {draft.words.map((w) => {
@@ -176,13 +175,9 @@ export function RuleChangeCard({ change, root, separator }: ChangeProps) {
     );
   }
   return (
-    <div className="rule-card">
-      <div>
-        <div className="rule-card__title">규칙을 바꿀까요?</div>
-        <div className="rule-card__sub">
-          {ruleName(change.rule)}에 맞는 파일을 세 번 연속 다른 폴더에 넣으셨어요.
-        </div>
-      </div>
+    <div className="rule-card rule-card--ask">
+      <Band tone="blue" title="규칙을 바꿀까요?" />
+      <div className="rule-card__sub">{ruleName(change.rule)}에 맞는 파일을 세 번 연속 다른 폴더에 넣으셨어요.</div>
       <dl className="rule-card__preview">
         <div>
           <dt>지금</dt>

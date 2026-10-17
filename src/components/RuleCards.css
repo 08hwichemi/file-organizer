@@ -125,3 +125,14 @@
 .rule-card__actions .btn {
   min-height: 40px;
 }
+
+/* 넣은 뒤 묻는 카드: 맨 위 파란 띠(지금 할 일, 새 파일 창의 '추천 위치'와 같은 색) */
+.rule-card--ask {
+  overflow: hidden;
+  padding-top: 0;
+}
+
+.rule-card--ask > .band {
+  --band-pad: 16px;
+  margin: 0 -16px -4px;
+}

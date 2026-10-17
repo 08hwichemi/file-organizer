@@ -64,13 +64,33 @@
   justify-content: space-between;
   gap: 8px;
   flex-shrink: 0;
-  padding: 8px 14px 8px 18px;
-  border-bottom: 1px solid var(--color-line-soft);
-  background: var(--color-surface-sub);
+  min-height: 40px;
+  padding: 4px 14px 4px 18px;
+  border-bottom: 1px solid var(--color-line);
+  white-space: normal;
+}
+
+/* 왼쪽: 찾은 파일 수 + 어디서 찾았는지 */
+.finder__lead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+}
+
+.finder__lead .band__title,
+.finder__lead .band__count {
+  white-space: nowrap;
+}
+
+.finder__lead .band__count + .finder__scope {
+  margin-left: 4px;
 }
 
 .finder__scope {
   font-size: 12.5px;
+  font-weight: 500;
   color: var(--color-text-sub);
 }
 

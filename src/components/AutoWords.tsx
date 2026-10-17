@@ -4,6 +4,7 @@ import { errorMessage, getAutoWords, setAutoWords } from "../lib/backend";
 import type { WordGroup } from "../lib/types";
 import Dialog from "./Dialog";
 import FolderIcon from "./FolderIcon";
+import Band from "./Band";
 
 interface Props {
   rootName: string;
@@ -102,6 +103,9 @@ export default function AutoWords({ rootName, onNotice }: Props) {
         </div>
       </div>
 
+      {groups && groups.length > 0 && (
+        <Band tone="gray" title="단어 묶음" count={groups.length} hint="규칙이 없을 때 자동 분류가 써요" className="rules__band" />
+      )}
       {groups && groups.length > 0 && (
         <ul className="rules__list">
           {groups.map((g, i) => (
