@@ -477,8 +477,17 @@
   }
 }
 
-/* 넣을 파일 띠 오른쪽 [모두 해제]/[모두 체크] */
+/* 넣을 파일 띠 오른쪽 [n개 빼기] [모두 고르기]/[고르기 풀기] */
+.classify__band-btns {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
 .classify__all {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   min-height: 24px;
   padding: 0 9px;
   border: 1px solid var(--color-accent-line);
