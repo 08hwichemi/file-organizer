@@ -249,10 +249,10 @@ export default function InboxPage() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const onDragStart = (e: DragStartEvent) => {
-    // 폴더 칸의 파일: 그 파일 하나만 옮긴다
-    const file = (e.active.data.current as Partial<FileDragData> | undefined)?.file;
-    if (file) {
-      setDragging([file.path]);
+    // 폴더 칸의 파일: 고른 파일을 잡았으면 고른 것 모두, 아니면 그 파일 하나
+    const data = e.active.data.current as Partial<FileDragData> | undefined;
+    if (data?.file) {
+      setDragging(data.paths ?? [data.file.path]);
       return;
     }
     const path = String(e.active.id);
@@ -273,6 +273,8 @@ export default function InboxPage() {
       else next.add(path);
       return next;
     });
+
+  const add = (paths: string[]) => setSelected((sel) => new Set([...sel, ...paths]));
 
   const selectMany = (paths: string[]) =>
     setSelected((sel) => (paths.every((p) => sel.has(p)) ? new Set() : new Set(paths)));
@@ -323,6 +325,7 @@ export default function InboxPage() {
               onTab={setTab}
               selected={selected}
               onToggle={toggle}
+              onAdd={add}
               onSelectMany={selectMany}
               onClear={() => setSelected(new Set())}
               dragging={dragging}

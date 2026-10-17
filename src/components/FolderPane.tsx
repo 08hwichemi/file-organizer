@@ -129,7 +129,10 @@ export default function FolderPane(props: Props) {
   };
 
   return (
-    <section className={`ifold${props.fill ? " ifold--fill" : ""}`} aria-label={props.label ?? "정리 폴더"}>
+    <section
+      className={`ifold${props.fill ? " ifold--fill" : ""}${props.fill && props.showFiles ? " ifold--split" : ""}`}
+      aria-label={props.label ?? "정리 폴더"}
+    >
       <div className="ifold__bar">
         <PathBar trail={trail} onGo={(i) => setTrail((t) => t.slice(0, i + 1))}>
           {selectedCount > 0 && trail.length > 1 && (

@@ -205,11 +205,19 @@
   background: var(--color-accent-faint);
 }
 
+/* "2개 고름 · 숫자 키로도 넣어요": 좁은 칸에서도 한 줄(넘치면 뒤를 줄임) */
 .ifiles__bar-text {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
   color: var(--color-accent-hover);
-  font-weight: 600;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ifiles__bar-text b {
+  font-weight: 700;
 }
 
 .ifiles__bar-btn {
@@ -222,27 +230,14 @@
   font-size: 12.5px;
 }
 
+/* [모두 고르기]/[고르기 풀기] */
 .ifiles__all {
-  display: flex;
-  align-items: center;
   flex-shrink: 0;
-  gap: 8px;
   white-space: nowrap;
-  color: var(--color-text-strong);
-  cursor: pointer;
 }
 
 .ifiles__spacer {
   flex: 1;
-}
-
-.ifiles input[type="checkbox"] {
-  width: 17px;
-  height: 17px;
-  min-height: 0;
-  margin: 0;
-  flex-shrink: 0;
-  accent-color: var(--color-accent);
 }
 
 .ifiles__list {
@@ -270,20 +265,22 @@
   background: var(--color-surface-sub);
 }
 
+/* 고른 줄: 자동 분류 창과 같은 파란색 */
 .ifiles__row--on,
 .ifiles__row--on:hover {
-  background: #f7f9fe;
+  background: var(--color-accent-soft);
+  box-shadow: inset 3px 0 0 var(--color-accent);
+}
+
+.ifiles__row--on .ifiles__name {
+  color: var(--color-accent-hover);
+  font-weight: 700;
 }
 
 .ifiles__row--drag {
   opacity: 0.55;
   outline: 2px dashed var(--color-accent);
   outline-offset: -3px;
-}
-
-/* 줄이 두 줄(추천 위치)이라 체크 상자는 배지 가운데에 맞춘다 */
-.ifiles__row > input[type="checkbox"] {
-  margin-top: 10px;
 }
 
 .ifiles__main {
