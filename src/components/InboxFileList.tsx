@@ -1,9 +1,10 @@
 import { useDraggable } from "@dnd-kit/core";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { ArrowRight, Download, History, Trash2, Wand2 } from "lucide-react";
 import { formatAgo } from "../lib/format";
 import { displayPath, friendlyName, samePath, type KnownFolders } from "../lib/paths";
 import type { InboxItem } from "../lib/types";
+import Band from "./Band";
 import FileBadge from "./FileBadge";
 import "./InboxFileList.css";
 
@@ -54,6 +55,23 @@ export default function InboxFileList(props: Props) {
   ];
   const showRecent = tab === RECENT_TAB;
   const visible = showRecent ? [] : tab === ALL_TAB ? items : items.filter((i) => samePath(i.sourceDir, tab));
+  // 추천 위치가 있는 파일([넣기]만 누르면 됨, 파란 띠) / 직접 골라야 하는 파일(끌어다 놓기, 회색 띠)
+  const groups = [
+    {
+      key: "sug",
+      tone: "blue" as const,
+      title: "추천 위치가 있는 파일",
+      hint: "[넣기]로 바로",
+      items: visible.filter((i) => i.suggestion),
+    },
+    {
+      key: "nosug",
+      tone: "gray" as const,
+      title: "직접 골라야 하는 파일",
+      hint: "오른쪽 폴더로 끌어다 놓기",
+      items: visible.filter((i) => !i.suggestion),
+    },
+  ];
   const allVisibleSelected = visible.length > 0 && visible.every((i) => selected.has(i.path));
 
   const importButton = (
@@ -147,21 +165,30 @@ export default function InboxFileList(props: Props) {
         props.recent
       ) : visible.length > 0 ? (
         <ul className="ifiles__list">
-          {visible.map((item) => (
-            <FileRow
-              key={item.path}
-              item={item}
-              source={friendlyName(item.sourceDir, known)}
-              checked={selected.has(item.path)}
-              dimmed={!!props.dragging?.includes(item.path)}
-              onToggle={() => onToggle(item.path)}
-              suggestion={
-                item.suggestion ? displayPath(props.root, item.suggestion.destDir, props.separator) : null
-              }
-              onAccept={() => props.onAccept([item.path])}
-              busy={props.busy}
-            />
-          ))}
+          {groups.map((g) =>
+            g.items.length === 0 ? null : (
+              <Fragment key={g.key}>
+                <li className="ifiles__group" role="presentation">
+                  <Band tone={g.tone} title={g.title} count={g.items.length} hint={g.hint} />
+                </li>
+                {g.items.map((item) => (
+                  <FileRow
+                    key={item.path}
+                    item={item}
+                    source={friendlyName(item.sourceDir, known)}
+                    checked={selected.has(item.path)}
+                    dimmed={!!props.dragging?.includes(item.path)}
+                    onToggle={() => onToggle(item.path)}
+                    suggestion={
+                      item.suggestion ? displayPath(props.root, item.suggestion.destDir, props.separator) : null
+                    }
+                    onAccept={() => props.onAccept([item.path])}
+                    busy={props.busy}
+                  />
+                ))}
+              </Fragment>
+            ),
+          )}
         </ul>
       ) : (
         <div className="ifiles__empty">

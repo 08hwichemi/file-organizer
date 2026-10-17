@@ -15,6 +15,7 @@ import { classifyPreview, errorMessage, listFiles, listFolders } from "../lib/ba
 import { displayPath } from "../lib/paths";
 import { reasonLabel } from "../lib/rules";
 import type { ClassifyPlan, FileEntry } from "../lib/types";
+import Band from "./Band";
 import Dialog from "./Dialog";
 import FileBadge from "./FileBadge";
 import FolderIcon from "./FolderIcon";
@@ -441,16 +442,12 @@ function Card({
         {inbox && <span className="classify__count">{count}</span>}
       </div>
       {!inbox && (
-        <div className="classify__bar classify__bar--new">
-          넣을 파일 <b>{count}</b>
-        </div>
+        <Band tone="blue" title="넣을 파일" count={count} />
       )}
       <ul className="classify__files">{children}</ul>
       {existing.length > 0 && (
         <div className="classify__have">
-          <div className="classify__bar classify__bar--have">
-            이미 있는 파일 <b>{existing.length}</b>
-          </div>
+          <Band tone="gray" title="이미 있는 파일" count={existing.length} />
           <ul className="classify__have-list" aria-label={`${name}에 이미 있는 파일`}>
             {existing.map((f) => (
               <li key={f.path} title={f.name}>

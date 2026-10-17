@@ -4,6 +4,7 @@ import { ArrowRightLeft, FolderPlus, MoreHorizontal, Pencil, Trash2 } from "luci
 import { createFolder, errorMessage, listFolders, onBackendEvent } from "../lib/backend";
 import { baseName, trailFor, type Crumb } from "../lib/paths";
 import type { FolderEntry } from "../lib/types";
+import Band from "./Band";
 import FolderActions, { type FolderAction } from "./FolderActions";
 import FolderFileList from "./FolderFileList";
 import FolderIcon from "./FolderIcon";
@@ -177,6 +178,15 @@ export default function FolderPane(props: Props) {
             취소
           </button>
         </div>
+      )}
+
+      {folders && (
+        <Band
+          tone="gray"
+          title="폴더"
+          count={folders.length}
+          hint={props.dragging !== undefined ? "끌어다 놓으면 들어가요 · 누르면 안으로" : "누르면 안으로"}
+        />
       )}
 
       {error && <p className="ifold__note error-text">{error}</p>}

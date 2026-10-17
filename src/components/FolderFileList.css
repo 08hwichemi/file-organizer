@@ -1,6 +1,9 @@
 /* 폴더 칸 아래쪽: 지금 폴더 바로 안의 파일 */
+/* 이 폴더의 파일: 회색 띠 + 회색 바탕(이미 있는 파일 = 참고하는 곳, 자동 분류와 같은 색) */
 .ffiles {
+  flex: 1;
   padding: 4px 14px 16px;
+  background: var(--color-surface-sub);
 }
 
 /* 제목 줄: 폴더가 많아 파일이 아래로 밀려 있으면 폴더 칸 맨 아래에 붙어 보인다(누르면 파일 목록으로) */
@@ -12,9 +15,9 @@
   align-items: center;
   flex-wrap: nowrap;
   gap: 8px;
-  padding: 8px 14px;
-  border-top: 1px solid var(--color-line);
-  background: var(--color-surface);
+  padding: 6px 14px;
+  border-top: 1px solid var(--color-line-strong);
+  background: var(--color-band-gray);
   box-shadow: 0 -6px 12px -10px rgba(23, 25, 28, 0.25);
 }
 
@@ -28,23 +31,28 @@
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--color-text);
-  font-size: 13px;
+  color: var(--color-text-strong);
+  font-size: 12.5px;
   font-weight: 700;
   white-space: nowrap;
 }
 
 .ffiles__title:hover:not(:disabled) {
-  background: var(--color-surface-sub);
+  background: rgba(255, 255, 255, 0.6);
 }
 
 .ffiles__title:disabled {
   cursor: default;
 }
 
+/* 띠(Band)의 수와 같은 모양 */
 .ffiles__count {
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--color-surface);
   color: var(--color-text-sub);
-  font-weight: 500;
+  font-size: 11.5px;
+  line-height: 18px;
 }
 
 .ffiles__sort {
@@ -52,7 +60,7 @@
   flex-shrink: 0;
   padding: 2px;
   border-radius: var(--radius-sm);
-  background: var(--color-bg);
+  background: rgba(255, 255, 255, 0.55);
 }
 
 .ffiles__sort button {
@@ -125,7 +133,7 @@
 }
 
 .ffiles__row:hover {
-  background: var(--color-surface-sub);
+  background: var(--color-surface);
 }
 
 .ffiles__row--on,

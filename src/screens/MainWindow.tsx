@@ -73,12 +73,13 @@ export default function MainWindow() {
             <FolderIcon size={18} />
           </span>
           <span className="sidebar__brand-text">AutoFolder</span>
-          {BUILD_LABEL && (
-            <span className="sidebar__build" title="PR에서 만든 시험판이에요. 정식 배포판은 이 표시가 없어요.">
-              {BUILD_LABEL}
-            </span>
-          )}
         </div>
+        {/* 시험판 표시는 이름 아래 노란 줄(이름 옆에 두면 "AutoFol / der"처럼 갈라졌다) */}
+        {BUILD_LABEL && (
+          <div className="sidebar__build" title="PR에서 만든 시험판이에요. 정식 배포판은 이 표시가 없어요.">
+            {BUILD_LABEL}
+          </div>
+        )}
         {MENU.map(({ page: p, label, Icon }) => (
           <button
             key={p}
