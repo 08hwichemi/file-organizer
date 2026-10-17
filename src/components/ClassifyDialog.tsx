@@ -59,7 +59,7 @@ interface Props {
 
 /**
  * 자동 분류 미리보기(SPEC 4-1). 넣을 폴더마다 네모 카드(포스트잇을 줄 맞춰 붙인 것처럼)에
- * 그 폴더로 갈 파일을 담아 보여 준다. 파일이 많으면 카드가 그만큼 길어져 다 보인다.
+ * 그 폴더로 갈 파일을 담아 보여 준다. 카드는 모두 같은 크기이고, 파일이 많으면 카드 안에서 내려 본다.
  * 파일을 끌어 다른 카드에 놓으면 그 파일만 넣을 곳이 바뀐다. [+ 폴더 추가]로 목록에 없는 폴더 카드를 만든다.
  * 정리 폴더 안의 폴더는 추천된 파일이 없어도 늘 카드로 보인다(빈 카드는 반 높이).
  * 위의 버튼으로 '목록으로 보기'(왼쪽 목록 + 오른쪽 폴더 격자, 아무 폴더에나 놓기)로 바꿀 수 있다.
@@ -387,29 +387,10 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
   );
 }
 
-/** 카드 보기의 한 칸 높이(143px)와 칸 사이(14px), 카드 머리·파일 한 줄 높이(ClassifyDialog.css와 맞춤) */
-const ROW = 143;
-const GAP = 14;
-const HEAD = 66;
-const LINE = 34;
-
-/** 이미 있는 파일: 제목 줄 높이, 한 줄 높이, 카드에서 스크롤 없이 보여 줄 줄 수(더 많으면 그 안에서 내려 본다) */
-const HAVE_HEAD = 34;
-const HAVE_LINE = 28;
-const HAVE_SHOWN = 5;
-
-/** 넣을 파일 n개가 다 보이고, 이미 있는 파일이 5줄까지 보이는 칸 수(적어도 두 칸 = 보통 크기) */
-function cardRows(count: number, have: number): number {
-  const adding = Math.max(count, 1) * LINE;
-  const already = have > 0 ? HAVE_HEAD + Math.min(have, HAVE_SHOWN) * HAVE_LINE : 0;
-  return Math.max(2, Math.ceil((HEAD + adding + already + GAP) / (ROW + GAP)));
-}
-
 /**
  * 넣을 폴더 하나 = 네모 카드. 파일을 끌어 이 카드에 놓으면 이 폴더로 바뀐다.
- * 카드 보기에서는 넣을 파일 수만큼 길어져(칸 단위) 다 보인다. 그 아래에 폴더에 이미 있는 파일(흐리게,
- * 5줄이 넘으면 그 안에서 내려 봄)을 보여 줘서 무엇이 들어 있는 폴더인지 알고 나눌 수 있다.
- * 넣을 파일도 이미 있는 파일도 없는 카드는 반 높이.
+ * 카드 보기에서는 모든 카드가 같은 크기(줄 맞춰 깔끔하게). 넣을 파일 아래에 폴더에 이미 있는 파일(흐리게)을
+ * 보여 줘서 무엇이 들어 있는 폴더인지 알고 나눌 수 있다. 둘 다 많으면 카드 안에서 각각 내려 본다.
  */
 function Card({
   dest,
@@ -431,15 +412,12 @@ function Card({
   existing?: FileEntry[];
   children: React.ReactNode;
 }) {
-  const empty = count === 0 && existing.length === 0;
   const { setNodeRef, isOver } = useDroppable({ id: `classify-card:${dest}`, data: { dest } });
   return (
     <section
       ref={setNodeRef}
       data-dest={dest}
-      // 카드 보기: 파일이 많으면 카드가 그만큼 길어져 안에서 내려 보지 않아도 모두 보인다(목록 보기에서는 쓰이지 않음)
-      style={empty ? undefined : { gridRow: `span ${cardRows(count, existing.length)}` }}
-      className={`classify__card${inbox ? " classify__card--inbox" : ""}${empty ? " classify__card--empty" : ""}${existing.length > 0 ? " classify__card--has" : ""}${isOver ? " classify__card--over" : ""}`}
+      className={`classify__card${inbox ? " classify__card--inbox" : ""}${existing.length > 0 ? " classify__card--has" : ""}${isOver ? " classify__card--over" : ""}`}
       aria-label={`${name} ${count}개`}
     >
       <div className="classify__card-head">
