@@ -61,7 +61,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   /* 모든 카드가 같은 크기(사용자 요청: 들쑥날쑥하지 않게). 파일이 많으면 카드 안에서 내려 본다 */
-  grid-auto-rows: 330px;
+  grid-auto-rows: 360px;
   gap: 14px;
   align-content: start;
   padding: 2px 4px 10px 2px;
@@ -242,11 +242,52 @@
   text-align: center;
 }
 
-/* 이미 있는 파일이 있는 카드: 넣을 파일은 위쪽(많으면 절반까지만, 그 안에서 내려 봄), 나머지에 이미 있는 파일.
-   넣을 파일이 없으면 "여기로 끌어다 놓으세요"는 한 줄로 */
+/* 칸 제목 띠: 넣을 파일 = 파란 띠, 이미 있는 파일 = 회색 띠(아래 목록도 회색 바탕) */
+.classify__bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.classify__bar b {
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  line-height: 18px;
+}
+
+.classify__bar--new {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-hover);
+}
+
+.classify__bar--new b {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.classify__bar--have {
+  border-top: 1px solid var(--color-line-strong);
+  background: #e9ebee;
+  color: var(--color-text-strong);
+}
+
+.classify__bar--have b {
+  background: var(--color-surface);
+  color: var(--color-text-sub);
+}
+
+/* 이미 있는 파일이 있는 카드: 넣을 파일 칸은 딱 3줄 높이까지(반 줄이 걸치지 않게, 더 있으면 그 안에서 내려 봄),
+   나머지는 이미 있는 파일. 넣을 파일이 없으면 "여기로 끌어다 놓으세요"는 한 줄로 */
 .classify__card--has .classify__files {
-  flex: 0 1 auto;
-  max-height: 55%;
+  flex: 0 0 auto;
+  max-height: 110px;
 }
 
 .classify__card--has .classify__empty {
@@ -261,29 +302,15 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  border-top: 1px dashed var(--color-line);
   background: var(--color-surface-sub);
   border-radius: 0 0 var(--radius-md) var(--radius-md);
-}
-
-.classify__have-title {
-  flex-shrink: 0;
-  padding: 8px 12px 4px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-text-sub);
-  white-space: nowrap;
-}
-
-.classify__have-title span {
-  font-weight: 500;
 }
 
 .classify__have-list {
   flex: 1;
   min-height: 0;
   margin: 0;
-  padding: 0 0 6px;
+  padding: 2px 0 6px;
   overflow-y: auto;
   list-style: none;
 }

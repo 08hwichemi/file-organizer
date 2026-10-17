@@ -389,8 +389,9 @@ export default function ClassifyDialog({ paths, root, separator, onClose, onRun 
 
 /**
  * 넣을 폴더 하나 = 네모 카드. 파일을 끌어 이 카드에 놓으면 이 폴더로 바뀐다.
- * 카드 보기에서는 모든 카드가 같은 크기(줄 맞춰 깔끔하게). 넣을 파일 아래에 폴더에 이미 있는 파일(흐리게)을
- * 보여 줘서 무엇이 들어 있는 폴더인지 알고 나눌 수 있다. 둘 다 많으면 카드 안에서 각각 내려 본다.
+ * 카드 보기에서는 모든 카드가 같은 크기(줄 맞춰 깔끔하게). 파란 띠 "넣을 파일 n" 아래에 넣을 파일,
+ * 회색 띠 "이미 있는 파일 n" 아래에 폴더에 원래 있는 파일(회색 바탕)을 보여 줘서 무엇이 들어 있는 폴더인지
+ * 보고 나눌 수 있다. 칸마다 따로 내려 보고, 넣을 파일 칸은 3줄까지(반 줄이 걸치지 않게).
  */
 function Card({
   dest,
@@ -431,13 +432,19 @@ function Card({
           </span>
         </div>
         {isNew && <span className="classify__new">새 폴더</span>}
-        <span className="classify__count">{count}</span>
+        {/* 폴더 카드는 아래 "넣을 파일 n" 띠에 수가 있어 머리에는 두지 않는다 */}
+        {inbox && <span className="classify__count">{count}</span>}
       </div>
+      {!inbox && (
+        <div className="classify__bar classify__bar--new">
+          넣을 파일 <b>{count}</b>
+        </div>
+      )}
       <ul className="classify__files">{children}</ul>
       {existing.length > 0 && (
         <div className="classify__have">
-          <div className="classify__have-title">
-            이미 있는 파일 <span>{existing.length}</span>
+          <div className="classify__bar classify__bar--have">
+            이미 있는 파일 <b>{existing.length}</b>
           </div>
           <ul className="classify__have-list" aria-label={`${name}에 이미 있는 파일`}>
             {existing.map((f) => (
