@@ -34,7 +34,7 @@ export interface Settings {
   searchShortcut: string;
   /** 파일 검색 범위: PC 전체(true, 기본) / 정리 폴더와 지켜볼 폴더만(false) */
   searchWholePc: boolean;
-  /** 쓰는 곳: school = 학교(교사용 예시 폴더·단어·학기), general = 일반(회사·개인) */
+  /** 쓰는 곳: school = 학교(교사용 예시 폴더·단어·학기), general = 집·개인(파일 종류로 나눔) */
   userKind: UserKind;
 }
 
@@ -110,7 +110,7 @@ export interface SetupInfo {
   rootFolderName: string;
   separator: string;
   teacherExample: ExampleFolder[];
-  /** 일반(회사·개인) 예시 폴더 */
+  /** 집·개인 예시 폴더(파일 종류) */
   generalExample: ExampleFolder[];
 }
 

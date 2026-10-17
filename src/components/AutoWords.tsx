@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { errorMessage, getAutoWords, setAutoWords } from "../lib/backend";
 import type { WordGroup } from "../lib/types";
+import { useAppStore } from "../store/useAppStore";
 import Dialog from "./Dialog";
 import FolderIcon from "./FolderIcon";
 import Band from "./Band";
@@ -24,6 +25,7 @@ const parseFolder = (text: string) =>
  * 고치고·더하고·빼고, 기본 단어로 되돌릴 수 있다(모두 되돌리기 가능).
  */
 export default function AutoWords({ rootName, onNotice }: Props) {
+  const general = useAppStore((s) => s.settings?.userKind === "general");
   const [groups, setGroups] = useState<WordGroup[] | null>(null);
   const [editing, setEditing] = useState<number | "new" | null>(null);
   const [folderText, setFolderText] = useState("");
@@ -84,7 +86,9 @@ export default function AutoWords({ rootName, onNotice }: Props) {
           <p className="page__lead">
             규칙이 없을 때 ‘자동 분류’가 쓰는 단어예요. 파일 이름에 단어가 있으면 그 폴더로 넣어요. 같은 이름의 폴더가 정리
             폴더 안에 있으면 거기로, 없으면 새로 만들어요. 정리 폴더에 있는 폴더 이름도 저절로 기준이 되고, 이름으로 모르면
-            ‘형식별’ 폴더(한글 문서·PDF·사진…)로 가요. 설치 파일처럼 형식도 모르는 파일은 정리함에 남아요.
+            {general
+              ? " 파일 종류 폴더(문서·사진·동영상·음악·압축·설치)로 가요. 종류도 모르는 파일은 정리함에 남아요."
+              : " ‘형식별’ 폴더(한글 문서·PDF·사진…)로 가요. 설치 파일처럼 형식도 모르는 파일은 정리함에 남아요."}
           </p>
         </div>
         <div className="button-row rules__head-actions">

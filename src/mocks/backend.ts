@@ -59,20 +59,20 @@ const setupInfo: SetupInfo = {
   rootFolderName: "정리 폴더",
   separator: SEP,
   teacherExample: [
-    { name: "업무", children: ["공문", "회의록", "계획서"] },
+    { name: "업무", children: [] },
     { name: "수업", children: [] },
-    { name: "평가", children: ["수행평가", "지필고사"] },
-    { name: "학급", children: ["상담", "사진", "출결"] },
+    { name: "평가", children: [] },
+    { name: "학급", children: [] },
     { name: "생활기록부", children: [] },
     { name: "연수", children: [] },
     { name: "개인", children: [] },
   ],
   generalExample: [
-    { name: "업무", children: ["보고서", "회의록", "계약서"] },
-    { name: "돈 관리", children: ["영수증", "세금", "보험"] },
-    { name: "개인", children: ["병원", "증명서"] },
-    { name: "공부", children: [] },
+    { name: "문서", children: [] },
     { name: "사진", children: [] },
+    { name: "동영상", children: [] },
+    { name: "음악", children: [] },
+    { name: "압축·설치", children: [] },
   ],
 };
 

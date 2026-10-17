@@ -30,7 +30,7 @@ pub enum PlaceMode {
     Classify,
 }
 
-/// 쓰는 곳: 학교(교사용 예시 폴더·자동 분류 단어·학년도/학기) / 일반(회사·개인)
+/// 쓰는 곳: 학교(교사용 예시 폴더·자동 분류 단어·학년도/학기) / 집·개인(파일 종류로 나눔)
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum UserKind {

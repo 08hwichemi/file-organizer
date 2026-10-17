@@ -79,6 +79,7 @@ impl AppState {
                 classify::load_words(conn),
                 naming::today(),
                 s.term_months(),
+                s.user_kind,
             )))
         })
         .ok()
@@ -301,7 +302,7 @@ pub struct SetupInfo {
     pub root_folder_name: &'static str,
     pub separator: String,
     pub teacher_example: Vec<ExampleFolder>,
-    /// 일반(회사·개인) 예시 폴더
+    /// 집·개인 예시 폴더(파일 종류)
     pub general_example: Vec<ExampleFolder>,
 }
 

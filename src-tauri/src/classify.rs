@@ -1,6 +1,7 @@
 //! 자동 분류(SPEC 4-1): 규칙이 없어도 파일 이름·형식을 보고 넣을 폴더를 정한다.
 //!
-//! 순서: 정리 규칙 → 이름 단어(정리 폴더의 폴더 이름 · 자동 분류 단어) → 파일 형식(형식별 폴더).
+//! 순서: 정리 규칙 → 이름 단어(정리 폴더의 폴더 이름 · 자동 분류 단어) → 파일 형식
+//! (학교: `형식별\한글 문서` 등, 집·개인: 정리 폴더 바로 아래 `문서`·`사진`… 종류 폴더).
 //! - 이름 단어는 파일 이름에 든 가장 긴 단어로 고른다(같으면 폴더 이름이 먼저).
 //! - 자동 분류 단어의 폴더가 없으면, 같은 이름의 폴더가 정리 폴더 어딘가에 있으면 거기로, 없으면 만든다.
 //! - 형식으로도 모르는 파일(설치 파일 등)은 None → 정리함에 남긴다.
@@ -68,36 +69,11 @@ const TEACHER_WORDS: &[(&[&str], &[&str])] = &[
     (&["연수"], &["연수", "이수증"]),
 ];
 
-/// 일반(회사·개인) 기본 단어. 폴더는 처음 실행의 일반 예시 구조에 맞췄다.
-const GENERAL_WORDS: &[(&[&str], &[&str])] = &[
-    (&["업무", "보고서"], &["보고서", "보고", "리포트", "report"]),
-    (&["업무", "회의록"], &["회의록", "회의", "미팅", "meeting"]),
-    (&["업무", "계약서"], &["계약서", "계약", "견적서", "견적"]),
-    (
-        &["돈 관리", "영수증"],
-        &[
-            "영수증",
-            "결제",
-            "청구서",
-            "거래명세서",
-            "receipt",
-            "invoice",
-        ],
-    ),
-    (
-        &["돈 관리", "세금"],
-        &["세금", "연말정산", "원천징수", "납세", "부가세"],
-    ),
-    (&["돈 관리", "보험"], &["보험", "보험금"]),
-    (&["개인", "병원"], &["진료", "처방", "진단서", "병원"]),
-    (
-        &["개인", "증명서"],
-        &["증명서", "등본", "초본", "가족관계", "이력서"],
-    ),
-    (&["공부"], &["강의", "과제", "교재", "시험"]),
-];
+/// 집·개인 기본 단어: 없다. 예시 폴더가 파일 종류(문서·사진…)라 이름 단어로 안쪽 폴더를 미리 정하지 않는다.
+/// 사용자가 `문서 › 계약서`처럼 폴더를 만들면 폴더 이름으로 저절로 찾아 넣는다(사용자 결정).
+const GENERAL_WORDS: &[(&[&str], &[&str])] = &[];
 
-/// 쓰는 곳에 맞는 기본 단어(학교: 교사용, 일반: 회사·개인)
+/// 쓰는 곳에 맞는 기본 단어(학교: 교사용, 집·개인: 없음)
 pub fn default_words(kind: UserKind) -> Vec<WordGroup> {
     let table = match kind {
         UserKind::School => TEACHER_WORDS,
@@ -181,6 +157,20 @@ pub fn type_folder(ext: &str) -> Option<&'static str> {
     })
 }
 
+/// 집·개인의 종류 폴더 이름(정리 폴더 바로 아래, 처음 설정의 예시 폴더와 같음). 모르는 형식은 None.
+pub fn kind_folder(ext: &str) -> Option<&'static str> {
+    Some(match ext {
+        "hwp" | "hwpx" | "hwt" | "doc" | "docx" | "odt" | "rtf" | "pdf" | "xls" | "xlsx"
+        | "xlsm" | "csv" | "cell" | "ods" | "ppt" | "pptx" | "show" | "odp" | "key" | "txt"
+        | "md" => "문서",
+        "jpg" | "jpeg" | "png" | "gif" | "heic" | "webp" | "bmp" | "tif" | "tiff" => "사진",
+        "mp4" | "mov" | "avi" | "mkv" | "wmv" => "동영상",
+        "mp3" | "wav" | "m4a" | "flac" | "aac" | "ogg" => "음악",
+        "zip" | "7z" | "rar" | "egg" | "alz" | "exe" | "msi" => "압축·설치",
+        _ => return None,
+    })
+}
+
 /// 왜 그 폴더인지
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(
@@ -212,6 +202,7 @@ pub struct Classifier {
     folders: Vec<FolderName>,
     today: (i32, u32),
     months: TermMonths,
+    kind: UserKind,
 }
 
 /// 폴더 이름이 분류 기준이 될 만한지: 두 글자 이상, 숫자만은 아님, 연도·학기·학급 폴더는 아님.
@@ -278,6 +269,7 @@ impl Classifier {
         words: Vec<WordGroup>,
         today: (i32, u32),
         months: TermMonths,
+        kind: UserKind,
     ) -> Self {
         Classifier {
             root: root.to_path_buf(),
@@ -286,6 +278,7 @@ impl Classifier {
             words,
             today,
             months,
+            kind,
         }
     }
 
@@ -313,12 +306,22 @@ impl Classifier {
             return Some(found);
         }
         let name = path.file_name()?.to_string_lossy();
-        let type_name = type_folder(&naming::extension(&name))?;
+        let ext = naming::extension(&name);
+        let (type_name, dir) = match self.kind {
+            UserKind::School => {
+                let t = type_folder(&ext)?;
+                (t, self.root.join(TYPE_PARENT).join(t))
+            }
+            UserKind::General => {
+                let t = kind_folder(&ext)?;
+                (t, self.root.join(t))
+            }
+        };
         Some((
             Reason::Type {
                 type_name: type_name.to_string(),
             },
-            target_for(self.root.join(TYPE_PARENT).join(type_name)),
+            target_for(dir),
         ))
     }
 
@@ -404,6 +407,7 @@ mod tests {
             default_words(UserKind::School),
             (2027, 4),
             TermMonths::default(),
+            UserKind::School,
         )
     }
 
@@ -528,9 +532,7 @@ mod tests {
             ..crate::settings::Settings::default()
         };
         crate::settings::save(&conn, &s).unwrap();
-        assert!(load_words(&conn)
-            .iter()
-            .any(|g| g.folder == ["돈 관리", "영수증"]));
+        assert!(load_words(&conn).is_empty());
         crate::settings::save(&conn, &crate::settings::Settings::default()).unwrap();
         let groups = normalize_words(vec![WordGroup {
             folder: vec![" 업무 ".into(), "".into(), "출장".into()],
@@ -551,6 +553,32 @@ mod tests {
             words: vec![" ".into()]
         }])
         .is_err());
+    }
+
+    #[test]
+    fn general_users_sort_by_kind_into_top_folders() {
+        let d = tempfile::tempdir().unwrap();
+        let root = d.path().join("정리 폴더");
+        fs::create_dir_all(root.join("문서").join("계약서")).unwrap();
+        let c = Classifier::new(
+            &root,
+            vec![],
+            default_words(UserKind::General),
+            (2027, 4),
+            TermMonths::default(),
+            UserKind::General,
+        );
+        let dir = |n: &str| c.classify(&PathBuf::from("/d").join(n)).map(|(_, t)| t.dir);
+        assert_eq!(dir("scan_001.pdf"), Some(root.join("문서")));
+        assert_eq!(dir("IMG_2031.HEIC"), Some(root.join("사진")));
+        assert_eq!(dir("setup_v2.exe"), Some(root.join("압축·설치")));
+        assert_eq!(dir("노래.flac"), Some(root.join("음악")));
+        // 사용자가 만든 안쪽 폴더는 이름으로 찾는다
+        assert_eq!(
+            dir("전세_계약서_2027.pdf"),
+            Some(root.join("문서").join("계약서"))
+        );
+        assert_eq!(dir("README"), None);
     }
 
     #[test]

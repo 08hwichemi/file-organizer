@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  Briefcase,
   Check,
   FolderTree,
+  House,
   Info,
   Lightbulb,
   RotateCcw,
@@ -214,9 +214,9 @@ export default function SettingsPage() {
             name="user-kind"
             checked={settings.userKind === "general"}
             onSelect={() => void save("kind", () => saveKind("general"))}
-            icon={<Briefcase size={20} />}
-            title="일반(회사·개인)"
-            description="보고서·영수증·세금 같은 낱말, 연도는 달력의 해"
+            icon={<House size={20} />}
+            title="집·개인"
+            description="파일 종류(문서·사진·동영상…)로 나누기, 연도는 달력의 해"
           />
         </div>
       </Section>

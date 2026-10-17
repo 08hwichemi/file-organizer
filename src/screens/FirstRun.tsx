@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { Briefcase, FileText, FolderCheck, FolderInput, FolderPlus, FolderTree, Monitor, School, X } from "lucide-react";
+import { FileText, FolderCheck, FolderInput, FolderPlus, FolderTree, House, Monitor, School, X } from "lucide-react";
 import ChoiceCard from "../components/ChoiceCard";
 import FolderIcon from "../components/FolderIcon";
 import ModeChoice from "../components/ModeChoice";
@@ -183,9 +183,9 @@ export default function FirstRun() {
                     setKind("general");
                     setStructure(exampleStructure(info, "general"));
                   }}
-                  icon={<Briefcase size={20} />}
-                  title="일반(회사·개인)"
-                  description="업무·돈 관리·개인·공부·사진 폴더, 보고서·영수증·세금 같은 낱말, 연도는 달력의 해"
+                  icon={<House size={20} />}
+                  title="집·개인"
+                  description="문서·사진·동영상·음악·압축·설치처럼 파일 종류로 나눠요. 연도는 달력의 해"
                 />
               </div>
             </>
@@ -282,7 +282,7 @@ export default function FirstRun() {
                   onSelect={() => setPreset("teacher")}
                   icon={<FolderTree size={20} />}
                   title={asIs ? "예시 폴더 더하기" : "폴더를 정해서 시작"}
-                  description={`${kind === "general" ? "일반" : "교사용"} 예시를 고쳐서 써요. 이름을 바꾸고, 더하고, 뺄 수 있어요.${asIs ? " 이미 있는 폴더는 건너뛰어요." : ""}`}
+                  description={`${kind === "general" ? "집·개인" : "교사용"} 예시를 고쳐서 써요. 이름을 바꾸고, 더하고, 뺄 수 있어요.${asIs ? " 이미 있는 폴더는 건너뛰어요." : ""}`}
                 />
                 {preset === "teacher" && (
                   <div className="setup__structure">
@@ -341,7 +341,7 @@ export default function FirstRun() {
               </p>
               <dl className="setup__summary">
                 <SummaryRow label="쓰는 곳" onEdit={() => goTo("kind")}>
-                  {kind === "general" ? "일반(회사·개인)" : "학교"}
+                  {kind === "general" ? "집·개인" : "학교"}
                 </SummaryRow>
                 <SummaryRow label="정리 폴더" onEdit={() => goTo("location")}>
                   <span className="setup__path">{rootPreview}</span>
