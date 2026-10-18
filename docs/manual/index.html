@@ -174,26 +174,50 @@
     font-size: 13px; font-weight: 650; white-space: nowrap;
   }
 
-  /* 첫 장 */
-  .cover { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .cover .text { gap: 18px; }
-  .cover .text p { font-size: 18px; max-width: 30em; }
-  .facts { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--sub); font-size: 15px; }
+  /* 시작 세 장: 무엇인지 · 어디에 뜨는지 · 이렇게 써요 */
+  .cover { display: flex; flex-direction: column; gap: 20px; align-items: stretch; align-content: start; }
+  .cv-top { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+  .cv-top h1 { font-size: clamp(32px, 3.4vw, 48px); line-height: 1.2; }
+  .cv-top h2 { margin: 0; font-size: clamp(28px, 2.8vw, 38px); line-height: 1.25; }
+  .cv-lead { margin: 0; font-size: clamp(18px, 1.6vw, 22px); line-height: 1.6; max-width: 40em; text-wrap: pretty; }
+  .cv-lead b { color: var(--accent); }
+  .facts { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 16px; font-weight: 700; }
   .facts span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
   .facts svg { color: var(--ok); }
-  .order { margin: 2px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--sub); font-size: 14.5px; }
-  .order li { white-space: nowrap; }
-  .order li b { color: var(--fg); font-weight: 650; }
-  .tiles { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-  .tile {
-    display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 18px; align-items: center;
-    padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface-sub);
+  /* 정리 전 → 정리 후 */
+  .cv-ba { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 18px; }
+  .cv-box { border: 1px solid var(--line); border-radius: 16px; padding: 14px 18px 16px; background: var(--surface-sub); }
+  .cv-box h3 { margin: 0 0 10px; font-size: 16px; color: var(--sub); }
+  .cv-box.after { background: var(--surface); box-shadow: 0 0 0 3px var(--accent-soft); border-color: var(--accent-soft); }
+  .cv-box.after h3 { color: var(--accent); }
+  .cv-mess { display: flex; flex-wrap: wrap; gap: 7px; }
+  .cv-file { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px 5px 5px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; white-space: nowrap; }
+  .cv-file i { font-style: normal; font-size: 9px; font-weight: 800; width: 30px; height: 22px; border-radius: 5px; display: grid; place-items: center; }
+  .cv-arrow { display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--accent); font-weight: 800; font-size: 14px; }
+  .cv-folders { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .cv-folder { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 15px; font-weight: 700; }
+  .cv-folder small { font-weight: 500; color: var(--sub); font-size: 12.5px; }
+  /* 어디에 뜨는지 */
+  .cv-desk { margin: 0; align-self: center; max-width: min(100%, calc((100dvh - 390px) * 16 / 9)); }
+  .cv-desk img { display: block; width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--line); box-shadow: var(--shot-shadow); }
+  /* 이렇게 써요 */
+  .cv-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .cv-step { display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--line); border-radius: 16px; padding: 14px; background: var(--surface); }
+  .cv-step img { width: 100%; height: clamp(140px, 26vh, 260px); object-fit: cover; object-position: top left; border-radius: 10px; border: 1px solid var(--line); background: #fff; }
+  .cv-step h3 { margin: 0; display: flex; align-items: center; gap: 10px; font-size: 19px; }
+  .cv-step h3 b { flex-shrink: 0; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 16px; }
+  .cv-step p { margin: 0; font-size: 16px; line-height: 1.55; color: var(--sub); text-wrap: pretty; }
+  .cv-step p strong { color: var(--fg); }
+  @media (max-height: 700px) and (min-width: 861px) {
+    .cover { gap: 14px; }
+    .cv-mess { gap: 5px; }
+    .cv-file { padding-block: 3px; }
   }
-  .tile img { width: 132px; height: 104px; object-fit: cover; object-position: top left; border-radius: 10px; border: 1px solid var(--line); background: #fff; }
-  .tile small { display: inline-block; color: var(--accent); font-size: 13px; font-weight: 750; }
-  .tile small .star { color: var(--folder); }
-  .tile strong { display: block; font-size: 19px; line-height: 1.35; margin: 2px 0 4px; }
-  .tile p { margin: 0; color: var(--sub); font-size: 15px; text-wrap: pretty; }
+  @media (max-width: 860px) {
+    .cv-ba, .cv-steps { grid-template-columns: minmax(0, 1fr); }
+    .cv-arrow svg { transform: rotate(90deg); }
+    .cv-desk { max-width: 100%; }
+  }
 
   /* 자주 묻는 것 */
   .faq { grid-template-columns: 1fr; align-content: start; align-items: start; }
@@ -234,15 +258,13 @@
   @media (max-width: 860px) {
     .top { flex-direction: column; align-items: stretch; gap: 8px; }
     .toc { margin-left: 0; }
-    .scene, .cover { grid-template-columns: minmax(0, 1fr); align-items: start; align-content: start; }
+    .scene { grid-template-columns: minmax(0, 1fr); align-items: start; align-content: start; }
     .fig img { max-height: none; }
     .qa { grid-template-columns: minmax(0, 1fr); }
   }
   @media (max-width: 480px) {
     .nav { gap: 10px; }
     .nav button.go { padding: 0 12px; }
-    .tile { grid-template-columns: 96px minmax(0, 1fr); gap: 14px; padding: 14px; }
-    .tile img { width: 96px; height: 80px; }
   }
 </style>
 
@@ -287,7 +309,10 @@
   // 장면. 글 표시법: [[단추]]  {{키}}  ==강조==  (뒤에 붙은 조사·마침표는 같은 줄에 붙어 다닌다)
   // ex: true = Windows·브라우저 화면이라 예시 그림(실제와 조금 다를 수 있음). hl: true = 그림에 주황 테두리 있음.
   const S = [
-    { id: "start", ch: "start", cover: true },
+    // 시작 세 장(사용자 요청: 처음 보는 사람이 첫 장에서 무엇인지 확실히 알게)
+    { id: "start", ch: "start", cover: "what" },
+    { id: "start-where", ch: "start", cover: "where", img: "desk.webp" },
+    { id: "start-how", ch: "start", cover: "how" },
 
     { id: "install-1", ch: "install", ex: true, hl: true, img: "r-addr.webp",
       alt: "크롬 새 탭의 주소 칸에 배포 페이지 주소를 넣은 모습",
@@ -640,26 +665,47 @@
   const chScenes = (key) => S.filter((x) => x.ch === key);
   const chName = (key) => CH.find((c) => c.key === key).name;
 
-  function coverHTML() {
-    const order = CH.slice(1).map((c, i) => `<li><b>${i + 1}</b> ${c.name}</li>`).join("");
-    return `
-      <div class="text">
-        <span class="chip">새 파일 자동 정리 프로그램</span>
-        <h1>새 파일은 알아서,<br>쌓인 파일은 한&nbsp;번에.</h1>
-        <p>AutoFolder는 <span class="nw">다운로드·바탕화면</span>에 쌓이는 파일을 원하는 폴더에 넣어 주는 <span class="nw">Windows 프로그램</span>이에요. 설치부터 한 장면씩 따라 해 보세요.</p>
-        <div class="facts"><span>${CHECK}설치 5분</span><span>${CHECK}무엇이든 되돌릴 수 있어요</span><span>${CHECK}파일을 지우거나 덮어쓰지 않아요</span></div>
-        <ol class="order" aria-label="이 설명서의 순서">${order}</ol>
-      </div>
-      <div class="tiles">
-        <div class="tile">
-          <img src="img/popup.webp" alt="">
-          <div><small><span class="star">★</span> 주요 기능 1</small><strong>새 파일이 오면</strong><p>오른쪽 아래에 뜨는 창에서 <span class="nw">폴더를 고르고</span> <span class="nw">[넣기]</span>. 한 번이면 끝.</p></div>
-        </div>
-        <div class="tile">
-          <img src="img/classify.webp" alt="">
-          <div><small><span class="star">★</span> 주요 기능 2</small><strong>쌓여 있던 파일은</strong><p><span class="nw">[자동 분류]</span>가 폴더별로 나눠 줘요. 확인하고 <span class="nw">[나누기]</span>만 누르면 돼요.</p></div>
-        </div>
+  const FILES = [
+    ["HWP", "수행평가_안내문.hwp"], ["XLSX", "감독배정표.xlsx"], ["PDF", "scan_1013.pdf"], ["JPG", "체육대회_01.jpg"],
+    ["HWPX", "학습지_원소.hwpx"], ["PDF", "공문_정보보안.pdf"], ["XLSX", "상담일정.xlsx"], ["HWP", "회의록_10월.hwp"],
+    ["JPG", "체육대회_02.jpg"], ["PDF", "연수_이수증.pdf"],
+  ];
+  const BADGE = { HWP: ["#e8effd", "#2b59c3"], HWPX: ["#e8effd", "#2b59c3"], XLSX: ["#e3f3ea", "#1d7a45"], PDF: ["#fdecec", "#c0392b"], JPG: ["#f1ebfb", "#6b3fb5"] };
+  const FOLDER = '<svg width="54" height="44" viewBox="0 0 54 44" aria-hidden="true"><path d="M3 8a4 4 0 0 1 4-4h13l5 5h22a4 4 0 0 1 4 4v3H3z" fill="#E3B23C"/><rect x="3" y="12" width="48" height="29" rx="4" fill="#F5CB5C"/></svg>';
+  const RIGHT = '<svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15"/><path d="m13 6 6 6-6 6"/></svg>';
+
+  // 시작 세 장: what = 무슨 프로그램인지(정리 전 → 정리 후), where = 바탕화면 어디에 뜨는지, how = 이렇게 써요(세 단계)
+  function coverHTML(kind) {
+    if (kind === "where") {
+      return `
+      <div class="cv-top"><span class="chip">새 파일이 생기면</span><h2>화면 오른쪽 아래에 이렇게 떠요</h2>
+        <p class="cv-lead">파일을 받거나 바탕화면에 저장하는 순간, <b>작업 표시줄 바로 위</b>에 AutoFolder 창이 떠요.</p></div>
+      <figure class="cv-desk"><img src="img/desk.webp" alt="Windows 바탕화면에서 메일의 파일을 받은 순간, 오른쪽 아래 작업 표시줄 바로 위에 AutoFolder 창이 뜬 모습(주황 테두리)"></figure>`;
+    }
+    if (kind === "how") {
+      return `
+      <div class="cv-top"><span class="chip">한눈에 보기</span><h2>이렇게 써요</h2>
+        <p class="cv-lead">새 파일이 생길 때마다 이 두 번이면 끝나요. 쌓여 있던 파일은 한꺼번에 나눌 수 있어요.</p></div>
+      <div class="cv-steps">
+        <div class="cv-step"><img src="img/pp1.webp" alt=""><h3><b>1</b>새 파일이 생기면</h3><p>화면 <strong>오른쪽 아래에 작은 창</strong>이 떠서 어느 폴더가 좋을지 알려 줘요.</p></div>
+        <div class="cv-step"><img src="img/pp2.webp" alt=""><h3><b>2</b>[넣기] 한 번이면 끝</h3><p>추천이 맞으면 <strong>[넣기]</strong>. 다른 폴더면 눌러서 고르면 돼요.</p></div>
+        <div class="cv-step"><img src="img/classify.webp" alt=""><h3><b>3</b>쌓인 파일은 한꺼번에</h3><p><strong>[자동 분류]</strong>가 폴더별로 나눠 보여 주고, 확인하면 한 번에 넣어요.</p></div>
       </div>`;
+    }
+    const files = FILES.map(([t, n]) => `<span class="cv-file"><i style="background:${BADGE[t][0]};color:${BADGE[t][1]}">${t}</i>${n}</span>`).join("");
+    const folder = (n, c) => `<div class="cv-folder">${FOLDER}${n}<small>파일 ${c}개</small></div>`;
+    return `
+      <div class="cv-top">
+        <span class="chip">새 파일 자동 정리 프로그램</span>
+        <h1>새 파일은 알아서, 쌓인 파일은 한&nbsp;번에.</h1>
+        <p class="cv-lead"><b>AutoFolder</b>는 <span class="nw">다운로드·바탕화면</span>에 새 파일이 생기면 <b>어느 폴더에 넣을지 알려 주고, 한 번에 넣어 주는</b> <span class="nw">Windows 프로그램</span>이에요.</p>
+      </div>
+      <div class="cv-ba">
+        <div class="cv-box"><h3>지금: 바탕화면·다운로드에 섞여 있는 파일</h3><div class="cv-mess">${files}</div></div>
+        <div class="cv-arrow">${RIGHT}AutoFolder</div>
+        <div class="cv-box after"><h3>쓰고 나면: 폴더별로 정리</h3><div class="cv-folders">${folder("평가", 3)}${folder("업무", 3)}${folder("수업", 2)}${folder("학급", 2)}</div></div>
+      </div>
+      <div class="facts"><span>${CHECK}설치 5분</span><span>${CHECK}무엇이든 되돌릴 수 있어요</span><span>${CHECK}파일을 지우거나 덮어쓰지 않아요</span></div>`;
   }
 
   function faqHTML() {
@@ -670,7 +716,7 @@
   }
 
   function sceneHTML(sc) {
-    if (sc.cover) return coverHTML();
+    if (sc.cover) return coverHTML(sc.cover);
     if (sc.faq) return faqHTML();
     const list = chScenes(sc.ch);
     const k = list.indexOf(sc) + 1;
@@ -735,7 +781,7 @@
     count.textContent = `${cur + 1} / ${S.length}`;
     prev.disabled = cur === 0;
     next.disabled = cur === S.length - 1;
-    next.innerHTML = (cur === 0 ? "설치부터 보기" : "다음") + ARROW;
+    next.innerHTML = (sc.id === "start-how" ? "설치부터 보기" : "다음") + ARROW;
     if (!fromHash) {
       try { history.replaceState(null, "", "#" + sc.id); } catch (e) {}
     }

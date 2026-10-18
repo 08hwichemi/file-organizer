@@ -264,6 +264,12 @@ if (want("windows")) {
     await shot(p, id + ".webp", p.locator("#" + id));
   }
   await p.close();
+  // 시작 2장: 바탕화면 오른쪽 아래에 창이 뜬 모습(popup.webp를 넣어 그린다 — popup을 먼저 찍어 둘 것)
+  const d = await b.newPage({ viewport: { width: 1920, height: 1080 } });
+  await d.goto("file://" + path.join(HERE, "desktop-scene.html"));
+  await d.waitForTimeout(800);
+  await shot(d, "desk.webp");
+  await d.close();
 }
 
 await b.close();
