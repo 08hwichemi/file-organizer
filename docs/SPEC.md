@@ -206,6 +206,7 @@
 - "알 수 없는 게시자" 경고(SmartScreen): **코드 서명 없이 무료로 배포**하고 "추가 정보 → 실행"을 안내한다(사용자 결정). 까닭: 개인용 Microsoft 서명 서비스는 미국·캐나다만, 인증서는 연 수십만 원이고 2024년부터는 EV 인증서도 경고를 바로 없애 주지 않는다. 경고는 처음 설치 때만 나오고 자동 업데이트에는 안 나온다.
   - 받기는 **크롬을 권한다**(엣지는 받을 때 "유지 → 자세히 표시 → 그래도 계속"까지 단계가 많음. 링크를 크롬으로 강제로 열 방법은 없어 주소 복사로 안내).
   - 사용 설명서(설치 포함): **https://08hwichemi.github.io/file-organizer-releases/** (공개 저장소의 GitHub Pages, `gh-pages` 가지. main에 병합되면 `.github/workflows/manual.yml`이 `docs/manual/tools/site.mjs`로 묶어 올린다. 예전 Claude 주소 UjLpBr6…는 쓰지 않음) — 한 화면에 한 장면(설치 → 처음 설정 → ★새 파일 정리 → ★자동 분류 → 정리한 뒤 → 그 밖에 → 자주 묻는 것). 원본 `docs/manual/index.html`, 그림 `docs/manual/img`(WebP, 넘기기 전에 미리 받아 둠. 앱 화면은 `docs/manual/tools/shots.mjs`로 가짜 데이터 화면을 찍고, Windows·브라우저 화면은 `windows-screens.html`의 예시 그림).
+  - 설명서 시작은 세 장(사용자 요청: 처음 보는 사람이 첫 장에서 무엇인지 확실히 알게, 글씨를 크게): ① 무슨 프로그램인지 — 큰 제목, 한 문장 설명, '정리 전(바탕화면·다운로드에 섞인 파일) → 정리 후(폴더별)' 그림, 설치 5분·되돌리기·지우지 않음 ② 어디에 뜨는지 — Windows 바탕화면 전체 그림에서 오른쪽 아래(작업 표시줄 바로 위)에 창이 뜬 자리를 주황 테두리로(`docs/manual/tools/desktop-scene.html` → desk.webp, 창은 실제 화면 popup.webp) ③ 이렇게 써요 — 창이 뜨면 → [넣기] 한 번 → 쌓인 파일은 [자동 분류] 세 단계. 예전 첫 장(작은 주요 기능 카드 두 개)은 없앴다. 노트북 화면(1280×720)에서도 한 화면에 들어간다.
   - 메신저로 보낼 한 장짜리 이미지: `docs/install-image/install-guide.png`(원본 `install-image.html`, 설명서 그림을 같이 씀. `node docs/install-image/shot.mjs`로 다시 찍기)
   - 예전 설치 안내 페이지(KBogxpj8…)는 설명서로 안내만 한다.
 
