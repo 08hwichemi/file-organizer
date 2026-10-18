@@ -12,6 +12,12 @@ name: 배포
 on:
   push:
     branches: [main]
+    # 설명서·문서만 바뀐 병합은 새 버전을 만들지 않는다(프로그램이 그대로인데 업데이트 알림이 뜨지 않게).
+    # 설명서는 manual.yml이 따로 올린다. 프로그램 파일이 하나라도 바뀌면 배포한다.
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+      - ".github/workflows/manual.yml"
   workflow_dispatch:
 
 concurrency:
