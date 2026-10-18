@@ -270,6 +270,12 @@ if (want("windows")) {
   await d.waitForTimeout(800);
   await shot(d, "desk.webp");
   await d.close();
+  // 처음 설정 7장: 트레이 아이콘과 오른쪽 클릭 메뉴
+  const t = await b.newPage({ viewport: { width: 1000, height: 620 }, deviceScaleFactor: 2 });
+  await t.goto("file://" + path.join(HERE, "tray-scene.html"));
+  await t.waitForTimeout(800);
+  await shot(t, "tray.webp");
+  await t.close();
 }
 
 await b.close();
