@@ -84,7 +84,19 @@ pub fn run() {
             let data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
             let conn = db::open(&data_dir.join("data.db"))?;
-            let current = settings::load(&conn)?;
+            let mut current = settings::load(&conn)?;
+            // 화면 캡처·녹화가 저장되는 곳은 처음부터 묻지 않는다(한 번만, 설정에서 [다시 묻기]로 뺄 수 있음)
+            let p = app.path();
+            let default_quiet: Vec<std::path::PathBuf> = [
+                p.picture_dir().map(|d| d.join("Screenshots")),
+                p.video_dir().map(|d| d.join("Captures")),
+            ]
+            .into_iter()
+            .filter_map(Result::ok)
+            .collect();
+            if settings::add_default_quiet(&mut current, &default_quiet) {
+                settings::save(&conn, &current)?;
+            }
 
             let handle = app.handle().clone();
             let watcher = watcher::WatchService::start(move |files| {

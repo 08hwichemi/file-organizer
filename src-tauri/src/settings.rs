@@ -94,6 +94,9 @@ pub struct Settings {
     pub new_file_scope: NewFileScope,
     /// 새 파일이 생겨도 묻지 않는 폴더(하위 폴더까지)
     pub quiet_folders: Vec<String>,
+    /// 기본으로 묻지 않는 폴더(화면 캡처가 저장되는 곳)를 더했는지. 한 번만 더해서, 사용자가 [다시 묻기]로
+    /// 뺀 것은 다시 넣지 않는다.
+    pub quiet_defaults_added: bool,
 }
 
 /// 자주 쓰는 폴더(숫자 키) 칸 수
@@ -120,6 +123,7 @@ impl Default for Settings {
             user_kind: UserKind::School,
             new_file_scope: NewFileScope::Anywhere,
             quiet_folders: Vec::new(),
+            quiet_defaults_added: false,
         }
     }
 }
@@ -163,6 +167,26 @@ pub fn merge_favorites(
 }
 
 /// 1학기가 2학기보다 먼저 시작해야 한다(1~12월).
+/// 기본으로 묻지 않는 폴더를 한 번만 더한다(사용자 보고: 화면 캡처를 찍을 때마다 창이 뜸 →
+/// Windows 캡처 도구가 저장하는 사진\\Screenshots, 녹화가 저장되는 동영상\\Captures).
+/// 이미 있는 것은 그대로. 더했으면(설정을 저장해야 하면) true.
+pub fn add_default_quiet(s: &mut Settings, defaults: &[std::path::PathBuf]) -> bool {
+    if s.quiet_defaults_added {
+        return false;
+    }
+    for d in defaults {
+        let have = s
+            .quiet_folders
+            .iter()
+            .any(|q| crate::folders::same_dir(std::path::Path::new(q), d));
+        if !have {
+            s.quiet_folders.push(d.to_string_lossy().into_owned());
+        }
+    }
+    s.quiet_defaults_added = true;
+    true
+}
+
 pub fn valid_term_months(first: u32, second: u32) -> bool {
     (1..=12).contains(&first) && (1..=12).contains(&second) && first < second
 }
@@ -213,6 +237,7 @@ mod tests {
             user_kind: UserKind::General,
             new_file_scope: NewFileScope::Watched,
             quiet_folders: vec!["C:\\Users\\선생님\\Pictures\\Screenshots".into()],
+            quiet_defaults_added: true,
         };
         save(&conn, &s).unwrap();
         assert_eq!(load(&conn).unwrap(), s);
@@ -262,6 +287,26 @@ mod tests {
             ["/r/공문", "/r/평가", "/r/상담"]
         );
         assert_eq!(merge_favorites(&[], auto, exists).len(), 3);
+    }
+
+    #[test]
+    fn default_quiet_folders_are_added_once() {
+        let shots = std::path::PathBuf::from("C:\\Users\\t\\Pictures\\Screenshots");
+        let caps = std::path::PathBuf::from("C:\\Users\\t\\Videos\\Captures");
+        let mut s = Settings {
+            quiet_folders: vec!["c:\\users\\t\\pictures\\screenshots".into()],
+            ..Settings::default()
+        };
+        assert!(add_default_quiet(&mut s, &[shots.clone(), caps.clone()]));
+        // 이미 있던 것(대소문자만 다름)은 두 번 넣지 않는다
+        assert_eq!(s.quiet_folders.len(), 2);
+        assert!(s
+            .quiet_folders
+            .contains(&caps.to_string_lossy().into_owned()));
+        // 사용자가 [다시 묻기]로 뺀 뒤에는 다시 넣지 않는다
+        s.quiet_folders.clear();
+        assert!(!add_default_quiet(&mut s, &[shots, caps]));
+        assert!(s.quiet_folders.is_empty());
     }
 
     #[test]
