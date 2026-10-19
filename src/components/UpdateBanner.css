@@ -27,3 +27,17 @@
   font-size: 14px;
   color: var(--color-text);
 }
+
+/* 업데이트 뒤 다시 켜졌을 때: 초록 체크 */
+.update-banner--done {
+  border-color: var(--color-line);
+  background: var(--color-surface);
+}
+
+.update-banner--done .update-banner__icon {
+  color: var(--color-success);
+}
+
+.update-banner__close {
+  flex-shrink: 0;
+}

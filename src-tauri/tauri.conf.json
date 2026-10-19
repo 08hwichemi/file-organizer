@@ -81,7 +81,7 @@
         "https://github.com/08hwichemi/file-organizer-releases/releases/latest/download/latest.json"
       ],
       "windows": {
-        "installMode": "passive"
+        "installMode": "quiet"
       }
     }
   }

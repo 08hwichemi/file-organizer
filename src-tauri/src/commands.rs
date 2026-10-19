@@ -39,6 +39,8 @@ pub struct AppState {
     pub wide_roots: Vec<PathBuf>,
     /// 한꺼번에 생겨서 정리함에 모아 둔 새 파일(팝업에서 한 번만 알린다)
     pub bulk: Mutex<Vec<PendingFile>>,
+    /// 업데이트 뒤 다시 켜졌으면 그 버전(창을 열 때 한 번 알리고 비운다)
+    pub updated_to: Mutex<Option<String>>,
 }
 
 impl AppState {
@@ -408,11 +410,49 @@ pub fn app_info(app: AppHandle) -> AppInfo {
     }
 }
 
-/// 업데이트를 설치하기 직전에 부른다: 새 버전으로 다시 켜지면 메인 창을 보이게(relaunch.rs).
+/// 업데이트를 설치하기 직전에 부른다(relaunch.rs): [지금 업데이트]면 다시 켜질 때 메인 창을 보이고,
+/// 자동 업데이트(`quiet`)면 트레이로만 다시 켜진다.
 #[tauri::command]
-pub fn prepare_update(app: AppHandle, version: String) -> Result<(), String> {
+pub fn prepare_update(app: AppHandle, version: String, quiet: bool) -> Result<(), String> {
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    crate::relaunch::mark(&dir, &version).map_err(|e| e.to_string())
+    crate::relaunch::mark(&dir, &version, quiet).map_err(|e| e.to_string())
+}
+
+/// 자동 업데이트를 지금 설치해도 되는지: 프로그램을 쓰고 있지 않을 때만(SPEC 7장).
+/// 메인 창이 닫혀(트레이) 있고, 새 파일 창이 떠 있지 않고, 물어볼·알릴 파일이 없을 때.
+#[tauri::command]
+pub fn update_idle(app: AppHandle, state: State<'_, AppState>) -> bool {
+    let visible = |label: &str| {
+        app.get_webview_window(label)
+            .and_then(|w| w.is_visible().ok())
+            .unwrap_or(false)
+    };
+    !visible("main")
+        && !visible(popup::LABEL)
+        && state.with_pending(|q| q.is_empty())
+        && state.with_auto(|l| l.is_empty())
+        && state.with_bulk(|l| l.is_empty())
+}
+
+/// 업데이트 뒤 다시 켜졌으면 그 버전을 한 번만 돌려준다("0.1.35로 업데이트했어요").
+#[tauri::command]
+pub fn take_update_notice(state: State<'_, AppState>) -> Option<String> {
+    state
+        .updated_to
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .take()
+}
+
+/// 새 버전은 자동으로 설치(기본 켬)
+#[tauri::command]
+pub fn set_auto_update(state: State<'_, AppState>, enabled: bool) -> Result<Settings, String> {
+    state.with_db(|conn| {
+        let mut s = settings::load(conn)?;
+        s.auto_update = enabled;
+        settings::save(conn, &s)?;
+        Ok(s)
+    })
 }
 
 /// 처음 실행 화면에 필요한 정보. 기본 위치는 Windows에서 Known Folder 기준이라

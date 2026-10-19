@@ -133,6 +133,7 @@ let settings: Settings = startReady
       searchWholePc: true,
       userKind: params.get("kind") === "general" ? "general" : "school",
       newFileScope: params.get("scope") === "watched" ? "watched" : "anywhere",
+      autoUpdate: params.get("auto") !== "0",
       // 화면 캡처·녹화가 저장되는 곳은 처음부터 묻지 않는다(Rust settings::add_default_quiet)
       quietFolders: [`${HOME}\\Pictures\\Screenshots`, `${HOME}\\Videos\\Captures`],
     }
@@ -152,6 +153,7 @@ let settings: Settings = startReady
       userKind: params.get("kind") === "general" ? "general" : "school",
       newFileScope: "anywhere",
       quietFolders: [],
+      autoUpdate: true,
     };
 
 const trees = new Map<string, MockFolder>(startReady ? [[readyRoot, teacherTree()]] : []);
@@ -766,6 +768,11 @@ export const mockBackend = {
 
   setOrganizeMode(mode: OrganizeMode) {
     settings = { ...settings, organizeMode: mode };
+    return delay({ ...settings });
+  },
+
+  setAutoUpdate(enabled: boolean) {
+    settings = { ...settings, autoUpdate: enabled };
     return delay({ ...settings });
   },
 

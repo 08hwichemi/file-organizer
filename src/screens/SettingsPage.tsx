@@ -43,7 +43,8 @@ type SavedKey =
   | "fav"
   | "autostart"
   | "search"
-  | "scope";
+  | "scope"
+  | "update";
 
 /** 검색 단축키로 고를 수 있는 것("" = 쓰지 않음) */
 const SHORTCUTS = ["Alt+Space", "Ctrl+Alt+F", "Ctrl+Shift+Space", ""];
@@ -87,6 +88,7 @@ export default function SettingsPage() {
   const savePlace = useAppStore((s) => s.setPlaceMode);
   const saveTerm = useAppStore((s) => s.setTermMonths);
   const saveAutostart = useAppStore((s) => s.setAutostart);
+  const saveAutoUpdate = useAppStore((s) => s.setAutoUpdate);
   const saveWait = useAppStore((s) => s.setWaitSeconds);
   const savePins = useAppStore((s) => s.setPinnedFavorites);
   const saveRoot = useAppStore((s) => s.setRootFolder);
@@ -500,7 +502,26 @@ export default function SettingsPage() {
         </label>
       </Section>
 
-      <Section tab="app" title="업데이트" description="새 버전이 나오면 프로그램이 알아서 알려 드려요(켤 때와 하루에 한 번 확인).">
+      <Section tab="app"
+        title="업데이트"
+        description="켤 때와 4시간마다 새 버전이 있는지 확인해요."
+        saved={saved === "update"}
+        error={errors.update}
+      >
+        <label className="settings__toggle">
+          <input
+            type="checkbox"
+            checked={settings.autoUpdate}
+            onChange={(e) => void save("update", () => saveAutoUpdate(e.target.checked))}
+          />
+          <span>
+            <strong>새 버전은 자동으로 설치</strong>
+            <span className="settings__toggle-desc">
+              새 버전을 뒤에서 받아 두었다가, 프로그램을 쓰지 않을 때(창이 닫혀 있을 때) 알아서 설치하고 다시 켜요.
+              하던 설정과 기록은 그대로예요. 끄면 새 버전이 있다고 알려 드리기만 해요.
+            </span>
+          </span>
+        </label>
         <UpdateRow version={version} />
       </Section>
 
@@ -666,8 +687,14 @@ function UpdateRow({ version }: { version: string | null }) {
       ? "확인하는 중…"
       : status === "latest"
         ? "지금 최신 버전이에요."
-        : status === "available" || status === "downloading"
-          ? `새 버전 ${newVersion}이 있어요. 위의 ‘지금 업데이트’를 눌러 주세요.`
+        : status === "available"
+          ? `새 버전(${newVersion})이 나왔어요. 위의 ‘지금 업데이트’를 눌러 주세요.`
+          : status === "fetching"
+            ? `새 버전(${newVersion})을 받는 중이에요.`
+            : status === "ready"
+              ? `새 버전(${newVersion})을 받아 두었어요. 창을 닫으면 알아서 설치해요.`
+              : status === "downloading" || status === "installing"
+                ? "새 버전을 설치하는 중이에요."
           : status === "error"
             ? error
             : null;
@@ -680,7 +707,12 @@ function UpdateRow({ version }: { version: string | null }) {
         </div>
         {message && <div className="settings__update-msg">{message}</div>}
       </div>
-      <button type="button" className="btn" onClick={() => void check()} disabled={status === "checking" || status === "downloading"}>
+      <button
+        type="button"
+        className="btn"
+        onClick={() => void check()}
+        disabled={["checking", "fetching", "downloading", "installing"].includes(status)}
+      >
         업데이트 확인
       </button>
     </div>
