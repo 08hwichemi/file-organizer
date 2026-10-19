@@ -40,6 +40,8 @@ export interface Settings {
   newFileScope: NewFileScope;
   /** 새 파일이 생겨도 묻지 않는 폴더(하위 폴더까지) */
   quietFolders: string[];
+  /** 새 버전은 자동으로 설치(기본 켬): 뒤에서 받아 두었다가 창을 쓰지 않을 때 설치 */
+  autoUpdate: boolean;
 }
 
 export type NewFileScope = "anywhere" | "watched";

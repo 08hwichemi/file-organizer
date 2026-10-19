@@ -30,6 +30,7 @@ interface AppState {
   /** 다른 창에서 바뀐 설정만 다시 읽는다(화면 상태는 그대로) */
   refreshSettings: () => Promise<void>;
   setNewFileScope: (scope: NewFileScope) => Promise<void>;
+  setAutoUpdate: (enabled: boolean) => Promise<void>;
   setQuietFolders: (folders: string[]) => Promise<void>;
   setPlaceMode: (mode: PlaceMode) => Promise<void>;
   setTermMonths: (first: number, second: number) => Promise<void>;
@@ -94,6 +95,10 @@ export const useAppStore = create<AppState>((set) => ({
 
   async setWatchFolders(folders) {
     set({ settings: await backend.setWatchFolders(folders) });
+  },
+
+  async setAutoUpdate(enabled) {
+    set({ settings: await backend.setAutoUpdate(enabled) });
   },
 
   async setNewFileScope(scope) {

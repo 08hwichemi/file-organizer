@@ -97,6 +97,9 @@ pub struct Settings {
     /// 기본으로 묻지 않는 폴더(화면 캡처가 저장되는 곳)를 더했는지. 한 번만 더해서, 사용자가 [다시 묻기]로
     /// 뺀 것은 다시 넣지 않는다.
     pub quiet_defaults_added: bool,
+    /// 새 버전은 자동으로 설치(기본 켬, 사용자 요청): 뒤에서 받아 두었다가 프로그램을 쓰지 않을 때 설치한다.
+    /// 끄면 예전처럼 알림만.
+    pub auto_update: bool,
 }
 
 /// 자주 쓰는 폴더(숫자 키) 칸 수
@@ -124,6 +127,7 @@ impl Default for Settings {
             new_file_scope: NewFileScope::Anywhere,
             quiet_folders: Vec::new(),
             quiet_defaults_added: false,
+            auto_update: true,
         }
     }
 }
@@ -238,6 +242,7 @@ mod tests {
             new_file_scope: NewFileScope::Watched,
             quiet_folders: vec!["C:\\Users\\선생님\\Pictures\\Screenshots".into()],
             quiet_defaults_added: true,
+            auto_update: false,
         };
         save(&conn, &s).unwrap();
         assert_eq!(load(&conn).unwrap(), s);
@@ -267,6 +272,8 @@ mod tests {
         // 0.1.33 전: 업데이트하면 내 PC 어디든(사용자 결정: 다시 설정하지 않아도 되게)
         assert_eq!(s.new_file_scope, NewFileScope::Anywhere);
         assert!(s.quiet_folders.is_empty());
+        // 0.1.35 전: 업데이트는 자동으로(사용자 결정)
+        assert!(s.auto_update);
     }
 
     #[test]

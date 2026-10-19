@@ -98,6 +98,9 @@ pub fn run() {
                 settings::save(&conn, &current)?;
             }
 
+            // 업데이트 뒤 다시 켜졌는지(표시는 읽으면서 지운다)
+            let relaunched = relaunch::take(&data_dir, &app.package_info().version.to_string());
+
             let handle = app.handle().clone();
             let watcher = watcher::WatchService::start(move |files| {
                 commands::handle_new_files(&handle, files);
@@ -114,6 +117,8 @@ pub fn run() {
                 shortcut_error: Mutex::new(None),
                 wide_roots: wide_roots(app.handle()),
                 bulk: Mutex::new(Vec::new()),
+                // 다음에 창을 열 때 "새 버전으로 업데이트했어요"를 한 번 알린다
+                updated_to: Mutex::new(relaunched.map(|_| app.package_info().version.to_string())),
             };
             state.apply_watch_folders(&current);
             app.manage(state);
@@ -141,10 +146,12 @@ pub fn run() {
 
             // 메인 창은 숨긴 채 만들어 두고, 컴퓨터를 켤 때 자동 실행된 경우(설정을 마쳤으면)에는
             // 트레이로만 시작한다(SPEC 7장).
-            // 업데이트 뒤 다시 켜진 경우에는 자동 실행 인자가 붙어 있어도 창을 보인다(relaunch.rs).
+            // [지금 업데이트]로 다시 켜진 경우에는 자동 실행 인자가 붙어 있어도 창을 보인다(relaunch.rs).
+            // 자동 업데이트(창을 쓰지 않을 때 뒤에서 설치)면 트레이로만 조용히 다시 켜진다.
             let autostarted = std::env::args().any(|a| a == AUTOSTART_ARG);
-            let after_update = relaunch::take(&data_dir, &app.package_info().version.to_string());
-            if after_update || !(autostarted && current.setup_done) {
+            let after_update = relaunched == Some(relaunch::Relaunched::Shown);
+            let quiet_update = relaunched == Some(relaunch::Relaunched::Quiet);
+            if after_update || !((autostarted && current.setup_done) || quiet_update) {
                 tray::show_main(app.handle(), None);
             }
             // 자동 실행 설정을 실제 등록과 맞춘다(예전 버전에서 업데이트한 경우 기본 켬).
@@ -165,6 +172,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
             commands::prepare_update,
+            commands::update_idle,
+            commands::take_update_notice,
+            commands::set_auto_update,
             commands::setup_info,
             commands::get_settings,
             commands::complete_setup,

@@ -104,9 +104,28 @@ export function getAppInfo(): Promise<AppInfo> {
 }
 
 /** 업데이트 설치 직전: 새 버전으로 다시 켜지면 메인 창을 보이게(자동 실행에서 업데이트해도). */
-export function prepareUpdate(version: string): Promise<void> {
+/** 업데이트 설치 직전: `quiet`(자동 업데이트)면 다시 켜질 때 창을 띄우지 않는다 */
+export function prepareUpdate(version: string, quiet = false): Promise<void> {
   if (usingMocks) return Promise.resolve();
-  return invoke("prepare_update", { version });
+  return invoke("prepare_update", { version, quiet });
+}
+
+/** 자동 업데이트를 지금 설치해도 되는지(창이 닫혀 있고 물어볼 파일이 없을 때) */
+export function updateIdle(): Promise<boolean> {
+  if (usingMocks) return Promise.resolve(false);
+  return invoke("update_idle");
+}
+
+/** 업데이트 뒤 다시 켜졌으면 그 버전(한 번만) */
+export function takeUpdateNotice(): Promise<string | null> {
+  if (usingMocks) return Promise.resolve(new URLSearchParams(window.location.search).get("updated") === "1" ? "0.1.35" : null);
+  return invoke("take_update_notice");
+}
+
+/** 새 버전은 자동으로 설치 */
+export function setAutoUpdate(enabled: boolean): Promise<Settings> {
+  if (usingMocks) return mockBackend.setAutoUpdate(enabled);
+  return invoke("set_auto_update", { enabled });
 }
 
 export function getSetupInfo(): Promise<SetupInfo> {
