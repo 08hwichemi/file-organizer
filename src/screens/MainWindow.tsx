@@ -49,6 +49,13 @@ export default function MainWindow() {
   // 단축키·트레이 "파일 검색" → 검색 화면 + 입력 칸에 초점
   useEffect(() => onBackendEvent("search-opened", openSearch), [openSearch]);
 
+  // 팝업에서 바꾼 설정("이 폴더는 묻지 않기")을 다시 읽는다
+  const refreshSettings = useAppStore((s) => s.refreshSettings);
+  useEffect(
+    () => onBackendEvent("settings-changed", () => void refreshSettings().catch(() => {})),
+    [refreshSettings],
+  );
+
   // 일시 정지(트레이에서 바꿔도 따라감)
   useEffect(() => {
     const load = () => void getStatus().then((s) => setPausedState(s.paused)).catch(() => {});
@@ -65,7 +72,11 @@ export default function MainWindow() {
     return onBackendEvent("inbox-changed", load);
   }, []);
 
-  const watching = settings?.watchFolders.map((w) => friendlyName(w, known)).join(" · ") ?? "";
+  // 새 파일을 찾는 곳: 내 PC 어디든 / 지켜볼 폴더 이름
+  const watching =
+    settings?.newFileScope === "anywhere"
+      ? "새 파일: 내 PC 어디든"
+      : `지켜볼 폴더: ${settings?.watchFolders.map((w) => friendlyName(w, known)).join(" · ") ?? ""}`;
 
   return (
     <div className="main-window">
@@ -99,7 +110,7 @@ export default function MainWindow() {
         <div className="sidebar__spacer" />
         <div
           className={`sidebar__status${paused ? " sidebar__status--paused" : ""}`}
-          title={paused ? "일시 정지 중: 새 파일은 팝업 없이 정리함에 모여요" : `지켜볼 폴더: ${watching}`}
+          title={paused ? "일시 정지 중: 새 파일은 팝업 없이 정리함에 모여요" : watching}
         >
           <div className="sidebar__status-title">
             <span className="sidebar__dot" aria-hidden="true" />
@@ -116,7 +127,7 @@ export default function MainWindow() {
             </span>
           </div>
           <div className="sidebar__status-text">
-            {paused ? "새 파일은 묻지 않고 정리함에 모여요" : `지켜볼 폴더: ${watching}`}
+            {paused ? "새 파일은 묻지 않고 정리함에 모여요" : watching}
           </div>
           <button
             type="button"

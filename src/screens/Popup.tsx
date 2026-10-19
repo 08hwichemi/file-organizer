@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, FolderOpen, Pencil, X } from "lucide-react";
+import { BellOff, Check, Files, FolderOpen, MoreHorizontal, Pencil, X } from "lucide-react";
 import Band from "../components/Band";
 import FileBadge from "../components/FileBadge";
 import FolderIcon from "../components/FolderIcon";
 import FolderPicker from "../components/FolderPicker";
 import { RuleChangeCard, RuleDraftCard } from "../components/RuleCards";
 import {
+  closeBulk,
   deferFile,
   dismissAuto,
   errorMessage,
@@ -15,12 +16,14 @@ import {
   onBackendEvent,
   pickFolder,
   putFile,
+  quietFolder,
+  revealPath,
   undoMove,
 } from "../lib/backend";
 import { formatSize, splitName } from "../lib/format";
-import { baseName, displayPath, friendlyName, joinPath } from "../lib/paths";
+import { baseName, displayPath, friendlyPlace, joinPath } from "../lib/paths";
 import { reasonLabel, ruleName } from "../lib/rules";
-import type { AutoMoved, PendingFile, PutResult, Suggestion } from "../lib/types";
+import type { AutoMoved, BulkAction, BulkNotice, PendingFile, PutResult, Suggestion } from "../lib/types";
 import { useAppStore } from "../store/useAppStore";
 import "./Popup.css";
 
@@ -46,6 +49,9 @@ export default function Popup() {
   const [remaining, setRemaining] = useState(0);
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
   const [autoMoved, setAutoMoved] = useState<AutoMoved[]>([]);
+  const [bulk, setBulk] = useState<BulkNotice | null>(null);
+  /** 파일 옆 ⋯ 메뉴(이 폴더는 묻지 않기 · 저장된 위치 열기) */
+  const [menuOpen, setMenuOpen] = useState(false);
   const [hovering, setHovering] = useState(false);
   /** "응답 없으면 n초 뒤 추천 위치에 넣기": 남은 초(null = 세지 않음) */
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -69,6 +75,7 @@ export default function Popup() {
     setRemaining(state.remaining);
     setSuggestion(state.suggestion);
     setAutoMoved(state.autoMoved);
+    setBulk(state.bulk);
     // 다른 파일로 바뀌면 고른 것 초기화. 추천이 있으면 추천 폴더를 골라 둔 채 시작한다.
     if (state.current?.path !== shownPath.current) {
       shownPath.current = state.current?.path ?? null;
@@ -77,6 +84,7 @@ export default function Popup() {
       setNewName(null);
       setEditing(null);
       setError(null);
+      setMenuOpen(false);
       setRecents(await getRecentDestinations().catch(() => []));
     }
     return state;
@@ -94,7 +102,7 @@ export default function Popup() {
   const next = useCallback(async () => {
     setPhase({ kind: "pick" });
     const state = await refresh();
-    if (!state.current && state.autoMoved.length === 0) await hidePopup();
+    if (!state.current && state.autoMoved.length === 0 && !state.bulk) await hidePopup();
   }, [refresh]);
 
   // "바로 정리" 알림 닫기 → 물어볼 파일이 있으면 이어서, 없으면 창을 숨긴다
@@ -104,6 +112,23 @@ export default function Popup() {
   }, [autoMoved, next]);
 
   const noticeShown = phase.kind === "pick" && autoMoved.length > 0;
+  // 한꺼번에 생긴 파일 알림("바로 정리" 알림 다음, 물어볼 파일보다 먼저)
+  const bulkShown = phase.kind === "pick" && !noticeShown && !!bulk;
+
+  const finishBulk = useCallback(
+    async (action: BulkAction) => {
+      setBusy(true);
+      try {
+        await closeBulk(action);
+        await next();
+      } catch (e) {
+        setError(errorMessage(e));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [next],
+  );
   useEffect(() => {
     if (!noticeShown || hovering) return;
     const timer = window.setTimeout(() => void closeNotice(), AUTO_NOTICE_MS);
@@ -112,7 +137,7 @@ export default function Popup() {
 
   // 추천이 있는 새 파일이 보이면 세기 시작(설정 "추천만" + 응답 없으면 n초 뒤)
   const wait = settings?.placeMode === "suggest" ? (settings.waitSeconds ?? 0) : 0;
-  const counting = phase.kind === "pick" && !noticeShown && !!current && !!suggestion && wait > 0;
+  const counting = phase.kind === "pick" && !noticeShown && !bulkShown && !!current && !!suggestion && wait > 0;
   useEffect(() => {
     setCountdown(counting ? wait : null);
   }, [counting, wait, current?.path]);
@@ -200,6 +225,35 @@ export default function Popup() {
     }
   };
 
+  // ⋯ "이 폴더는 묻지 않기": 이 폴더(하위 폴더까지)에 새 파일이 생겨도 묻지 않는다. 이 파일도 그 자리에 둔다.
+  const quiet = async () => {
+    if (!current || busy) return;
+    setMenuOpen(false);
+    setBusy(true);
+    try {
+      await quietFolder(current.sourceDir);
+      await next();
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openLocation = async () => {
+    if (!current) return;
+    setMenuOpen(false);
+    await revealPath(current.path).catch((e) => setError(errorMessage(e)));
+  };
+
+  // 메뉴 밖을 누르면 닫는다
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = () => setMenuOpen(false);
+    window.addEventListener("pointerdown", close);
+    return () => window.removeEventListener("pointerdown", close);
+  }, [menuOpen]);
+
   const chooseOther = async () => {
     try {
       const picked = await pickFolder("넣을 폴더 고르기");
@@ -232,6 +286,18 @@ export default function Popup() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const typing = e.target instanceof HTMLInputElement;
+      if (menuOpen && e.key === "Escape") {
+        e.preventDefault();
+        setMenuOpen(false);
+        return;
+      }
+      if (bulkShown) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          void finishBulk("keep");
+        }
+        return;
+      }
       if (phase.kind === "done" || noticeShown) {
         // 버튼·체크 상자 위의 Enter는 그 버튼이 받는다(예: ‘규칙으로 저장’)
         const onControl = typing || e.target instanceof HTMLButtonElement;
@@ -255,7 +321,7 @@ export default function Popup() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [phase.kind, noticeShown, put, later, next, closeNotice, recents]);
+  }, [phase.kind, noticeShown, bulkShown, menuOpen, finishBulk, put, later, next, closeNotice, recents]);
 
   const header = (
     <header className="popup__head">
@@ -267,8 +333,16 @@ export default function Popup() {
       <button
         type="button"
         className="popup__close"
-        aria-label={phase.kind === "done" || noticeShown ? "닫기" : "나중에 정리하고 닫기"}
-        onClick={() => void (noticeShown ? closeNotice() : phase.kind === "done" ? next() : later())}
+        aria-label={phase.kind === "done" || noticeShown || bulkShown ? "닫기" : "나중에 정리하고 닫기"}
+        onClick={() =>
+          void (noticeShown
+            ? closeNotice()
+            : bulkShown
+              ? finishBulk("keep")
+              : phase.kind === "done"
+                ? next()
+                : later())
+        }
       >
         <X size={16} />
       </button>
@@ -375,6 +449,69 @@ export default function Popup() {
     );
   }
 
+  if (bulkShown && bulk) {
+    return (
+      <div className="popup">
+        {header}
+        <div className="popup__done">
+          <div className="popup__done-row">
+            <span className="popup__done-icon popup__done-icon--info" aria-hidden="true">
+              <Files size={20} />
+            </span>
+            <div className="popup__done-text">
+              <div className="popup__done-title">새 파일 {bulk.count}개가 한꺼번에 생겼어요</div>
+              <div className="popup__done-path">
+                압축을 풀거나 폴더째 복사한 것 같아요. 하나씩 묻지 않고 정리함에 모아 두었어요.
+              </div>
+            </div>
+          </div>
+          <ul className="popup__auto">
+            {bulk.shown.map((f) => (
+              <li key={f.path} className="popup__auto-item">
+                <FileBadge name={f.name} size={32} />
+                <div className="popup__auto-text">
+                  <div className="popup__done-name" title={f.name}>
+                    {f.name}
+                  </div>
+                  <div className="popup__auto-meta" title={f.sourceDir}>
+                    {friendlyPlace(f.sourceDir, info)}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {bulk.count > bulk.shown.length && (
+            <p className="popup__auto-more">그 밖에 {bulk.count - bulk.shown.length}개</p>
+          )}
+          {error && <p className="error-text">{error}</p>}
+        </div>
+        <footer className="popup__foot">
+          <div className="button-row popup__actions">
+            <button
+              type="button"
+              className="btn btn--ghost popup__later"
+              onClick={() => void finishBulk("drop")}
+              disabled={busy}
+              title="정리함에서 빼요. 파일은 있던 자리에 그대로 있어요."
+            >
+              정리하지 않기
+            </button>
+            <span className="popup__spacer" />
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={() => void finishBulk("open")}
+              disabled={busy}
+              autoFocus
+            >
+              정리함에서 정리
+            </button>
+          </div>
+        </footer>
+      </div>
+    );
+  }
+
   if (!current || !root) {
     return (
       <div className="popup">
@@ -421,7 +558,7 @@ export default function Popup() {
             </div>
           )}
           <div className="popup__file-meta">
-            {friendlyName(current.sourceDir, info)}에 방금 저장됨 · {formatSize(current.size)}
+            {friendlyPlace(current.sourceDir, info)}에 방금 저장됨 · {formatSize(current.size)}
             {newName && " · 이름 바뀜"}
           </div>
         </div>
@@ -434,6 +571,36 @@ export default function Popup() {
           >
             <Pencil size={15} />
           </button>
+        )}
+        {editing === null && (
+          <div className="popup__more">
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label="더 보기"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => setMenuOpen((o) => !o)}
+            >
+              <MoreHorizontal size={15} />
+            </button>
+            {menuOpen && (
+              <div className="popup__menu" role="menu" onPointerDown={(e) => e.stopPropagation()}>
+                <button type="button" role="menuitem" onClick={() => void quiet()} disabled={busy}>
+                  <BellOff size={16} aria-hidden="true" />
+                  <span className="popup__menu-text">
+                    <span>이 폴더는 묻지 않기</span>
+                    <span className="popup__menu-sub">{friendlyPlace(current.sourceDir, info)}</span>
+                  </span>
+                </button>
+                <button type="button" role="menuitem" onClick={() => void openLocation()}>
+                  <FolderOpen size={16} aria-hidden="true" />
+                  <span>저장된 위치 열기</span>
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </section>
 

@@ -87,8 +87,8 @@ pub fn run() {
             let current = settings::load(&conn)?;
 
             let handle = app.handle().clone();
-            let watcher = watcher::WatchService::start(move |file| {
-                commands::handle_new_file(&handle, file);
+            let watcher = watcher::WatchService::start(move |files| {
+                commands::handle_new_files(&handle, files);
             });
             let state = commands::AppState {
                 db: Mutex::new(conn),
@@ -100,6 +100,8 @@ pub fn run() {
                 indexing: AtomicBool::new(false),
                 live: finder::Live::default(),
                 shortcut_error: Mutex::new(None),
+                wide_roots: wide_roots(app.handle()),
+                bulk: Mutex::new(Vec::new()),
             };
             state.apply_watch_folders(&current);
             app.manage(state);
@@ -157,6 +159,10 @@ pub fn run() {
             commands::set_organize_mode,
             commands::set_user_kind,
             commands::set_watch_folders,
+            commands::set_new_file_scope,
+            commands::set_quiet_folders,
+            commands::quiet_folder,
+            commands::close_bulk,
             commands::list_folders,
             commands::list_files,
             commands::recent_moves,
@@ -217,6 +223,47 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("AutoFolder를 시작하지 못했습니다");
+}
+
+/// 내 PC 어디든(SPEC 5장): 사용자 폴더(바탕화면·문서·다운로드·사진·동영상·음악, OneDrive로 옮긴 것 포함)와
+/// Windows가 깔린 드라이브가 아닌 고정 디스크(D: 등)는 하위 폴더까지 본다.
+fn wide_roots(app: &tauri::AppHandle) -> Vec<std::path::PathBuf> {
+    let p = app.path();
+    let known: Vec<std::path::PathBuf> = [
+        p.desktop_dir(),
+        p.document_dir(),
+        p.download_dir(),
+        p.picture_dir(),
+        p.video_dir(),
+        p.audio_dir(),
+    ]
+    .into_iter()
+    .filter_map(Result::ok)
+    .filter(|d| d.is_dir())
+    .collect();
+    watcher::wide_roots(&known, &other_drives())
+}
+
+/// Windows가 깔리지 않은 고정 디스크(C 드라이브 전체는 프로그램 폴더가 많아 사용자 폴더만 본다)
+fn other_drives() -> Vec<std::path::PathBuf> {
+    #[cfg(windows)]
+    {
+        let system = std::env::var("SystemDrive")
+            .unwrap_or_else(|_| "C:".into())
+            .to_ascii_uppercase();
+        search::pc_roots()
+            .into_iter()
+            .filter(|d| {
+                !d.to_string_lossy()
+                    .to_ascii_uppercase()
+                    .starts_with(&system)
+            })
+            .collect()
+    }
+    #[cfg(not(windows))]
+    {
+        Vec::new()
+    }
 }
 
 #[cfg(test)]

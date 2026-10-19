@@ -323,9 +323,10 @@ export default function FirstRun() {
 
           {step === "watch" && (
             <>
-              <h1 className="setup__title">어느 폴더에 들어오는 새 파일을 정리할까요?</h1>
+              <h1 className="setup__title">새 파일이 주로 들어오는 폴더는 어디인가요?</h1>
               <p className="setup__lead">
-                골라 둔 폴더에 바로 저장되는 파일만 봐요. 그 안의 하위 폴더는 보지 않아요.
+                그 밖의 곳(문서·카카오톡 받은 파일 등)에 새로 저장된 파일도 알아보고 물어봐요. 설정 → 폴더에서 바꿀 수
+                있어요.
               </p>
               <WatchFolderEditor known={info} value={watch} onChange={setWatch} />
               {watchProblem && <p className="error-text">{watchProblem}</p>}

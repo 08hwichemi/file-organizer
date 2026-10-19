@@ -4,6 +4,8 @@
 //   &auto=1: "바로 정리"로 옮긴 알림부터, &rules=0: 규칙 없이
 import type {
   XlsxRow,
+  BulkAction,
+  NewFileScope,
   AppInfo,
   AutoMoved,
   DestSegment,
@@ -54,11 +56,16 @@ const HOME = "C:\\Users\\선생님";
 const SEP = "\\";
 const DOWNLOADS = `${HOME}\\Downloads`;
 const DESKTOP = `${HOME}\\Desktop`;
+/** 카카오톡 PC가 받은 파일을 저장하는 곳(내 PC 어디든으로 찾은 파일 예) */
+const KAKAO = `${HOME}\\Documents\\카카오톡 받은 파일`;
 
 const setupInfo: SetupInfo = {
   documents: `${HOME}\\Documents`,
   desktop: DESKTOP,
   downloads: DOWNLOADS,
+  pictures: `${HOME}\\Pictures`,
+  videos: `${HOME}\\Videos`,
+  music: `${HOME}\\Music`,
   rootFolderName: "정리 폴더",
   separator: SEP,
   teacherExample: [
@@ -125,6 +132,8 @@ let settings: Settings = startReady
       searchShortcut: "Alt+Space",
       searchWholePc: true,
       userKind: params.get("kind") === "general" ? "general" : "school",
+      newFileScope: params.get("scope") === "watched" ? "watched" : "anywhere",
+      quietFolders: params.get("quiet") === "1" ? [`${HOME}\\Pictures\\Screenshots`, `${HOME}\\Videos\\Captures`] : [],
     }
   : {
       setupDone: false,
@@ -140,6 +149,8 @@ let settings: Settings = startReady
       searchShortcut: "Alt+Space",
       searchWholePc: true,
       userKind: params.get("kind") === "general" ? "general" : "school",
+      newFileScope: "anywhere",
+      quietFolders: [],
     };
 
 const trees = new Map<string, MockFolder>(startReady ? [[readyRoot, teacherTree()]] : []);
@@ -200,6 +211,8 @@ const file = (dir: string, name: string, size: number): PendingFile => ({
 let pending: PendingFile[] =
   params.get("window") === "popup"
     ? [
+        // 주소 뒤 &src=kakao: 지켜볼 폴더 밖(카카오톡 받은 파일)에서 찾은 파일부터
+        ...(params.get("src") === "kakao" ? [file(KAKAO, "2학기 학부모 상담 신청서.hwp", 47_000)] : []),
         file(DOWNLOADS, "2027_1학기_3-2_수행평가_채점기준.hwp", 48_000),
         file(DOWNLOADS, "학업성적관리위원회_회의록_10월.hwp", 31_000),
         file(DESKTOP, "체험학습_단체사진_01.jpg", 2_400_000),
@@ -245,6 +258,7 @@ let inbox: StoredItem[] = startReady
       { id: 2, ...file(DESKTOP, "3-2_학부모상담_일정.xlsx", 15_000), addedAt: Date.now() - 3 * 3600_000 },
       { id: 3, ...file(DOWNLOADS, "scan_20261013.pdf", 820_000), addedAt: Date.now() - 26 * 3600_000 },
       { id: 4, ...file(DESKTOP, "화학2 01 원소와 원자 학습지.hwpx", 27_000), addedAt: Date.now() - 2 * 86400_000 },
+      { id: 5, ...file(KAKAO, "현장체험학습_동의서.pdf", 180_000), addedAt: Date.now() - 3 * 86400_000 },
     ]
   : [];
 
@@ -620,6 +634,17 @@ function checkRule(input: RuleInput): RuleInput | string {
 }
 
 let autoMoved: AutoMoved[] = [];
+// 주소 뒤 &bulk=1: 한꺼번에 생긴 파일 알림
+const BULK_DIR = `${HOME}\\Documents\\2학기 수행평가 자료`;
+let bulk: PendingFile[] =
+  params.get("bulk") === "1"
+    ? [
+        file(BULK_DIR, "1모둠_탐구보고서.hwp", 52_000),
+        file(BULK_DIR, "평가기준표.pdf", 210_000),
+        file(`${BULK_DIR}\\사진`, "실험사진_01.jpg", 1_800_000),
+        ...Array.from({ length: 20 }, (_, i) => file(BULK_DIR, `${i + 2}모둠_탐구보고서.hwp`, 50_000)),
+      ]
+    : [];
 
 /** 가짜 "PC 전체 읽기": ?indexing=1이면 검색 화면을 연 뒤 몇 초 동안 읽는 중 */
 const MOCK_INDEX_MS = 4000;
@@ -743,6 +768,24 @@ export const mockBackend = {
     return delay({ ...settings });
   },
 
+  setNewFileScope(scope: NewFileScope) {
+    settings = { ...settings, newFileScope: scope };
+    return delay({ ...settings });
+  },
+
+  setQuietFolders(folders: string[]) {
+    settings = { ...settings, quietFolders: folders };
+    return delay({ ...settings });
+  },
+
+  quietFolder(dir: string) {
+    if (!settings.quietFolders.includes(dir)) settings = { ...settings, quietFolders: [...settings.quietFolders, dir] };
+    const inside = (p: string) => p === dir || p.startsWith(dir + SEP);
+    pending = pending.filter((p) => !inside(p.sourceDir));
+    mockEvents.emit("settings-changed");
+    return delay({ ...settings });
+  },
+
   setWatchFolders(folders: string[]) {
     if (folders.length === 0) return fail("지켜볼 폴더를 하나 이상 골라 주세요.");
     settings = { ...settings, watchFolders: folders };
@@ -818,7 +861,16 @@ export const mockBackend = {
       remaining: Math.max(0, pending.length - 1),
       suggestion: current ? suggestFor(current.name, current.sourceDir) : null,
       autoMoved: [...autoMoved],
+      bulk: bulk.length > 0 ? { count: bulk.length, shown: bulk.slice(0, 3) } : null,
     });
+  },
+
+  closeBulk(action: BulkAction) {
+    if (action === "drop") inbox = inbox.filter((i) => !bulk.some((b) => b.path === i.path));
+    bulk = [];
+    mockEvents.emit("inbox-changed");
+    if (action === "open") mockEvents.emit("navigate", "inbox");
+    return delay(undefined);
   },
 
   dismissAuto(ids: number[]) {
