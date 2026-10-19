@@ -1465,6 +1465,7 @@ pub fn import_existing(app: AppHandle, state: State<'_, AppState>) -> Result<usi
             if !watcher::is_candidate_name(&name)
                 || stat.size == 0
                 || watcher::has_partial_partner(&path)
+                || watcher::is_decoy(&path)
             {
                 continue;
             }
@@ -1533,7 +1534,18 @@ pub struct InboxEntry {
 
 #[tauri::command]
 pub fn list_inbox(state: State<'_, AppState>) -> Result<Vec<InboxEntry>, String> {
-    let items = state.with_db(|conn| inbox::list(conn).map_err(db_err))?;
+    // 예전 버전이 정리함에 넣어 둔 백신 미끼 파일은 뺀다(파일은 그 자리에 그대로)
+    let items = state.with_db(|conn| {
+        let mut items = inbox::list(conn).map_err(db_err)?;
+        for item in items
+            .iter()
+            .filter(|i| watcher::is_decoy(Path::new(&i.path)))
+        {
+            inbox::remove(conn, Path::new(&item.path)).map_err(db_err)?;
+        }
+        items.retain(|i| !watcher::is_decoy(Path::new(&i.path)));
+        Ok(items)
+    })?;
     let classifier = state.classifier();
     Ok(items
         .into_iter()

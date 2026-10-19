@@ -76,6 +76,39 @@ pub fn wide_ext_ok(name: &str) -> bool {
     !matches!(ext.as_str(), "exe" | "msi") && crate::classify::kind_folder(&ext).is_some()
 }
 
+/// 미끼 파일을 알아볼 때 읽는 앞부분 크기(사진 정보 칸이 이 안에 있다)
+const DECOY_HEAD: usize = 64 * 1024;
+/// 이보다 큰 파일은 미끼 파일로 보지 않는다(V3 미끼는 200KB 남짓)
+const DECOY_MAX_SIZE: u64 = 2 * 1024 * 1024;
+
+/// 백신이 랜섬웨어를 알아채려고 몰래 만들어 두는 미끼(디코이) 파일인지(사용자 보고: 바탕화면에 자꾸 생겨 창이 뜸).
+/// 안랩 V3: 이름은 무작위(`(gQfE6h.jpg` 등), 사진 속 글 정보(XMP)에
+/// "This is normal decoy file which is created by AhnLab for detecting ransomware."가 들어 있다.
+/// 사용자 파일이 아니고, 옮기거나 이름을 바꾸면 백신이 다시 만들거나 의심할 수 있어 건드리지 않는다.
+/// 사진 형식·작은 파일만 앞부분을 읽어 본다(이 PC 안에서만 읽고 밖으로 보내지 않는다).
+pub fn is_decoy(path: &Path) -> bool {
+    use std::io::Read;
+    let ext = path
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    if !matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "gif" | "bmp") {
+        return false;
+    }
+    let Ok(file) = fs::File::open(path) else {
+        return false;
+    };
+    if file.metadata().map_or(true, |m| m.len() > DECOY_MAX_SIZE) {
+        return false;
+    }
+    let mut head = Vec::with_capacity(DECOY_HEAD);
+    if file.take(DECOY_HEAD as u64).read_to_end(&mut head).is_err() {
+        return false;
+    }
+    let has = |needle: &[u8]| head.windows(needle.len()).any(|w| w == needle);
+    has(b"decoy file") && has(b"AhnLab")
+}
+
 /// 같은 이름의 다운로드 중 파일(`a.pdf.crdownload` 등)이 옆에 있는지.
 pub fn has_partial_partner(path: &Path) -> bool {
     PARTIAL_SUFFIXES.iter().any(|suffix| {
@@ -544,6 +577,9 @@ impl WatchService {
                     for path in tracker.observe(now, &files, has_partial_partner) {
                         // 나중에 탐색기로 옮겨도 넓은 감시가 다시 묻지 않게
                         wide.remember(path.clone(), read_wide(&path));
+                        if is_decoy(&path) {
+                            continue; // 백신 미끼 파일은 묻지 않는다(알린 것으로 쳐서 다시 보지 않음)
+                        }
                         let source_dir = source_of.get(&path).cloned().unwrap_or_default();
                         outbox.push(NewFile {
                             path,
@@ -727,6 +763,33 @@ mod tests {
         assert!(tr
             .observe(t0 + STABLE_FOR, &[(back, stat(3, 1))], NO_PARTNER)
             .is_empty());
+    }
+
+    #[test]
+    fn ahnlab_decoy_files_are_recognized() {
+        let dir = tempfile::tempdir().unwrap();
+        // V3 미끼 파일처럼: JPEG 머리 + 사진 정보(XMP)에 안랩 문구
+        let mut decoy = vec![0xFF, 0xD8, 0xFF, 0xE1];
+        decoy.extend_from_slice(&[0; 9000]);
+        decoy.extend_from_slice(
+            b"photoshop:LayerText=\"This is normal decoy file which is created by AhnLab for detecting ransomware.\"",
+        );
+        decoy.extend_from_slice(&[7; 150_000]);
+        let d = dir.path().join("(gQfE6h.jpg");
+        fs::write(&d, &decoy).unwrap();
+        assert!(is_decoy(&d));
+        // 보통 사진, 사진이 아닌 형식, 글이 앞부분 밖에 있는 큰 파일은 아니다
+        let photo = dir.path().join("체육대회.jpg");
+        fs::write(&photo, [0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3]).unwrap();
+        assert!(!is_decoy(&photo));
+        let doc = dir.path().join("안내.hwp");
+        fs::write(&doc, &decoy).unwrap();
+        assert!(!is_decoy(&doc));
+        let mut late = vec![0; DECOY_HEAD + 10];
+        late.extend_from_slice(b"decoy file AhnLab");
+        let l = dir.path().join("late.jpg");
+        fs::write(&l, &late).unwrap();
+        assert!(!is_decoy(&l));
     }
 
     #[test]

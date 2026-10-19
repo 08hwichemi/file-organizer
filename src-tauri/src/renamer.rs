@@ -101,6 +101,7 @@ pub fn list_files(folder: &Path, include_sub: bool) -> Result<FolderFiles, Strin
             if !kind.is_file()
                 || !watcher::is_candidate_name(&name)
                 || watcher::has_partial_partner(&entry.path())
+                || watcher::is_decoy(&entry.path())
             {
                 continue;
             }
