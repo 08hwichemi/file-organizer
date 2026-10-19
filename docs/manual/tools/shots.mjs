@@ -124,6 +124,18 @@ if (want("popup")) {
   await mark(p.getByRole("button", { name: "규칙으로 저장" }));
   await shot(p, "pp7.webp");
   await p.close();
+  // 내 PC 어디든: 카카오톡 받은 파일 + ⋯ 메뉴 '이 폴더는 묻지 않기'
+  const k = await page(460, 640, "?window=popup&src=kakao");
+  await k.getByRole("button", { name: "더 보기" }).click();
+  await k.waitForTimeout(300);
+  await mark(k.getByRole("menuitem", { name: /이 폴더는 묻지 않기/ }));
+  await shot(k, "pp8.webp");
+  await k.close();
+  // 한꺼번에 생긴 파일 알림
+  const m = await page(460, 640, "?window=popup&bulk=1");
+  await mark(m.getByRole("button", { name: "정리함에서 정리" }));
+  await shot(m, "pp9.webp");
+  await m.close();
 }
 
 // ---------- 정리함 · 자동 분류 ----------

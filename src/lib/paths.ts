@@ -20,14 +20,47 @@ export interface KnownFolders {
   downloads: string | null;
   desktop: string | null;
   documents: string | null;
+  pictures?: string | null;
+  videos?: string | null;
+  music?: string | null;
 }
 
-/** 지켜볼 폴더 등에 붙일 쉬운 이름: 다운로드·바탕화면·문서, 그 밖은 폴더 이름. */
+/** 다운로드·바탕화면·문서·사진·동영상·음악의 실제 위치와 쉬운 이름 */
+function knownList(known: KnownFolders | null): [string, string][] {
+  if (!known) return [];
+  const list: [string | null | undefined, string][] = [
+    [known.downloads, "다운로드"],
+    [known.desktop, "바탕화면"],
+    [known.documents, "문서"],
+    [known.pictures, "사진"],
+    [known.videos, "동영상"],
+    [known.music, "음악"],
+  ];
+  return list.filter((k): k is [string, string] => !!k[0]);
+}
+
+/** 지켜볼 폴더 등에 붙일 쉬운 이름: 다운로드·바탕화면·문서 등, 그 밖은 폴더 이름. */
 export function friendlyName(path: string, known: KnownFolders | null): string {
-  if (known?.downloads && samePath(path, known.downloads)) return "다운로드";
-  if (known?.desktop && samePath(path, known.desktop)) return "바탕화면";
-  if (known?.documents && samePath(path, known.documents)) return "문서";
-  return baseName(path);
+  const hit = knownList(known).find(([dir]) => samePath(path, dir));
+  return hit ? hit[1] : baseName(path);
+}
+
+/** `path`가 `dir` 안쪽(dir 자신은 아님)인지 */
+export function isInsidePath(dir: string, path: string): boolean {
+  const norm = (p: string) => p.replace(/[\\/]+$/, "").replace(/\//g, "\\").toLowerCase();
+  return norm(path).startsWith(norm(dir) + "\\");
+}
+
+/** 새 파일이 저장된 곳을 쉽게: "문서 › 카카오톡 받은 파일", 그 밖은 경로 그대로 */
+export function friendlyPlace(path: string, known: KnownFolders | null): string {
+  for (const [dir, label] of knownList(known)) {
+    if (samePath(path, dir)) return label;
+    if (isInsidePath(dir, path)) {
+      const rest = path.slice(dir.replace(/[\\/]+$/, "").length + 1).split(/[\\/]/).filter(Boolean);
+      return [label, ...rest].join(" › ");
+    }
+  }
+  return path;
 }
 
 /** 앱이 켜질 때 받은 다운로드·바탕화면·문서 위치(정리 폴더 이름을 쉽게 보여 줄 때 씀) */

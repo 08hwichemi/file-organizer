@@ -130,5 +130,15 @@ for (const [w, h] of sizes) {
   await p.getByRole("button", { name: /^넣기$/ }).click(); await p.waitForTimeout(700);
   await audit(p, "새 파일 창-넣은 뒤");
   await p.close();
+  // 내 PC 어디든: 카카오톡 받은 파일 + ⋯ 메뉴, 한꺼번에 생긴 파일 알림
+  p = await b.newPage({ viewport: { width: 460, height: 640 } });
+  await p.goto(B + "?window=popup&src=kakao"); await p.waitForTimeout(900);
+  await p.getByRole("button", { name: "더 보기" }).click(); await p.waitForTimeout(300);
+  await audit(p, "새 파일 창-⋯ 메뉴");
+  await p.close();
+  p = await b.newPage({ viewport: { width: 460, height: 640 } });
+  await p.goto(B + "?window=popup&bulk=1"); await p.waitForTimeout(900);
+  await audit(p, "새 파일 창-한꺼번에");
+  await p.close();
 }
 await b.close();

@@ -30,6 +30,18 @@ pub enum PlaceMode {
     Classify,
 }
 
+/// 새 파일을 찾는 곳(SPEC 5장, 사용자 요청: 인터넷·카카오톡·메신저 등 어디로 받든 정리하고 싶다).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NewFileScope {
+    /// 내 PC 어디든: 바탕화면·문서·다운로드·사진·동영상·음악과 그 하위 폴더, 다른 고정 디스크까지
+    /// (정리 폴더·프로그램 폴더·묻지 않는 폴더는 뺀다). 예전 설정도 업데이트하면 이것으로.
+    #[default]
+    Anywhere,
+    /// 지켜볼 폴더 바로 아래만(예전 방식)
+    Watched,
+}
+
 /// 쓰는 곳: 학교(교사용 예시 폴더·자동 분류 단어·학년도/학기) / 집·개인(파일 종류로 나눔)
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -78,6 +90,10 @@ pub struct Settings {
     pub search_whole_pc: bool,
     /// 쓰는 곳(처음 설정에서 고름, 예전 설정은 학교)
     pub user_kind: UserKind,
+    /// 새 파일을 찾는 곳(기본: 내 PC 어디든)
+    pub new_file_scope: NewFileScope,
+    /// 새 파일이 생겨도 묻지 않는 폴더(하위 폴더까지)
+    pub quiet_folders: Vec<String>,
 }
 
 /// 자주 쓰는 폴더(숫자 키) 칸 수
@@ -102,6 +118,8 @@ impl Default for Settings {
             search_shortcut: "Alt+Space".into(),
             search_whole_pc: true,
             user_kind: UserKind::School,
+            new_file_scope: NewFileScope::Anywhere,
+            quiet_folders: Vec::new(),
         }
     }
 }
@@ -193,6 +211,8 @@ mod tests {
             search_shortcut: "Ctrl+Alt+F".into(),
             search_whole_pc: false,
             user_kind: UserKind::General,
+            new_file_scope: NewFileScope::Watched,
+            quiet_folders: vec!["C:\\Users\\선생님\\Pictures\\Screenshots".into()],
         };
         save(&conn, &s).unwrap();
         assert_eq!(load(&conn).unwrap(), s);
@@ -219,6 +239,9 @@ mod tests {
         assert!(s.search_whole_pc);
         // 0.1.15 전: 학교
         assert_eq!(s.user_kind, UserKind::School);
+        // 0.1.33 전: 업데이트하면 내 PC 어디든(사용자 결정: 다시 설정하지 않아도 되게)
+        assert_eq!(s.new_file_scope, NewFileScope::Anywhere);
+        assert!(s.quiet_folders.is_empty());
     }
 
     #[test]

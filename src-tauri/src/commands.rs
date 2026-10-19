@@ -5,7 +5,7 @@ use crate::folders::{self, FileEntry, FolderEntry, FolderMatch};
 use crate::inbox::{self, InboxItem};
 use crate::naming::{self, DestSegment};
 use crate::rules::{self, Rule, RuleDraft, RuleInput, Target};
-use crate::settings::{self, OrganizeMode, PlaceMode, Settings, UserKind};
+use crate::settings::{self, NewFileScope, OrganizeMode, PlaceMode, Settings, UserKind};
 use crate::setup::{self, SetupRequest};
 use crate::watcher::{self, NewFile, WatchService};
 use crate::{history, mover, popup, recycle, resort, tray};
@@ -35,6 +35,10 @@ pub struct AppState {
     pub live: crate::finder::Live,
     /// 검색 단축키를 등록하지 못했을 때 그 까닭(설정 화면에 보여 줌)
     pub shortcut_error: Mutex<Option<String>>,
+    /// 내 PC 어디든: 하위 폴더까지 볼 곳(사용자 폴더·다른 고정 디스크, 켤 때 정함)
+    pub wide_roots: Vec<PathBuf>,
+    /// 한꺼번에 생겨서 정리함에 모아 둔 새 파일(팝업에서 한 번만 알린다)
+    pub bulk: Mutex<Vec<PendingFile>>,
 }
 
 impl AppState {
@@ -61,6 +65,11 @@ impl AppState {
 
     fn with_auto<T>(&self, f: impl FnOnce(&mut Vec<AutoMoved>) -> T) -> T {
         let mut list = self.auto_moved.lock().unwrap_or_else(|e| e.into_inner());
+        f(&mut list)
+    }
+
+    fn with_bulk<T>(&self, f: impl FnOnce(&mut Vec<PendingFile>) -> T) -> T {
+        let mut list = self.bulk.lock().unwrap_or_else(|e| e.into_inner());
         f(&mut list)
     }
 
@@ -118,14 +127,39 @@ impl AppState {
         Ok((id, moved))
     }
 
-    /// 감시를 지금 설정의 지켜볼 폴더로 맞춘다.
+    /// 감시를 지금 설정(새 파일을 찾는 곳·지켜볼 폴더·묻지 않는 폴더)에 맞춘다.
     pub fn apply_watch_folders(&self, s: &Settings) {
-        let folders = if s.setup_done {
-            s.watch_folders.iter().map(PathBuf::from).collect()
-        } else {
-            Vec::new()
-        };
-        self.watcher.set_folders(folders);
+        self.watcher.set_scope(watch_scope(s, &self.wide_roots));
+    }
+}
+
+/// 설정으로 감시할 곳을 정한다(SPEC 5장). 정리 폴더와 묻지 않는 폴더는 넓은 감시에서 빼고,
+/// 묻지 않는 폴더는 지켜볼 폴더에서도 뺀다.
+pub fn watch_scope(s: &Settings, wide_roots: &[PathBuf]) -> watcher::Scope {
+    if !s.setup_done {
+        return watcher::Scope::default();
+    }
+    let quiet: Vec<PathBuf> = s.quiet_folders.iter().map(PathBuf::from).collect();
+    let folders = s
+        .watch_folders
+        .iter()
+        .map(PathBuf::from)
+        .filter(|w| {
+            !quiet
+                .iter()
+                .any(|q| folders::same_dir(q, w) || folders::is_inside(q, w))
+        })
+        .collect();
+    let wide = match s.new_file_scope {
+        NewFileScope::Anywhere => wide_roots.to_vec(),
+        NewFileScope::Watched => Vec::new(),
+    };
+    let mut skip = quiet;
+    skip.extend(s.root_folder.as_deref().map(PathBuf::from));
+    watcher::Scope {
+        folders,
+        wide,
+        skip,
     }
 }
 
@@ -138,6 +172,8 @@ pub const EVENT_POPUP_CHANGED: &str = "popup-changed";
 pub const EVENT_INBOX_CHANGED: &str = "inbox-changed";
 /// 일시 정지 등 상태가 바뀜
 pub const EVENT_STATUS_CHANGED: &str = "status-changed";
+/// 설정이 다른 창(팝업)에서 바뀜
+pub const EVENT_SETTINGS_CHANGED: &str = "settings-changed";
 
 /// 정리함이 바뀌었음을 화면과 트레이(정리함 개수)에 알린다.
 pub fn notify_inbox(app: &AppHandle) {
@@ -202,23 +238,116 @@ impl PendingFile {
     }
 }
 
-/// 감시가 저장이 끝난 새 파일을 찾았을 때(SPEC 2장).
+/// 한꺼번에 찾은 새 파일이 이보다 많으면 하나씩 묻지 않고 정리함에 모아 한 번만 알린다(압축 풀기·폴더 복사).
+pub const BULK_LIMIT: usize = 5;
+/// 지켜볼 폴더 밖에서 한꺼번에 이보다 많이 생기면 프로그램 설치·큰 폴더 복사로 보고 정리함에도 넣지 않는다.
+pub const WIDE_IGNORE_OVER: usize = 300;
+
+/// 새 파일 하나를 어떻게 했는지
+enum Placed {
+    /// 바로 정리·자동 분류로 옮김
+    Moved,
+    /// 정리함에 모음
+    Collected,
+    /// 팝업에서 물어볼 파일
+    Ask(PendingFile),
+}
+
+/// 감시가 저장이 끝난 새 파일들을 찾았을 때(SPEC 2장, 한꺼번에 찾은 것은 한 묶음).
 /// 자동 분류 → 나눌 수 있으면 옮기고 알림, 모르면 정리함 /
 /// 모아 두기 → 정리함 / 바로 정리 + 규칙에 맞음 → 옮기고 알림 / 그 외 → 팝업.
-pub fn handle_new_file(app: &AppHandle, file: NewFile) {
+/// 물어볼 파일이 `BULK_LIMIT`보다 많으면 정리함에 모으고 팝업에서 한 번만 알린다.
+pub fn handle_new_files(app: &AppHandle, files: Vec<NewFile>) {
     let state = app.state::<AppState>();
+    let elsewhere = files.iter().filter(|f| f.elsewhere).count();
+    let files: Vec<NewFile> = if elsewhere > WIDE_IGNORE_OVER {
+        files.into_iter().filter(|f| !f.elsewhere).collect()
+    } else {
+        files
+    };
+    if files.is_empty() {
+        return;
+    }
     if state.is_paused() {
         let _ = state.with_db(|conn| {
-            inbox::add(conn, &file.path, &file.source_dir, inbox::Reason::Collected).map_err(db_err)
+            for f in &files {
+                inbox::add(conn, &f.path, &f.source_dir, inbox::Reason::Collected)
+                    .map_err(db_err)?;
+            }
+            Ok(())
         });
         notify_inbox(app);
         return;
     }
     let s = state.with_db(settings::load).unwrap_or_default();
-    let found = match (s.place_mode, s.organize_mode) {
-        (PlaceMode::Classify, _) => state.classifier().and_then(|c| c.classify(&file.path)),
-        (PlaceMode::Auto, OrganizeMode::Ask) => state
-            .classifier()
+    let classifier = if s.place_mode != PlaceMode::Suggest && files.iter().any(|f| !f.elsewhere) {
+        state.classifier()
+    } else {
+        None
+    };
+    let (mut moved, mut collected) = (false, false);
+    let mut ask = Vec::new();
+    for file in files {
+        match place_new_file(&state, &s, classifier.as_ref(), file) {
+            Placed::Moved => moved = true,
+            Placed::Collected => collected = true,
+            Placed::Ask(item) => ask.push(item),
+        }
+    }
+    let mut show = moved;
+    if ask.len() > BULK_LIMIT {
+        let _ = state.with_db(|conn| {
+            for f in &ask {
+                inbox::add(
+                    conn,
+                    Path::new(&f.path),
+                    Path::new(&f.source_dir),
+                    inbox::Reason::Collected,
+                )
+                .map_err(db_err)?;
+            }
+            Ok(())
+        });
+        state.with_bulk(|list| {
+            for f in ask {
+                if !list.iter().any(|x| x.path == f.path) {
+                    list.push(f);
+                }
+            }
+        });
+        collected = true;
+        show = true;
+    } else if !ask.is_empty() {
+        state.with_pending(|q| {
+            for item in ask {
+                if !q.iter().any(|p| p.path == item.path) {
+                    q.push_back(item);
+                }
+            }
+        });
+        show = true;
+    }
+    if moved || collected {
+        notify_inbox(app);
+    }
+    if show {
+        let _ = app.emit(EVENT_POPUP_CHANGED, ());
+        popup::show(app);
+    }
+}
+
+/// 새 파일 하나: 옮기거나(바로 정리·자동 분류), 정리함에 모으거나, 물어볼 차례로.
+/// 지켜볼 폴더 밖(넓은 감시)에서 찾은 파일은 사용자가 직접 저장한 문서일 수 있어 묻지 않고 옮기지 않는다.
+fn place_new_file(
+    state: &AppState,
+    s: &Settings,
+    classifier: Option<&Classifier>,
+    file: NewFile,
+) -> Placed {
+    let found = match (file.elsewhere, s.place_mode, s.organize_mode) {
+        (true, _, _) => None,
+        (false, PlaceMode::Classify, _) => classifier.and_then(|c| c.classify(&file.path)),
+        (false, PlaceMode::Auto, OrganizeMode::Ask) => classifier
             .and_then(|c| c.by_rule(&file.path))
             .map(|(rule, t)| (Reason::Rule { rule }, t)),
         _ => None,
@@ -240,14 +369,11 @@ pub fn handle_new_file(app: &AppHandle, file: NewFile) {
                     reason,
                 })
             });
-            notify_inbox(app);
-            let _ = app.emit(EVENT_POPUP_CHANGED, ());
-            popup::show(app);
-            return;
+            return Placed::Moved;
         }
     }
-    // 자동 분류 중에는 나누지 못한 파일을 묻지 않고 정리함에 모은다.
-    let organize = if s.place_mode == PlaceMode::Classify {
+    // 자동 분류 중에는 나누지 못한 파일을 묻지 않고 정리함에 모은다(지켜볼 폴더 밖 파일은 물어본다).
+    let organize = if s.place_mode == PlaceMode::Classify && !file.elsewhere {
         OrganizeMode::Manual
     } else {
         s.organize_mode
@@ -258,18 +384,9 @@ pub fn handle_new_file(app: &AppHandle, file: NewFile) {
                 inbox::add(conn, &file.path, &file.source_dir, inbox::Reason::Collected)
                     .map_err(db_err)
             });
-            notify_inbox(app);
+            Placed::Collected
         }
-        OrganizeMode::Ask => {
-            let item = PendingFile::new(&file.path, &file.source_dir);
-            state.with_pending(|q| {
-                if !q.iter().any(|p| p.path == item.path) {
-                    q.push_back(item);
-                }
-            });
-            let _ = app.emit(EVENT_POPUP_CHANGED, ());
-            popup::show(app);
-        }
+        OrganizeMode::Ask => Placed::Ask(PendingFile::new(&file.path, &file.source_dir)),
     }
 }
 
@@ -306,6 +423,10 @@ pub struct SetupInfo {
     pub documents: Option<String>,
     pub desktop: Option<String>,
     pub downloads: Option<String>,
+    /// 사진·동영상·음악(새 파일이 저장된 곳을 "사진 › Screenshots"처럼 보여 줄 때)
+    pub pictures: Option<String>,
+    pub videos: Option<String>,
+    pub music: Option<String>,
     pub root_folder_name: &'static str,
     pub separator: String,
     pub teacher_example: Vec<ExampleFolder>,
@@ -327,6 +448,9 @@ pub fn setup_info(app: tauri::AppHandle) -> SetupInfo {
         documents: s(path.document_dir()),
         desktop: s(path.desktop_dir()),
         downloads: s(path.download_dir()),
+        pictures: s(path.picture_dir()),
+        videos: s(path.video_dir()),
+        music: s(path.audio_dir()),
         root_folder_name: setup::ROOT_FOLDER_NAME,
         separator: std::path::MAIN_SEPARATOR.to_string(),
         teacher_example: setup::TEACHER_EXAMPLE
@@ -448,6 +572,108 @@ pub fn set_watch_folders(
             Ok(s)
         })
         .inspect(|s| state.apply_watch_folders(s))
+}
+
+/// 새 파일을 찾는 곳: 내 PC 어디든 / 지켜볼 폴더만
+#[tauri::command]
+pub fn set_new_file_scope(
+    state: State<'_, AppState>,
+    scope: NewFileScope,
+) -> Result<Settings, String> {
+    state
+        .with_db(|conn| {
+            let mut s = settings::load(conn)?;
+            s.new_file_scope = scope;
+            settings::save(conn, &s)?;
+            Ok(s)
+        })
+        .inspect(|s| state.apply_watch_folders(s))
+}
+
+/// 묻지 않는 폴더(설정 화면에서 더하기·빼기)
+#[tauri::command]
+pub fn set_quiet_folders(
+    state: State<'_, AppState>,
+    folders: Vec<String>,
+) -> Result<Settings, String> {
+    state
+        .with_db(|conn| {
+            let mut s = settings::load(conn)?;
+            s.quiet_folders = folders;
+            settings::save(conn, &s)?;
+            Ok(s)
+        })
+        .inspect(|s| state.apply_watch_folders(s))
+}
+
+/// 팝업 ⋯ "이 폴더는 묻지 않기": 이 폴더(하위 폴더까지)에 새 파일이 생겨도 묻지 않는다.
+/// 이 폴더에서 와서 기다리던 파일도 더 묻지 않는다(파일은 그 자리에 그대로).
+#[tauri::command]
+pub fn quiet_folder(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    dir: String,
+) -> Result<Settings, String> {
+    let d = PathBuf::from(&dir);
+    let s = state.with_db(|conn| {
+        let mut s = settings::load(conn)?;
+        if !s
+            .quiet_folders
+            .iter()
+            .any(|q| folders::same_dir(Path::new(q), &d))
+        {
+            s.quiet_folders.push(dir.clone());
+            settings::save(conn, &s)?;
+        }
+        Ok(s)
+    })?;
+    state.apply_watch_folders(&s);
+    state.with_pending(|q| {
+        q.retain(|p| {
+            let src = Path::new(&p.source_dir);
+            !(folders::same_dir(src, &d) || folders::is_inside(&d, src))
+        })
+    });
+    let _ = app.emit(EVENT_POPUP_CHANGED, ());
+    let _ = app.emit(EVENT_SETTINGS_CHANGED, ());
+    Ok(s)
+}
+
+/// 한꺼번에 생긴 파일 알림을 닫으며 할 일
+#[derive(Debug, Clone, Copy, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum BulkAction {
+    /// 정리함을 연다(파일은 정리함에)
+    Open,
+    /// 닫기만(파일은 정리함에)
+    Keep,
+    /// 정리하지 않기: 정리함에서 뺀다(파일은 그 자리에 그대로)
+    Drop,
+}
+
+/// 한꺼번에 생긴 파일 알림 닫기
+#[tauri::command]
+pub fn close_bulk(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    action: BulkAction,
+) -> Result<(), String> {
+    let list = state.with_bulk(std::mem::take);
+    match action {
+        BulkAction::Open => tray::show_main(&app, Some("inbox")),
+        BulkAction::Keep => {}
+        BulkAction::Drop => {
+            state.with_db(|conn| {
+                for f in &list {
+                    inbox::remove(conn, Path::new(&f.path)).map_err(db_err)?;
+                }
+                Ok(())
+            })?;
+        }
+    }
+    notify_inbox(&app);
+    let _ = app.emit(EVENT_POPUP_CHANGED, ());
+    Ok(())
 }
 
 #[tauri::command]
@@ -707,6 +933,17 @@ pub struct PopupState {
     pub suggestion: Option<Suggestion>,
     /// "바로 정리"로 옮겨서 알릴 파일들
     pub auto_moved: Vec<AutoMoved>,
+    /// 한꺼번에 생겨 정리함에 모아 둔 파일(한 번만 알린다)
+    pub bulk: Option<BulkNotice>,
+}
+
+/// 한꺼번에 생긴 새 파일 알림
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BulkNotice {
+    pub count: usize,
+    /// 앞의 몇 개(이름·위치를 보여 준다)
+    pub shown: Vec<PendingFile>,
 }
 
 #[tauri::command]
@@ -722,6 +959,12 @@ pub fn popup_state(state: State<'_, AppState>) -> PopupState {
         remaining,
         suggestion,
         auto_moved: state.with_auto(|l| l.clone()),
+        bulk: state.with_bulk(|l| {
+            (!l.is_empty()).then(|| BulkNotice {
+                count: l.len(),
+                shown: l.iter().take(3).cloned().collect(),
+            })
+        }),
     }
 }
 
@@ -1222,6 +1465,7 @@ pub fn import_existing(app: AppHandle, state: State<'_, AppState>) -> Result<usi
             if !watcher::is_candidate_name(&name)
                 || stat.size == 0
                 || watcher::has_partial_partner(&path)
+                || watcher::is_decoy(&path)
             {
                 continue;
             }
@@ -1290,7 +1534,18 @@ pub struct InboxEntry {
 
 #[tauri::command]
 pub fn list_inbox(state: State<'_, AppState>) -> Result<Vec<InboxEntry>, String> {
-    let items = state.with_db(|conn| inbox::list(conn).map_err(db_err))?;
+    // 예전 버전이 정리함에 넣어 둔 백신 미끼 파일은 뺀다(파일은 그 자리에 그대로)
+    let items = state.with_db(|conn| {
+        let mut items = inbox::list(conn).map_err(db_err)?;
+        for item in items
+            .iter()
+            .filter(|i| watcher::is_decoy(Path::new(&i.path)))
+        {
+            inbox::remove(conn, Path::new(&item.path)).map_err(db_err)?;
+        }
+        items.retain(|i| !watcher::is_decoy(Path::new(&i.path)));
+        Ok(items)
+    })?;
     let classifier = state.classifier();
     Ok(items
         .into_iter()
@@ -1559,4 +1814,41 @@ pub fn set_root_folder(
     })?;
     notify_inbox(&app);
     Ok(s)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn watch_scope_follows_new_file_scope_and_quiet_folders() {
+        let p = PathBuf::from;
+        let wide = [p("C:\\Users\\t\\Documents"), p("D:\\")];
+        let mut s = Settings {
+            setup_done: true,
+            root_folder: Some("C:\\Users\\t\\Documents\\정리 폴더".into()),
+            watch_folders: vec![
+                "C:\\Users\\t\\Downloads".into(),
+                "C:\\Users\\t\\Desktop".into(),
+            ],
+            quiet_folders: vec!["c:\\users\\t\\desktop".into()],
+            ..Settings::default()
+        };
+        // 예전 설정도 기본은 내 PC 어디든
+        let scope = watch_scope(&s, &wide);
+        assert_eq!(scope.wide, wide);
+        // 묻지 않는 폴더는 지켜볼 폴더에서도 빠지고, 정리 폴더와 함께 넓은 감시에서 뺀다
+        assert_eq!(scope.folders, [p("C:\\Users\\t\\Downloads")]);
+        assert_eq!(
+            scope.skip,
+            [
+                p("c:\\users\\t\\desktop"),
+                p("C:\\Users\\t\\Documents\\정리 폴더")
+            ]
+        );
+        s.new_file_scope = NewFileScope::Watched;
+        assert!(watch_scope(&s, &wide).wide.is_empty());
+        s.setup_done = false;
+        assert_eq!(watch_scope(&s, &wide), watcher::Scope::default());
+    }
 }

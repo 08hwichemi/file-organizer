@@ -396,3 +396,69 @@
   font-weight: 600;
   color: var(--color-accent-hover);
 }
+
+/* 파일 옆 ⋯ 메뉴: 이 폴더는 묻지 않기 · 저장된 위치 열기 */
+.popup__more {
+  position: relative;
+  flex-shrink: 0;
+  margin-left: -6px;
+}
+
+.popup__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  width: 250px;
+  padding: 6px;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: var(--color-surface);
+  box-shadow: 0 8px 24px rgba(23, 25, 28, 0.14);
+}
+
+.popup__menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 13.5px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.popup__menu button:hover:not(:disabled) {
+  background: var(--color-surface-sub);
+}
+
+.popup__menu svg {
+  flex-shrink: 0;
+  color: var(--color-text-sub);
+}
+
+.popup__menu-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.popup__menu-sub {
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--color-text-sub);
+  text-overflow: ellipsis;
+}
+
+/* 한꺼번에 생긴 파일 알림의 아이콘(파란색) */
+.popup__done-icon--info {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}

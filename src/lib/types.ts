@@ -36,7 +36,13 @@ export interface Settings {
   searchWholePc: boolean;
   /** 쓰는 곳: school = 학교(교사용 예시 폴더·단어·학기), general = 집·개인(파일 종류로 나눔) */
   userKind: UserKind;
+  /** 새 파일을 찾는 곳: anywhere = 내 PC 어디든(기본), watched = 지켜볼 폴더만 */
+  newFileScope: NewFileScope;
+  /** 새 파일이 생겨도 묻지 않는 폴더(하위 폴더까지) */
+  quietFolders: string[];
 }
+
+export type NewFileScope = "anywhere" | "watched";
 
 export type UserKind = "school" | "general";
 
@@ -107,6 +113,9 @@ export interface SetupInfo {
   documents: string | null;
   desktop: string | null;
   downloads: string | null;
+  pictures: string | null;
+  videos: string | null;
+  music: string | null;
   rootFolderName: string;
   separator: string;
   teacherExample: ExampleFolder[];
@@ -301,7 +310,18 @@ export interface PopupState {
   remaining: number;
   suggestion: Suggestion | null;
   autoMoved: AutoMoved[];
+  /** 한꺼번에 생겨 정리함에 모아 둔 새 파일(한 번만 알림) */
+  bulk: BulkNotice | null;
 }
+
+export interface BulkNotice {
+  count: number;
+  /** 앞의 몇 개 */
+  shown: PendingFile[];
+}
+
+/** 한꺼번에 생긴 파일 알림 닫기: open = 정리함 열기, keep = 닫기만, drop = 정리함에서 빼기(파일은 그대로) */
+export type BulkAction = "open" | "keep" | "drop";
 
 /** 넣은 뒤 "다음에도 여기에?" 카드 */
 export interface RuleDraft {

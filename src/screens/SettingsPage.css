@@ -284,3 +284,8 @@
 .dialog--wide.dialog--fit {
   height: auto;
 }
+
+/* 새 파일을 찾는 곳 → 고른 폴더만: 아래에 지켜볼 폴더 목록 */
+.settings__watch {
+  margin-top: 10px;
+}

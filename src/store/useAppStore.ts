@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import * as backend from "../lib/backend";
 import { setKnownFolders } from "../lib/paths";
-import type { OrganizeMode, PlaceMode, Settings, SetupInfo, SetupRequest, UserKind } from "../lib/types";
+import type { NewFileScope, OrganizeMode, PlaceMode, Settings, SetupInfo, SetupRequest, UserKind } from "../lib/types";
 
 /** redo = 설정에서 "처음 설정 다시 하기"를 연 상태(취소하면 ready로) */
 type Status = "loading" | "setup" | "redo" | "ready" | "error";
@@ -27,6 +27,10 @@ interface AppState {
   redoSetup: (open: boolean) => void;
   setOrganizeMode: (mode: OrganizeMode) => Promise<void>;
   setWatchFolders: (folders: string[]) => Promise<void>;
+  /** 다른 창에서 바뀐 설정만 다시 읽는다(화면 상태는 그대로) */
+  refreshSettings: () => Promise<void>;
+  setNewFileScope: (scope: NewFileScope) => Promise<void>;
+  setQuietFolders: (folders: string[]) => Promise<void>;
   setPlaceMode: (mode: PlaceMode) => Promise<void>;
   setTermMonths: (first: number, second: number) => Promise<void>;
   setAutostart: (enabled: boolean) => Promise<void>;
@@ -84,8 +88,20 @@ export const useAppStore = create<AppState>((set) => ({
     set({ settings: await backend.setOrganizeMode(mode) });
   },
 
+  async refreshSettings() {
+    set({ settings: await backend.getSettings() });
+  },
+
   async setWatchFolders(folders) {
     set({ settings: await backend.setWatchFolders(folders) });
+  },
+
+  async setNewFileScope(scope) {
+    set({ settings: await backend.setNewFileScope(scope) });
+  },
+
+  async setQuietFolders(folders) {
+    set({ settings: await backend.setQuietFolders(folders) });
   },
 
   async setPlaceMode(mode) {

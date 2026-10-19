@@ -2,7 +2,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowRight, ChevronDown, Download, History, Trash2, Wand2 } from "lucide-react";
 import { formatAgo } from "../lib/format";
-import { displayPath, friendlyName, samePath, type KnownFolders } from "../lib/paths";
+import { displayPath, friendlyName, friendlyPlace, isInsidePath, samePath, type KnownFolders } from "../lib/paths";
 import type { InboxItem } from "../lib/types";
 import Band from "./Band";
 import FileBadge from "./FileBadge";
@@ -37,6 +37,19 @@ interface Props {
 }
 
 export const ALL_TAB = "all";
+/** 지켜볼 폴더·문서·사진 등 어디에도 속하지 않는 곳(D: 드라이브 등) */
+const OTHER_GROUP = "\u0000other";
+
+/** 새 파일이 온 폴더를 묶는 탭: 그 폴더를 품은 지켜볼 폴더 → 문서·사진·동영상·음악 → 다른 곳 */
+function sourceGroup(dir: string, watchFolders: string[], known: KnownFolders | null): string {
+  const holds = (root: string) => samePath(root, dir) || isInsidePath(root, dir);
+  const watched = watchFolders.find(holds);
+  if (watched) return watched;
+  const place = [known?.documents, known?.pictures, known?.videos, known?.music, known?.desktop, known?.downloads].find(
+    (p): p is string => !!p && holds(p),
+  );
+  return place ?? OTHER_GROUP;
+}
 /** 정리함 파일이 아니라 최근 정리한 파일을 보는 탭 */
 export const RECENT_TAB = "\u0000recent";
 
@@ -48,17 +61,28 @@ export const RECENT_TAB = "\u0000recent";
 export default function InboxFileList(props: Props) {
   const { items, watchFolders, known, tab, onTab, selected, onToggle, onSelectMany, onClear } = props;
 
-  const sources = watchFolders
-    .map((dir) => ({
-      key: dir,
-      label: friendlyName(dir, known),
-      count: items.filter((i) => samePath(i.sourceDir, dir)).length,
+  // 폴더 탭: 지켜볼 폴더(그 하위 폴더 포함), 그다음 내 PC 어디든으로 찾은 곳(문서·사진 등, 그 밖은 "다른 곳")
+  const groupOf = (dir: string) => sourceGroup(dir, watchFolders, known);
+  const groupKeys = [...watchFolders];
+  for (const i of items) {
+    const g = groupOf(i.sourceDir);
+    if (!groupKeys.some((k) => samePath(k, g))) groupKeys.push(g);
+  }
+  const sources = groupKeys
+    .map((key) => ({
+      key,
+      label: key === OTHER_GROUP ? "다른 곳" : friendlyName(key, known),
+      count: items.filter((i) => samePath(groupOf(i.sourceDir), key)).length,
     }))
     // 파일이 없는 폴더 탭은 숨긴다(지금 고른 탭은 남김)
     .filter((t) => t.count > 0 || t.key === tab);
   const tabs = [{ key: ALL_TAB, label: "전체", count: items.length }, ...sources];
   const showRecent = tab === RECENT_TAB;
-  const visible = showRecent ? [] : tab === ALL_TAB ? items : items.filter((i) => samePath(i.sourceDir, tab));
+  const visible = showRecent
+    ? []
+    : tab === ALL_TAB
+      ? items
+      : items.filter((i) => samePath(groupOf(i.sourceDir), tab));
   // 추천 위치가 있는 파일([넣기]만 누르면 됨, 파란 띠) / 직접 골라야 하는 파일(끌어다 놓기, 회색 띠)
   const groups = [
     {
@@ -194,7 +218,7 @@ export default function InboxFileList(props: Props) {
                   <FileRow
                     key={item.path}
                     item={item}
-                    source={friendlyName(item.sourceDir, known)}
+                    source={friendlyPlace(item.sourceDir, known)}
                     checked={selected.has(item.path)}
                     dimmed={!!props.dragging?.includes(item.path)}
                     onToggle={(shift) => pick(item.path, shift)}

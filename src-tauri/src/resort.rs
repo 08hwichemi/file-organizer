@@ -123,6 +123,7 @@ pub fn list(
                 || size == 0
                 || !watcher::is_candidate_name(&name)
                 || watcher::has_partial_partner(&path)
+                || watcher::is_decoy(&path)
             {
                 continue;
             }

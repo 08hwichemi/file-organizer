@@ -1,10 +1,12 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Check,
+  FolderCheck,
   FolderTree,
   House,
   Info,
   Lightbulb,
+  Monitor,
   RotateCcw,
   School,
   Search,
@@ -18,9 +20,11 @@ import Dialog from "../components/Dialog";
 import FavoriteSettings from "../components/FavoriteSettings";
 import FolderPane, { type Toast } from "../components/FolderPane";
 import ModeChoice from "../components/ModeChoice";
+import QuietFolderEditor from "../components/QuietFolderEditor";
 import WatchFolderEditor from "../components/WatchFolderEditor";
 import { errorMessage, getAppInfo, getSearchInfo, pickFolder } from "../lib/backend";
-import type { OrganizeMode, PlaceMode, SearchInfo } from "../lib/types";
+import { friendlyName } from "../lib/paths";
+import type { NewFileScope, OrganizeMode, PlaceMode, SearchInfo } from "../lib/types";
 import { useAppStore, type SettingsTab } from "../store/useAppStore";
 import { BUILD_LABEL } from "../lib/build";
 import { useUpdateStore } from "../store/useUpdateStore";
@@ -28,7 +32,18 @@ import terms from "../../src-tauri/resources/TERMS.txt?raw";
 import thirdParty from "../../src-tauri/resources/THIRD_PARTY.txt?raw";
 import "./SettingsPage.css";
 
-type SavedKey = "kind" | "mode" | "watch" | "place" | "term" | "wait" | "root" | "fav" | "autostart" | "search" | "scope";
+type SavedKey =
+  | "kind"
+  | "mode"
+  | "watch"
+  | "place"
+  | "term"
+  | "wait"
+  | "root"
+  | "fav"
+  | "autostart"
+  | "search"
+  | "scope";
 
 /** 검색 단축키로 고를 수 있는 것("" = 쓰지 않음) */
 const SHORTCUTS = ["Alt+Space", "Ctrl+Alt+F", "Ctrl+Shift+Space", ""];
@@ -67,6 +82,8 @@ export default function SettingsPage() {
   const redoSetup = useAppStore((s) => s.redoSetup);
   const saveMode = useAppStore((s) => s.setOrganizeMode);
   const saveWatch = useAppStore((s) => s.setWatchFolders);
+  const saveNewFileScope = useAppStore((s) => s.setNewFileScope);
+  const saveQuiet = useAppStore((s) => s.setQuietFolders);
   const savePlace = useAppStore((s) => s.setPlaceMode);
   const saveTerm = useAppStore((s) => s.setTermMonths);
   const saveAutostart = useAppStore((s) => s.setAutostart);
@@ -157,6 +174,11 @@ export default function SettingsPage() {
     } catch (e) {
       setErrors((prev) => ({ ...prev, term: errorMessage(e) }));
     }
+  };
+
+  const changeScope = async (scope: NewFileScope) => {
+    if (scope === settings.newFileScope) return;
+    await save("scope", () => saveNewFileScope(scope));
   };
 
   const changeWatch = async (folders: string[]) => {
@@ -330,12 +352,47 @@ export default function SettingsPage() {
       )}
 
       <Section tab="folders"
-        title="지켜볼 폴더"
-        description="골라 둔 폴더에 바로 저장되는 파일만 봐요."
-        saved={saved === "watch"}
-        error={errors.watch}
+        title="새 파일을 찾는 곳"
+        description="인터넷·카카오톡·메신저 등 어떤 프로그램으로 받았든, 새로 저장된 파일을 알아보고 어디에 넣을지 물어봐요."
+        saved={saved === "watch" || saved === "scope"}
+        error={errors.watch ?? errors.scope}
       >
-        <WatchFolderEditor known={known} value={watchDraft} onChange={changeWatch} />
+        <div className="stack-12" role="radiogroup" aria-label="새 파일을 찾는 곳">
+          <ChoiceCard
+            name="new-file-scope"
+            checked={settings.newFileScope === "anywhere"}
+            onSelect={() => void changeScope("anywhere")}
+            icon={<Monitor size={20} />}
+            title="내 PC 어디든 (추천)"
+            description="바탕화면·문서·다운로드·사진과 그 안의 폴더, D: 같은 다른 드라이브에 새로 저장된 파일을 알아봐요. 정리 폴더와 프로그램 폴더(Windows·Program Files·AppData)는 빼요."
+          />
+          <ChoiceCard
+            name="new-file-scope"
+            checked={settings.newFileScope === "watched"}
+            onSelect={() => void changeScope("watched")}
+            icon={<FolderCheck size={20} />}
+            title="고른 폴더만"
+            description="다운로드·바탕화면처럼 골라 둔 폴더에 바로 저장되는 파일만 봐요. 지금까지의 방식이에요."
+          />
+        </div>
+        {settings.newFileScope === "anywhere" && settings.placeMode !== "suggest" && (
+          <p className="settings__note">
+            ‘{settings.placeMode === "auto" ? "바로 정리" : "자동 분류"}’는 지켜볼 폴더(
+            {settings.watchFolders.map((w) => friendlyName(w, known)).join("·")}) 바로 안의 파일에만 해요. 그 밖에서 찾은
+            파일은 직접 저장한 문서일 수 있어 옮기기 전에 물어봐요.
+          </p>
+        )}
+        {settings.newFileScope === "watched" && (
+          <div className="settings__watch">
+            <h3 className="quiet__title">지켜볼 폴더</h3>
+            <WatchFolderEditor known={known} value={watchDraft} onChange={changeWatch} />
+          </div>
+        )}
+        <QuietFolderEditor
+          known={known}
+          value={settings.quietFolders}
+          onChange={(folders) => void save("scope", () => saveQuiet(folders))}
+        />
       </Section>
 
       <Section tab="folders"

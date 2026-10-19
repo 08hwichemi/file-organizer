@@ -6,6 +6,8 @@ import type {
   XlsxRow,
   LogEntry,
   AppInfo,
+  BulkAction,
+  NewFileScope,
   ClassifyPlan,
   DestSegment,
   FileEntry,
@@ -56,7 +58,8 @@ export async function windowKind(): Promise<WindowKind> {
  * Rust가 보내는 알림: popup-changed(팝업 차례 바뀜), inbox-changed(정리함 바뀜),
  * status-changed(일시 정지 등), navigate(트레이에서 고른 화면, 값 = "inbox" 등),
  * search-opened(단축키·트레이로 파일 검색을 엶), search-indexed(파일 목록을 다 읽음),
- * folders-changed(정리 폴더 안의 폴더가 생기거나 바뀜: 프로그램에서 했거나 탐색기에서 했거나)
+ * folders-changed(정리 폴더 안의 폴더가 생기거나 바뀜: 프로그램에서 했거나 탐색기에서 했거나),
+ * settings-changed(다른 창에서 설정을 바꿈: 팝업의 "이 폴더는 묻지 않기")
  */
 export type BackendEvent =
   | "popup-changed"
@@ -65,7 +68,8 @@ export type BackendEvent =
   | "navigate"
   | "search-opened"
   | "search-indexed"
-  | "folders-changed";
+  | "folders-changed"
+  | "settings-changed";
 
 /** 알림을 듣는다. 돌려준 함수를 부르면 그만 듣는다. */
 export function onBackendEvent(name: BackendEvent, handler: (payload: unknown) => void): () => void {
@@ -134,6 +138,30 @@ export function setOrganizeMode(mode: OrganizeMode): Promise<Settings> {
 export function setWatchFolders(folders: string[]): Promise<Settings> {
   if (usingMocks) return mockBackend.setWatchFolders(folders);
   return invoke("set_watch_folders", { folders });
+}
+
+/** 새 파일을 찾는 곳: 내 PC 어디든 / 지켜볼 폴더만 */
+export function setNewFileScope(scope: NewFileScope): Promise<Settings> {
+  if (usingMocks) return mockBackend.setNewFileScope(scope);
+  return invoke("set_new_file_scope", { scope });
+}
+
+/** 묻지 않는 폴더(설정에서 더하기·빼기) */
+export function setQuietFolders(folders: string[]): Promise<Settings> {
+  if (usingMocks) return mockBackend.setQuietFolders(folders);
+  return invoke("set_quiet_folders", { folders });
+}
+
+/** 팝업 ⋯ "이 폴더는 묻지 않기": 이 폴더에서 기다리던 파일도 더 묻지 않는다 */
+export function quietFolder(dir: string): Promise<Settings> {
+  if (usingMocks) return mockBackend.quietFolder(dir);
+  return invoke("quiet_folder", { dir });
+}
+
+/** 한꺼번에 생긴 파일 알림 닫기 */
+export function closeBulk(action: BulkAction): Promise<void> {
+  if (usingMocks) return mockBackend.closeBulk(action);
+  return invoke("close_bulk", { action });
 }
 
 export function setPlaceMode(mode: PlaceMode): Promise<Settings> {

@@ -51,6 +51,8 @@ pub fn list_files(dir: &Path) -> std::io::Result<Vec<FileEntry>> {
     let mut files: Vec<FileEntry> = visible_entries(dir)?
         .into_iter()
         .filter(|(_, is_dir)| !*is_dir)
+        // 백신 미끼 파일은 보여 주지 않는다(끌어서 옮기지 않게)
+        .filter(|(path, _)| !crate::watcher::is_decoy(path))
         .filter_map(|(path, _)| {
             let meta = fs::metadata(&path).ok()?;
             let modified = meta
