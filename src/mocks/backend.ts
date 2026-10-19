@@ -133,7 +133,8 @@ let settings: Settings = startReady
       searchWholePc: true,
       userKind: params.get("kind") === "general" ? "general" : "school",
       newFileScope: params.get("scope") === "watched" ? "watched" : "anywhere",
-      quietFolders: params.get("quiet") === "1" ? [`${HOME}\\Pictures\\Screenshots`, `${HOME}\\Videos\\Captures`] : [],
+      // 화면 캡처·녹화가 저장되는 곳은 처음부터 묻지 않는다(Rust settings::add_default_quiet)
+      quietFolders: [`${HOME}\\Pictures\\Screenshots`, `${HOME}\\Videos\\Captures`],
     }
   : {
       setupDone: false,
