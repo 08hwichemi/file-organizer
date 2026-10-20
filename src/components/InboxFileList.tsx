@@ -207,6 +207,7 @@ export default function InboxFileList(props: Props) {
       {showRecent ? (
         props.recent
       ) : visible.length > 0 ? (
+        <>
         <ul className="ifiles__list">
           {groups.map((g) =>
             g.items.length === 0 ? null : (
@@ -232,12 +233,14 @@ export default function InboxFileList(props: Props) {
               </Fragment>
             ),
           )}
-          {/* 처음에 한 번쯤 쓰는 버튼이라 목록 맨 아래에 둔다(목록이 비면 가운데에 크게) */}
-          <li className="ifiles__more" role="presentation">
-            <span>다운로드·바탕화면에 원래 있던 파일도</span>
-            {importButton}
-          </li>
         </ul>
+        {/* 처음에 한 번쯤 쓰는 버튼이라 맨 아래 한 줄에 고정한다(목록만 그 위에서 내려감, 사용자 요청).
+            목록이 비면 가운데에 크게. */}
+        <div className="ifiles__more">
+          <span className="ifiles__more-text">원래 있던 파일도</span>
+          {importButton}
+        </div>
+        </>
       ) : (
         <div className="ifiles__empty">
           <div className="ifiles__empty-title">정리함이 비었어요</div>
