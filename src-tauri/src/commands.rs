@@ -41,6 +41,8 @@ pub struct AppState {
     pub bulk: Mutex<Vec<PendingFile>>,
     /// 업데이트 뒤 다시 켜졌으면 그 버전(창을 열 때 한 번 알리고 비운다)
     pub updated_to: Mutex<Option<String>>,
+    /// 자동 업데이트로 받아 둔 새 버전(autoupdate.rs)
+    pub ready_update: crate::autoupdate::Ready,
 }
 
 impl AppState {
@@ -68,6 +70,18 @@ impl AppState {
     fn with_auto<T>(&self, f: impl FnOnce(&mut Vec<AutoMoved>) -> T) -> T {
         let mut list = self.auto_moved.lock().unwrap_or_else(|e| e.into_inner());
         f(&mut list)
+    }
+
+    /// 지금 설정(저장소를 못 열면 Err)
+    pub fn with_settings(&self) -> Result<Settings, String> {
+        self.with_db(settings::load)
+    }
+
+    /// 물어볼 파일·"바로 정리" 알림·한꺼번에 알림이 남아 있는지(자동 업데이트는 이때 기다린다)
+    pub fn has_waiting_files(&self) -> bool {
+        !(self.with_pending(|q| q.is_empty())
+            && self.with_auto(|l| l.is_empty())
+            && self.with_bulk(|l| l.is_empty()))
     }
 
     fn with_bulk<T>(&self, f: impl FnOnce(&mut Vec<PendingFile>) -> T) -> T {
@@ -418,20 +432,16 @@ pub fn prepare_update(app: AppHandle, version: String, quiet: bool) -> Result<()
     crate::relaunch::mark(&dir, &version, quiet).map_err(|e| e.to_string())
 }
 
-/// 자동 업데이트를 지금 설치해도 되는지: 프로그램을 쓰고 있지 않을 때만(SPEC 7장).
-/// 메인 창이 닫혀(트레이) 있고, 새 파일 창이 떠 있지 않고, 물어볼·알릴 파일이 없을 때.
+/// 자동 업데이트로 받아 둔 새 버전(없으면 None). 화면의 "받아 두었어요" 띠.
 #[tauri::command]
-pub fn update_idle(app: AppHandle, state: State<'_, AppState>) -> bool {
-    let visible = |label: &str| {
-        app.get_webview_window(label)
-            .and_then(|w| w.is_visible().ok())
-            .unwrap_or(false)
-    };
-    !visible("main")
-        && !visible(popup::LABEL)
-        && state.with_pending(|q| q.is_empty())
-        && state.with_auto(|l| l.is_empty())
-        && state.with_bulk(|l| l.is_empty())
+pub fn ready_update(state: State<'_, AppState>) -> Option<String> {
+    state.ready_update.version()
+}
+
+/// [지금 업데이트]: 받아 둔 새 버전을 바로 설치한다(다시 켜질 때 창을 보인다).
+#[tauri::command]
+pub fn install_ready_update(app: AppHandle) -> Result<(), String> {
+    crate::autoupdate::install(&app, true)
 }
 
 /// 업데이트 뒤 다시 켜졌으면 그 버전을 한 번만 돌려준다("0.1.35로 업데이트했어요").

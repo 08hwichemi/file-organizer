@@ -517,8 +517,8 @@ export default function SettingsPage() {
           <span>
             <strong>새 버전은 자동으로 설치</strong>
             <span className="settings__toggle-desc">
-              새 버전을 뒤에서 받아 두었다가, 프로그램을 쓰지 않을 때(창이 닫혀 있을 때) 알아서 설치하고 다시 켜요.
-              하던 설정과 기록은 그대로예요. 끄면 새 버전이 있다고 알려 드리기만 해요.
+              새 버전이 나오면 켤 때 바로, 또는 창이 닫혀 있을 때 알아서 설치하고 다시 켜요. 하던 설정과 기록은
+              그대로예요. 끄면 새 버전이 있다고 알려 드리기만 해요.
             </span>
           </span>
         </label>
@@ -689,9 +689,7 @@ function UpdateRow({ version }: { version: string | null }) {
         ? "지금 최신 버전이에요."
         : status === "available"
           ? `새 버전(${newVersion})이 나왔어요. 위의 ‘지금 업데이트’를 눌러 주세요.`
-          : status === "fetching"
-            ? `새 버전(${newVersion})을 받는 중이에요.`
-            : status === "ready"
+          : status === "ready"
               ? `새 버전(${newVersion})을 받아 두었어요. 창을 닫으면 알아서 설치해요.`
               : status === "downloading" || status === "installing"
                 ? "새 버전을 설치하는 중이에요."
@@ -711,7 +709,7 @@ function UpdateRow({ version }: { version: string | null }) {
         type="button"
         className="btn"
         onClick={() => void check()}
-        disabled={["checking", "fetching", "downloading", "installing"].includes(status)}
+        disabled={["checking", "downloading", "installing"].includes(status)}
       >
         업데이트 확인
       </button>

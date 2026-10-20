@@ -59,7 +59,8 @@ export async function windowKind(): Promise<WindowKind> {
  * status-changed(일시 정지 등), navigate(트레이에서 고른 화면, 값 = "inbox" 등),
  * search-opened(단축키·트레이로 파일 검색을 엶), search-indexed(파일 목록을 다 읽음),
  * folders-changed(정리 폴더 안의 폴더가 생기거나 바뀜: 프로그램에서 했거나 탐색기에서 했거나),
- * settings-changed(다른 창에서 설정을 바꿈: 팝업의 "이 폴더는 묻지 않기")
+ * settings-changed(다른 창에서 설정을 바꿈: 팝업의 "이 폴더는 묻지 않기"),
+ * update-ready(자동 업데이트가 새 버전을 받아 둠, 값 = 버전)
  */
 export type BackendEvent =
   | "popup-changed"
@@ -69,7 +70,8 @@ export type BackendEvent =
   | "search-opened"
   | "search-indexed"
   | "folders-changed"
-  | "settings-changed";
+  | "settings-changed"
+  | "update-ready";
 
 /** 알림을 듣는다. 돌려준 함수를 부르면 그만 듣는다. */
 export function onBackendEvent(name: BackendEvent, handler: (payload: unknown) => void): () => void {
@@ -110,10 +112,19 @@ export function prepareUpdate(version: string, quiet = false): Promise<void> {
   return invoke("prepare_update", { version, quiet });
 }
 
-/** 자동 업데이트를 지금 설치해도 되는지(창이 닫혀 있고 물어볼 파일이 없을 때) */
-export function updateIdle(): Promise<boolean> {
-  if (usingMocks) return Promise.resolve(false);
-  return invoke("update_idle");
+/** 자동 업데이트로 받아 둔 새 버전(없으면 null) */
+export function readyUpdate(): Promise<string | null> {
+  if (usingMocks) {
+    const q = new URLSearchParams(window.location.search);
+    return Promise.resolve(q.get("update") === "1" && q.get("auto") !== "0" ? "0.1.35" : null);
+  }
+  return invoke("ready_update");
+}
+
+/** [지금 업데이트]: 받아 둔 새 버전을 바로 설치(다시 켜질 때 창을 보인다) */
+export function installReadyUpdate(): Promise<void> {
+  if (usingMocks) return Promise.resolve();
+  return invoke("install_ready_update");
 }
 
 /** 업데이트 뒤 다시 켜졌으면 그 버전(한 번만) */
