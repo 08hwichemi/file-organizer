@@ -3,6 +3,7 @@
 //! 화면(React)은 파일을 직접 만지지 않고 여기 등록한 명령을 `invoke`로 부른다(SPEC 8장).
 //! 기능 모듈은 SPEC 9장 개발 단계에 맞춰 하나씩 추가한다.
 
+mod autoupdate;
 mod classify;
 mod commands;
 mod db;
@@ -118,6 +119,7 @@ pub fn run() {
                 wide_roots: wide_roots(app.handle()),
                 bulk: Mutex::new(Vec::new()),
                 // 다음에 창을 열 때 "새 버전으로 업데이트했어요"를 한 번 알린다
+                ready_update: autoupdate::Ready::default(),
                 updated_to: Mutex::new(relaunched.map(|_| app.package_info().version.to_string())),
             };
             state.apply_watch_folders(&current);
@@ -140,6 +142,8 @@ pub fn run() {
                 }
             }
             finder::start_live(app.handle());
+            // 자동 업데이트: 켤 때 바로 확인, 그 뒤 4시간마다(autoupdate.rs)
+            autoupdate::start(app.handle().clone());
             if current.setup_done {
                 finder::refresh_index(app.handle(), true);
             }
@@ -172,7 +176,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
             commands::prepare_update,
-            commands::update_idle,
+            commands::ready_update,
+            commands::install_ready_update,
             commands::take_update_notice,
             commands::set_auto_update,
             commands::setup_info,
