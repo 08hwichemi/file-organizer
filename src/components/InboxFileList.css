@@ -169,6 +169,7 @@
 }
 
 .ifiles__import {
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -396,16 +397,26 @@
 }
 
 /* 목록 맨 아래: 원래 있던 파일 가져오기 */
+/* 파일 칸 맨 아래 한 줄(목록 밖, 늘 보임): 원래 있던 파일도 [지금 있는 파일 가져오기] */
 .ifiles__more {
+  flex-shrink: 0;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: center;
-  gap: 8px 10px;
-  padding: 16px 14px 18px;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--color-line);
+  background: var(--color-surface-sub);
   color: var(--color-text-sub);
   font-size: 12.5px;
-  text-align: center;
+}
+
+.ifiles__more-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ifiles__empty {

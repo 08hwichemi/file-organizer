@@ -144,8 +144,10 @@
   text-align: center;
 }
 
+/* 새 폴더 이름 입력 줄: 아래 '폴더' 띠와 붙어 겹쳐 보이지 않게 위아래 같은 여백 + 구분선(사용자 보고) */
 .ifold__new {
-  padding: 12px 14px 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-line-soft);
 }
 
 .ifold__new input {
