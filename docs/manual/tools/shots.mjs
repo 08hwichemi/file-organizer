@@ -72,7 +72,10 @@ if (want("setup")) {
   await shot(p, "fr1.webp", card);
   await unmark(p);
   await next();
-  await mark(choice("문서 폴더에 새로 만들기"));
+  // 설명서가 권하는 '바탕화면에 새로 만들기'를 골라 둔 채로 찍는다(사용자 요청)
+  await choice("바탕화면에 새로 만들기").click();
+  await p.waitForTimeout(200);
+  await mark(choice("바탕화면에 새로 만들기"));
   await shot(p, "fr2.webp", card);
   await unmark(p);
   await next();
