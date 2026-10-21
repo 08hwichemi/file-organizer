@@ -127,6 +127,8 @@ impl AppState {
     ) -> Result<(i64, PathBuf), String> {
         rules::ensure_target(target, &self.root()?)?;
         let moved = mover::move_into(src, &target.dir, None)?;
+        // 넣은 곳이 지켜볼 폴더(바탕화면 등)여도 새 파일로 다시 묻지 않게
+        self.watcher.mark_known(moved.clone());
         let rule_id = match reason {
             Reason::Rule { rule } => Some(rule.id),
             _ => None,
@@ -281,6 +283,22 @@ pub fn handle_new_files(app: &AppHandle, files: Vec<NewFile>) {
     } else {
         files
     };
+    // 이미 정리했던 파일을 사용자가 옮겨 온 것은 다시 묻지 않는다(사용자 보고)
+    let files: Vec<NewFile> = state
+        .with_db(|conn| {
+            Ok(files
+                .into_iter()
+                .filter(|f| {
+                    let created = std::fs::metadata(&f.path)
+                        .and_then(|m| m.created())
+                        .ok()
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|d| d.as_millis() as i64);
+                    !history::already_organized(conn, &f.path, created, |p| p.exists())
+                })
+                .collect())
+        })
+        .unwrap_or_default();
     if files.is_empty() {
         return;
     }
@@ -1092,6 +1110,8 @@ pub fn put_file(
     };
 
     let moved = mover::move_into(&src, &dest, new_name.as_deref())?;
+    // '다른 위치…'로 바탕화면 등 지켜볼 폴더에 넣어도 새 파일로 다시 묻지 않게
+    state.watcher.mark_known(moved.clone());
     let move_id = state.with_db(|conn| {
         inbox::remove(conn, &src).map_err(db_err)?;
         if let Some(r) = used_rule {
@@ -1477,6 +1497,7 @@ pub fn put_files(
                 mover::move_into(&src, &dest, None)
             }
             .and_then(|moved| {
+                state.watcher.mark_known(moved.clone());
                 state.with_db(|conn| {
                     inbox::remove(conn, &src).map_err(db_err)?;
                     history::record(conn, &src, &moved).map_err(db_err)

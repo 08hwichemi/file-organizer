@@ -37,6 +37,42 @@ pub fn record_with_rule(
     Ok(conn.last_insert_rowid())
 }
 
+/// 이미 정리했던 파일을 사용자가 탐색기로 옮겨 온 것인지(사용자 보고: 한 번 정리한 파일을 바탕화면 등으로
+/// 옮기면 또 어디에 넣을지 물었다). 프로그램을 다시 켜도 알 수 있게 이동 기록으로 본다:
+/// 같은 이름으로 넣은 기록이 있고, 넣은 자리에는 이제 그 파일이 없고(옮겨 감), 이 파일은 그때보다 먼저
+/// 만들어졌으면(같은 디스크에서 옮기면 만든 시각이 그대로다) 같은 파일이다.
+/// 같은 이름으로 새로 받은 파일은 만든 시각이 넣은 뒤라 새 파일로 본다. 만든 시각을 모르면 새 파일로 본다.
+pub fn already_organized(
+    conn: &Connection,
+    path: &Path,
+    created_ms: Option<i64>,
+    exists: impl Fn(&Path) -> bool,
+) -> bool {
+    let (Some(name), Some(created)) = (path.file_name(), created_ms) else {
+        return false;
+    };
+    let name = name.to_string_lossy();
+    let sep_name = |sep: char| format!("{sep}{name}");
+    let Ok(mut stmt) = conn.prepare(
+        "SELECT moved_path, moved_at FROM moves
+         WHERE undone_at IS NULL AND batch IS NULL
+           AND (substr(moved_path, -length(?1)) = ?1 OR substr(moved_path, -length(?2)) = ?2)
+         ORDER BY moved_at DESC LIMIT 50",
+    ) else {
+        return false;
+    };
+    let Ok(rows) = stmt.query_map(params![sep_name('\\'), sep_name('/')], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+    }) else {
+        return false;
+    };
+    let found = rows.flatten().any(|(moved, at)| {
+        let moved = Path::new(&moved);
+        moved != path && created <= at && !exists(moved)
+    });
+    found
+}
+
 /// 새 묶음 번호(이름 한꺼번에 바꾸기)
 pub fn next_batch(conn: &Connection) -> rusqlite::Result<i64> {
     conn.query_row("SELECT COALESCE(MAX(batch), 0) + 1 FROM moves", [], |r| {
@@ -220,6 +256,57 @@ pub fn frequent_destinations(conn: &Connection, limit: usize) -> rusqlite::Resul
 mod tests {
     use super::*;
     use crate::db;
+
+    #[test]
+    fn knows_a_file_it_organized_and_the_user_moved_again() {
+        let conn = db::open_in_memory().unwrap();
+        record(
+            &conn,
+            Path::new("/dl/안내.pdf"),
+            Path::new("/r/평가/안내.pdf"),
+        )
+        .unwrap();
+        let at = crate::db::now_ms();
+        let gone = |_: &Path| false;
+        let there = |_: &Path| true;
+        let moved_back = Path::new("/home/t/Desktop/안내.pdf");
+        // 넣은 자리에 없고, 넣기 전에 만든 파일 → 이미 정리한 파일을 옮겨 온 것
+        assert!(already_organized(
+            &conn,
+            moved_back,
+            Some(at - 60_000),
+            gone
+        ));
+        // 넣은 자리에 그대로 있으면(복사한 것 등) 새 파일
+        assert!(!already_organized(
+            &conn,
+            moved_back,
+            Some(at - 60_000),
+            there
+        ));
+        // 같은 이름으로 새로 받은 파일(넣은 뒤에 만들어짐)은 새 파일
+        assert!(!already_organized(
+            &conn,
+            moved_back,
+            Some(at + 60_000),
+            gone
+        ));
+        // 만든 시각을 모르거나 이름이 다르면 새 파일
+        assert!(!already_organized(&conn, moved_back, None, gone));
+        assert!(!already_organized(
+            &conn,
+            Path::new("/home/t/Desktop/안내2.pdf"),
+            Some(at - 60_000),
+            gone
+        ));
+        // 이름 끝만 같은 다른 파일(새안내.pdf)은 다른 파일
+        assert!(!already_organized(
+            &conn,
+            Path::new("/home/t/Desktop/새안내.pdf"),
+            Some(at - 60_000),
+            gone
+        ));
+    }
 
     #[test]
     fn record_get_and_undo() {
