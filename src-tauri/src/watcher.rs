@@ -421,6 +421,14 @@ impl WideTracker {
         self.known.insert(path, created);
     }
 
+    /// 이미 알린 파일과 같은 파일인지(크기·만든 시각이 같음): 탐색기로 옮기거나 이름만 바꾼 것.
+    pub fn was_seen(&self, stat: Option<WideStat>) -> bool {
+        stat.is_some_and(|w| {
+            w.created
+                .is_some_and(|c| self.seen.contains(&(w.stat.size, c)))
+        })
+    }
+
     /// 지금 저장이 끝난 새 파일을 돌려준다. `wall`은 지금 시각(만든 지 얼마나 됐는지 볼 때).
     pub fn observe(
         &mut self,
@@ -443,9 +451,7 @@ impl WideTracker {
             let old = w
                 .created
                 .is_some_and(|c| wall.duration_since(c).is_ok_and(|age| age > FRESH_FOR));
-            let moved = w
-                .created
-                .is_some_and(|c| self.seen.contains(&(w.stat.size, c)));
+            let moved = self.was_seen(Some(w));
             if known || old || moved {
                 self.candidates.remove(&path);
                 continue;
@@ -575,9 +581,12 @@ impl WatchService {
                     }
                     let now = Instant::now();
                     for path in tracker.observe(now, &files, has_partial_partner) {
+                        let stat = read_wide(&path);
+                        // 이미 알린 파일을 탐색기에서 이름만 바꾼 것이면 다시 묻지 않는다(사용자 보고)
+                        let renamed = wide.was_seen(stat);
                         // 나중에 탐색기로 옮겨도 넓은 감시가 다시 묻지 않게
-                        wide.remember(path.clone(), read_wide(&path));
-                        if is_decoy(&path) {
+                        wide.remember(path.clone(), stat);
+                        if renamed || is_decoy(&path) {
                             continue; // 백신 미끼 파일은 묻지 않는다(알린 것으로 쳐서 다시 보지 않음)
                         }
                         let source_dir = source_of.get(&path).cloned().unwrap_or_default();
@@ -989,6 +998,22 @@ mod tests {
         tr.touch(PathBuf::from("/d/gone.pdf"));
         tr.observe(t0, wall, |_| None, NO_PARTNER);
         assert!(!tr.has_pending());
+    }
+
+    #[test]
+    fn was_seen_matches_renamed_file_only() {
+        let made = SystemTime::now() - Duration::from_secs(60);
+        let mut tr = WideTracker::default();
+        tr.remember(PathBuf::from("/dl/a.pdf"), Some(wide_stat(7, made)));
+        // 탐색기에서 이름만 바꿈(크기·만든 시각 같음)
+        assert!(tr.was_seen(Some(wide_stat(7, made))));
+        // 새로 받은 파일(만든 시각이 다름)·만든 시각을 모름
+        assert!(!tr.was_seen(Some(wide_stat(7, SystemTime::now()))));
+        assert!(!tr.was_seen(Some(WideStat {
+            stat: stat(7, 1),
+            created: None
+        })));
+        assert!(!tr.was_seen(None));
     }
 
     #[test]

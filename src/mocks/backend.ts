@@ -1019,6 +1019,14 @@ export const mockBackend = {
     return delay(undefined);
   },
 
+  renamePending(path: string, newName: string) {
+    const item = pending.find((p) => p.path === path);
+    if (!item) return fail("파일을 찾을 수 없어요. 이미 옮겨졌거나 지워졌을 수 있어요.");
+    const renamed = { ...item, name: newName, path: `${item.sourceDir}${SEP}${newName}` };
+    pending = pending.map((p) => (p.path === path ? renamed : p));
+    return delay(renamed);
+  },
+
   hidePopup() {
     // 브라우저에서는 창을 숨길 수 없으니 새 파일 하나를 다시 넣어 계속 볼 수 있게 한다.
     setTimeout(() => {

@@ -1589,6 +1589,47 @@ pub fn defer_file(app: AppHandle, state: State<'_, AppState>, path: String) -> R
     Ok(())
 }
 
+/// 팝업에서 이름 바꾸기: 넣기 전에 바로 그 자리(다운로드 등)에서 이름을 바꾼다(사용자 보고: 넣지 않고 이름만
+/// 바꾸면 실제 파일은 그대로였다). 같은 이름이 있으면 번호를 붙이고, 기록(이름 바꾸기)에 남아 되돌릴 수 있다.
+#[tauri::command]
+pub fn rename_pending(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+    new_name: String,
+) -> Result<PendingFile, String> {
+    let src = PathBuf::from(&path);
+    let dir = src
+        .parent()
+        .ok_or("파일이 있는 폴더를 알 수 없어요.")?
+        .to_path_buf();
+    let renamed = mover::move_into(&src, &dir, Some(&new_name))?;
+    // 바뀐 이름을 감시가 새 파일로 다시 잡지 않게
+    state.watcher.mark_known(renamed.clone());
+    state.with_db(|conn| {
+        let batch = history::next_batch(conn).map_err(db_err)?;
+        history::record_in_batch(conn, &src, &renamed, batch).map_err(db_err)?;
+        history::rewrite_file(conn, &src, &renamed, batch).map_err(db_err)?;
+        inbox::rename_path(conn, &src, &renamed).map_err(db_err)
+    })?;
+    let source_dir = state
+        .with_pending(|q| {
+            q.iter()
+                .find(|p| p.path == path)
+                .map(|p| p.source_dir.clone())
+        })
+        .map(PathBuf::from)
+        .unwrap_or(dir);
+    let item = PendingFile::new(&renamed, &source_dir);
+    state.with_pending(|q| {
+        if let Some(p) = q.iter_mut().find(|p| p.path == path) {
+            *p = item.clone();
+        }
+    });
+    notify_inbox(&app);
+    Ok(item)
+}
+
 /// 팝업 창 숨기기(물어볼 파일이 더 없을 때).
 #[tauri::command]
 pub fn hide_popup(app: AppHandle) {

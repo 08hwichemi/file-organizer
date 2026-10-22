@@ -347,6 +347,12 @@ export function deferFile(path: string): Promise<void> {
   return invoke("defer_file", { path });
 }
 
+/** 팝업에서 이름 바꾸기: 넣기 전에 그 자리에서 바로 바꾼다. 바뀐 파일을 돌려준다. */
+export function renamePending(path: string, newName: string): Promise<PendingFile> {
+  if (usingMocks) return mockBackend.renamePending(path, newName);
+  return invoke("rename_pending", { path, newName });
+}
+
 export function hidePopup(): Promise<void> {
   if (usingMocks) return mockBackend.hidePopup();
   return invoke("hide_popup");
