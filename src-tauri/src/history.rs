@@ -203,10 +203,10 @@ pub fn recent_puts(conn: &Connection, limit: usize) -> rusqlite::Result<Vec<Move
     Ok(out)
 }
 
-/// 최근에 파일을 넣은 폴더(되돌린 이동 제외), 새것부터, 중복 없이.
+/// 최근에 파일을 넣은 폴더(되돌린 이동·이름 바꾸기 제외), 새것부터, 중복 없이.
 pub fn recent_destinations(conn: &Connection, limit: usize) -> rusqlite::Result<Vec<String>> {
     let mut stmt = conn.prepare(
-        "SELECT moved_path FROM moves WHERE undone_at IS NULL ORDER BY moved_at DESC, id DESC LIMIT 200",
+        "SELECT moved_path FROM moves WHERE undone_at IS NULL AND batch IS NULL ORDER BY moved_at DESC, id DESC LIMIT 200",
     )?;
     let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
     let mut out: Vec<String> = Vec::new();
@@ -227,10 +227,10 @@ pub fn recent_destinations(conn: &Connection, limit: usize) -> rusqlite::Result<
     Ok(out)
 }
 
-/// 자주 넣은 폴더(되돌린 이동 제외): 넣은 횟수가 많은 순, 같으면 최근 순.
+/// 자주 넣은 폴더(되돌린 이동·이름 바꾸기 제외): 넣은 횟수가 많은 순, 같으면 최근 순.
 pub fn frequent_destinations(conn: &Connection, limit: usize) -> rusqlite::Result<Vec<String>> {
     let mut stmt = conn.prepare(
-        "SELECT moved_path FROM moves WHERE undone_at IS NULL ORDER BY moved_at DESC, id DESC LIMIT 1000",
+        "SELECT moved_path FROM moves WHERE undone_at IS NULL AND batch IS NULL ORDER BY moved_at DESC, id DESC LIMIT 1000",
     )?;
     let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
     // (폴더, 횟수, 처음 나온 순서 = 최근 순)
@@ -328,6 +328,9 @@ mod tests {
         record(&conn, Path::new("/d/3"), Path::new("/r/업무/3")).unwrap();
         let undone = record(&conn, Path::new("/d/4"), Path::new("/r/학급/4")).unwrap();
         mark_undone(&conn, undone).unwrap();
+        // 팝업에서 넣기 전에 이름만 바꾼 것(다운로드 그대로)은 넣은 곳이 아니다
+        let batch = next_batch(&conn).unwrap();
+        record_in_batch(&conn, Path::new("/d/5"), Path::new("/d/새 이름"), batch).unwrap();
         assert_eq!(
             recent_destinations(&conn, 3).unwrap(),
             ["/r/업무", "/r/평가"]

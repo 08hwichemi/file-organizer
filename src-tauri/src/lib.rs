@@ -211,6 +211,7 @@ pub fn run() {
             commands::trash_files,
             commands::restore_deleted,
             commands::defer_file,
+            commands::rename_pending,
             commands::hide_popup,
             commands::list_inbox,
             commands::set_place_mode,

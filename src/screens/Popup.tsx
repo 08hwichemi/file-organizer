@@ -17,6 +17,7 @@ import {
   pickFolder,
   putFile,
   quietFolder,
+  renamePending,
   revealPath,
   undoMove,
 } from "../lib/backend";
@@ -59,7 +60,8 @@ export default function Popup() {
   const [selected, setSelected] = useState<string | null>(null);
   const [reveal, setReveal] = useState<string | null>(null);
   const [recents, setRecents] = useState<string[]>([]);
-  const [newName, setNewName] = useState<string | null>(null);
+  /** 이 팝업에서 이름을 바꿨는지(바꾸면 그 자리에서 바로 바뀐다) */
+  const [renamed, setRenamed] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,7 +83,7 @@ export default function Popup() {
       shownPath.current = state.current?.path ?? null;
       setSelected(state.suggestion?.destDir ?? null);
       setReveal(state.suggestion ? revealFor(state.suggestion, sep) : null);
-      setNewName(null);
+      setRenamed(false);
       setEditing(null);
       setError(null);
       setMenuOpen(false);
@@ -176,14 +178,14 @@ export default function Popup() {
     setBusy(true);
     setError(null);
     try {
-      const result = await putFile(current.path, selected, newName);
-      setPhase({ kind: "done", file: { ...current, name: newName ?? current.name }, result });
+      const result = await putFile(current.path, selected, null);
+      setPhase({ kind: "done", file: current, result });
     } catch (e) {
       setError(errorMessage(e));
     } finally {
       setBusy(false);
     }
-  }, [busy, current, newName, selected]);
+  }, [busy, current, selected]);
 
   // 다 세면 추천 위치(골라 둔 폴더)에 넣는다
   useEffect(() => {
@@ -274,12 +276,28 @@ export default function Popup() {
     setReveal(revealFor(suggestion, sep));
   };
 
-  const confirmRename = () => {
-    if (editing === null || !current) return;
+  // 이름 바꾸기는 넣기 전에 그 자리(다운로드 등)에서 바로 한다: 넣지 않고 두어도 바뀐 이름이 남는다.
+  const renaming = useRef(false);
+  const confirmRename = async () => {
+    if (editing === null || !current || renaming.current) return;
     const [, ext] = splitName(current.name);
     const stem = editing.trim();
-    setNewName(stem && stem + ext !== current.name ? stem + ext : null);
     setEditing(null);
+    if (!stem || stem + ext === current.name) return;
+    renaming.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const file = await renamePending(current.path, stem + ext);
+      shownPath.current = file.path; // 같은 파일이니 골라 둔 폴더는 그대로
+      setCurrent(file);
+      setRenamed(true);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      renaming.current = false;
+      setBusy(false);
+    }
   };
 
   // 키보드: Enter = 넣기(정리 후에는 다음), Esc = 나중에 정리(정리 후에는 다음), 1·2·3 = 최근 넣은 곳
@@ -521,7 +539,7 @@ export default function Popup() {
     );
   }
 
-  const shownName = newName ?? current.name;
+  const shownName = current.name;
   const [stem, ext] = splitName(shownName);
 
   return (
@@ -545,21 +563,21 @@ export default function Popup() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
-                    confirmRename();
+                    void confirmRename();
                   }
                   if (e.key === "Escape") {
                     e.stopPropagation();
                     setEditing(null);
                   }
                 }}
-                onBlur={confirmRename}
+                onBlur={() => void confirmRename()}
               />
               <span className="popup__ext">{ext}</span>
             </div>
           )}
           <div className="popup__file-meta">
             {friendlyPlace(current.sourceDir, info)}에 방금 저장됨 · {formatSize(current.size)}
-            {newName && " · 이름 바뀜"}
+            {renamed && " · 이름 바뀜"}
           </div>
         </div>
         {editing === null && (
