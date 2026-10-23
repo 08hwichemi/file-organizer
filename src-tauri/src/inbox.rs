@@ -80,6 +80,15 @@ pub fn add_if_absent(
     Ok(changed > 0)
 }
 
+/// 이미 정리함에 있는 파일인지
+pub fn contains(conn: &Connection, path: &Path) -> rusqlite::Result<bool> {
+    conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM inbox WHERE path = ?1)",
+        params![path.to_string_lossy()],
+        |r| r.get(0),
+    )
+}
+
 pub fn remove(conn: &Connection, path: &Path) -> rusqlite::Result<()> {
     conn.execute(
         "DELETE FROM inbox WHERE path = ?1",

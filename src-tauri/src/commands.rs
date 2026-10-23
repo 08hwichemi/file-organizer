@@ -283,11 +283,13 @@ pub fn handle_new_files(app: &AppHandle, files: Vec<NewFile>) {
     } else {
         files
     };
-    // 이미 정리했던 파일을 사용자가 옮겨 온 것은 다시 묻지 않는다(사용자 보고)
+    // 이미 정리했던 파일을 사용자가 옮겨 오거나 고쳐 저장한 것, 정리함에 있는 파일을 고쳐 저장한 것은
+    // 다시 묻지 않는다(사용자 보고)
     let files: Vec<NewFile> = state
         .with_db(|conn| {
             Ok(files
                 .into_iter()
+                .filter(|f| !inbox::contains(conn, &f.path).unwrap_or(false))
                 .filter(|f| {
                     let created = std::fs::metadata(&f.path)
                         .and_then(|m| m.created())
