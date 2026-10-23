@@ -42,6 +42,7 @@ pub fn record_with_rule(
 /// 같은 이름으로 넣은 기록이 있고, 넣은 자리에는 이제 그 파일이 없고(옮겨 감), 이 파일은 그때보다 먼저
 /// 만들어졌으면(같은 디스크에서 옮기면 만든 시각이 그대로다) 같은 파일이다.
 /// 같은 이름으로 새로 받은 파일은 만든 시각이 넣은 뒤라 새 파일로 본다. 만든 시각을 모르면 새 파일로 본다.
+/// 넣은 자리에서 그대로 열어 고쳐 저장한 파일(만든 시각은 그대로)도 이미 정리한 파일이다(사용자 보고).
 pub fn already_organized(
     conn: &Connection,
     path: &Path,
@@ -68,7 +69,8 @@ pub fn already_organized(
     };
     let found = rows.flatten().any(|(moved, at)| {
         let moved = Path::new(&moved);
-        moved != path && created <= at && !exists(moved)
+        // 옮겨 간 뒤 그 자리에 없거나, 넣은 그 자리에 있는 파일을 고쳐 저장한 것
+        created <= at && (moved == path || !exists(moved))
     });
     found
 }
@@ -299,6 +301,11 @@ mod tests {
             Some(at - 60_000),
             gone
         ));
+        // 넣은 그 자리에서 열어 고쳐 저장함(만든 시각 그대로) → 이미 정리한 파일
+        let put = Path::new("/r/평가/안내.pdf");
+        assert!(already_organized(&conn, put, Some(at - 60_000), there));
+        // 그 자리에 같은 이름으로 새로 만든 파일은 새 파일
+        assert!(!already_organized(&conn, put, Some(at + 60_000), there));
         // 이름 끝만 같은 다른 파일(새안내.pdf)은 다른 파일
         assert!(!already_organized(
             &conn,

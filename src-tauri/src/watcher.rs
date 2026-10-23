@@ -28,6 +28,9 @@ const POLL_EVERY: Duration = Duration::from_millis(1500);
 /// 저장 중인 파일이 있을 때는 더 자주 확인한다.
 const POLL_WHILE_PENDING: Duration = Duration::from_millis(500);
 
+/// 지켜볼 폴더에서 아는 파일이 사라졌다가 이 안에 만든 시각이 같은 채로 다시 생기면 같은 파일이다
+/// (한글·엑셀 등은 저장할 때 임시 파일에 쓰고 원래 파일과 바꿔 끼운다. Windows는 그때 만든 시각을 그대로 둔다).
+const REPLACED_WITHIN: Duration = Duration::from_secs(30);
 /// 넓은 감시: 만든 지 이보다 오래된 파일은 새 파일이 아니다(옛 파일을 옮긴 것).
 pub const FRESH_FOR: Duration = Duration::from_secs(60 * 60);
 /// 찾은 새 파일을 묶으려고 붙잡아 두는 최대 시간(그사이 저장 중인 파일이 끝나기를 기다린다).
@@ -123,6 +126,8 @@ pub fn has_partial_partner(path: &Path) -> bool {
 pub struct FileStat {
     pub size: u64,
     pub modified: Option<SystemTime>,
+    /// 만든 시각(모르면 None)
+    pub created: Option<SystemTime>,
 }
 
 #[derive(Debug)]
@@ -134,21 +139,24 @@ struct Candidate {
 /// 폴더 목록을 반복해서 받아 "저장이 끝난 새 파일"을 골라낸다. 디스크를 직접 읽지 않아 테스트하기 쉽다.
 #[derive(Debug, Default)]
 pub struct Tracker {
-    /// 이미 알고 있는 파일(시작 때 있던 것, 이미 알린 것, 되돌리기로 돌아온 것).
-    known: HashSet<PathBuf>,
+    /// 이미 알고 있는 파일(시작 때 있던 것, 이미 알린 것, 되돌리기로 돌아온 것)과 만든 시각.
+    known: HashMap<PathBuf, Option<SystemTime>>,
+    /// 방금 사라진 아는 파일(만든 시각, 사라진 때): 저장하며 바꿔 끼운 것이면 곧 같은 만든 시각으로 돌아온다.
+    gone: HashMap<PathBuf, (SystemTime, Instant)>,
     candidates: HashMap<PathBuf, Candidate>,
 }
 
 impl Tracker {
     /// 시작할 때 이미 있던 파일은 새 파일이 아니다.
-    pub fn baseline(&mut self, files: impl IntoIterator<Item = PathBuf>) {
+    pub fn baseline(&mut self, files: impl IntoIterator<Item = (PathBuf, Option<SystemTime>)>) {
         self.known.extend(files);
     }
 
     /// 되돌리기 등으로 돌아온 파일을 다시 새 파일로 잡지 않게 한다.
-    pub fn mark_known(&mut self, path: PathBuf) {
+    pub fn mark_known(&mut self, path: PathBuf, created: Option<SystemTime>) {
         self.candidates.remove(&path);
-        self.known.insert(path);
+        self.gone.remove(&path);
+        self.known.insert(path, created);
     }
 
     pub fn has_pending(&self) -> bool {
@@ -171,14 +179,32 @@ impl Tracker {
         partner_exists: impl Fn(&Path) -> bool,
     ) -> Vec<PathBuf> {
         let present: HashSet<&PathBuf> = files.iter().map(|(p, _)| p).collect();
-        // 사라진 파일은 잊는다(같은 이름으로 다시 받으면 새 파일).
-        self.known.retain(|p| present.contains(p));
+        // 사라진 파일은 잊는다(같은 이름으로 다시 받으면 새 파일). 다만 저장하며 바꿔 끼우는 동안 잠깐
+        // 사라진 것일 수 있어 만든 시각을 잠시 기억해 둔다(사용자 보고: 파일을 고쳐 저장하니 새 파일로 떴다).
+        let gone = &mut self.gone;
+        self.known.retain(|p, created| {
+            if present.contains(p) {
+                return true;
+            }
+            if let Some(c) = created {
+                gone.insert(p.clone(), (*c, now));
+            }
+            false
+        });
+        gone.retain(|_, (_, since)| now.duration_since(*since) < REPLACED_WITHIN);
         self.candidates.retain(|p, _| present.contains(p));
 
         let mut ready = Vec::new();
         for (path, stat) in files {
-            if self.known.contains(path) {
+            if self.known.contains_key(path) {
                 continue;
+            }
+            if let Some(&(created, _)) = self.gone.get(path) {
+                if stat.created == Some(created) {
+                    self.gone.remove(path);
+                    self.known.insert(path.clone(), stat.created);
+                    continue;
+                }
             }
             let name = path
                 .file_name()
@@ -205,7 +231,12 @@ impl Tracker {
         }
         for path in &ready {
             self.candidates.remove(path);
-            self.known.insert(path.clone());
+            self.gone.remove(path);
+            let created = files
+                .iter()
+                .find(|(p, _)| p == path)
+                .and_then(|(_, s)| s.created);
+            self.known.insert(path.clone(), created);
         }
         ready
     }
@@ -233,6 +264,7 @@ pub fn list_files(dir: &Path) -> Vec<(PathBuf, FileStat)> {
             FileStat {
                 size: meta.len(),
                 modified: meta.modified().ok(),
+                created: meta.created().ok(),
             },
         ));
     }
@@ -370,6 +402,7 @@ pub fn read_wide(path: &Path) -> Option<WideStat> {
         stat: FileStat {
             size: meta.len(),
             modified: meta.modified().ok(),
+            created: meta.created().ok(),
         },
         created: meta.created().ok(),
     })
@@ -544,7 +577,9 @@ impl WatchService {
                                 // 새로 지켜보는 폴더에 이미 있던 파일은 새 파일이 아니다.
                                 for dir in new.folders.iter().filter(|d| !scope.folders.contains(d))
                                 {
-                                    tracker.baseline(list_files(dir).into_iter().map(|(p, _)| p));
+                                    tracker.baseline(
+                                        list_files(dir).into_iter().map(|(p, s)| (p, s.created)),
+                                    );
                                 }
                                 if let Ok(mut f) = filter.lock() {
                                     *f = WideFilter::new(&new);
@@ -561,8 +596,9 @@ impl WatchService {
                                 scope = new;
                             }
                             Command::MarkKnown(path) => {
-                                tracker.mark_known(path.clone());
-                                wide.remember(path.clone(), read_wide(&path));
+                                let stat = read_wide(&path);
+                                tracker.mark_known(path.clone(), stat.and_then(|w| w.created));
+                                wide.remember(path.clone(), stat);
                                 outbox.retain(|f| f.path != path);
                             }
                             Command::Touched(paths) => {
@@ -666,6 +702,7 @@ mod tests {
         FileStat {
             size,
             modified: Some(SystemTime::UNIX_EPOCH + Duration::from_secs(secs)),
+            created: None,
         }
     }
 
@@ -737,7 +774,7 @@ mod tests {
         let empty = PathBuf::from("/dl/empty.pdf");
         let partial = PathBuf::from("/dl/b.pdf");
         let mut tr = Tracker::default();
-        tr.baseline([old.clone()]);
+        tr.baseline([(old.clone(), None)]);
         let files = [
             (old.clone(), stat(5, 1)),
             (empty.clone(), stat(0, 1)),
@@ -755,7 +792,7 @@ mod tests {
         let t0 = Instant::now();
         let f = PathBuf::from("/dl/a.pdf");
         let mut tr = Tracker::default();
-        tr.baseline([f.clone()]);
+        tr.baseline([(f.clone(), None)]);
         tr.observe(t0, &[(f.clone(), stat(5, 1))], NO_PARTNER);
         // 사용자가 옮겨서 사라짐 → 같은 이름으로 다시 받음
         tr.observe(t0, &[], NO_PARTNER);
@@ -767,11 +804,55 @@ mod tests {
 
         // 되돌리기로 돌아온 파일은 새 파일로 보지 않는다
         let back = PathBuf::from("/dl/back.hwp");
-        tr.mark_known(back.clone());
+        tr.mark_known(back.clone(), None);
         tr.observe(t0, &[(back.clone(), stat(3, 1))], NO_PARTNER);
         assert!(tr
             .observe(t0 + STABLE_FOR, &[(back, stat(3, 1))], NO_PARTNER)
             .is_empty());
+    }
+
+    #[test]
+    fn file_saved_by_swapping_in_a_temp_file_is_not_new() {
+        let t0 = Instant::now();
+        let made = SystemTime::UNIX_EPOCH + Duration::from_secs(1000);
+        let with_created = |size, secs, created| FileStat {
+            created,
+            ..stat(size, secs)
+        };
+        let f = PathBuf::from("/dl/성적.xlsx");
+        let mut tr = Tracker::default();
+        tr.baseline([(f.clone(), Some(made))]);
+        // 엑셀이 저장하며 잠깐 원래 파일이 없어졌다가, 같은 만든 시각으로 고친 내용이 들어옴
+        tr.observe(t0, &[], NO_PARTNER);
+        let saved = [(f.clone(), with_created(50, 9, Some(made)))];
+        tr.observe(t0 + Duration::from_millis(500), &saved, NO_PARTNER);
+        assert!(tr
+            .observe(t0 + STABLE_FOR * 3, &saved, NO_PARTNER)
+            .is_empty());
+
+        // 옮겨서 사라진 뒤 한참 지나 같은 이름으로 새로 받음(만든 시각이 다름): 새 파일
+        tr.observe(t0, &[], NO_PARTNER);
+        let later = t0 + REPLACED_WITHIN;
+        let again = [(
+            f.clone(),
+            with_created(60, 20, Some(made + Duration::from_secs(99))),
+        )];
+        tr.observe(later, &again, NO_PARTNER);
+        assert_eq!(
+            tr.observe(later + STABLE_FOR, &again, NO_PARTNER),
+            std::slice::from_ref(&f)
+        );
+
+        // 사라진 지 오래되면 만든 시각이 같아도 잊는다
+        let g = PathBuf::from("/dl/b.hwp");
+        tr.mark_known(g.clone(), Some(made));
+        tr.observe(t0, &[], NO_PARTNER);
+        let back = [(g.clone(), with_created(5, 1, Some(made)))];
+        tr.observe(t0 + REPLACED_WITHIN, &back, NO_PARTNER);
+        assert_eq!(
+            tr.observe(t0 + REPLACED_WITHIN + STABLE_FOR, &back, NO_PARTNER),
+            [g]
+        );
     }
 
     #[test]
