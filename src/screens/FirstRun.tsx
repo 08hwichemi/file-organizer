@@ -38,7 +38,7 @@ export default function FirstRun() {
   const [watch, setWatch] = useState<string[]>(() =>
     current?.watchFolders.length
       ? current.watchFolders
-      : [info?.downloads, info?.desktop].filter((p): p is string => !!p),
+      : [info?.downloads, info?.desktop, info?.kakao].filter((p): p is string => !!p),
   );
   const [mode, setMode] = useState<OrganizeMode>(current?.organizeMode ?? "ask");
   const [busy, setBusy] = useState(false);
@@ -323,10 +323,10 @@ export default function FirstRun() {
 
           {step === "watch" && (
             <>
-              <h1 className="setup__title">새 파일이 주로 들어오는 폴더는 어디인가요?</h1>
+              <h1 className="setup__title">받은 파일이 모이는 폴더는 어디인가요?</h1>
               <p className="setup__lead">
-                그 밖의 곳(문서·카카오톡 받은 파일 등)에 새로 저장된 파일도 알아보고 물어봐요. 설정 → 폴더에서 바꿀 수
-                있어요.
+                여기에 새 파일이 생기면 어디에 넣을지 물어봐요. 아이스톡 등 다른 메신저로 받는 폴더가 있으면 더해 주세요.
+                설정 → 폴더에서 바꿀 수 있어요.
               </p>
               <WatchFolderEditor known={info} value={watch} onChange={setWatch} />
               {watchProblem && <p className="error-text">{watchProblem}</p>}

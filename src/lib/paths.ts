@@ -23,6 +23,8 @@ export interface KnownFolders {
   pictures?: string | null;
   videos?: string | null;
   music?: string | null;
+  /** 카카오톡 받은 파일 폴더(있을 때만) */
+  kakao?: string | null;
 }
 
 /** 다운로드·바탕화면·문서·사진·동영상·음악의 실제 위치와 쉬운 이름 */

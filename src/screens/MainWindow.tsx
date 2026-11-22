@@ -72,7 +72,7 @@ export default function MainWindow() {
     return onBackendEvent("inbox-changed", load);
   }, []);
 
-  // 새 파일을 찾는 곳: 내 PC 어디든 / 지켜볼 폴더 이름
+  // 새 파일을 찾는 곳: 내 PC 어디든 / 받은 파일이 모이는 폴더 이름
   const watching =
     settings?.newFileScope === "anywhere"
       ? "새 파일: 내 PC 어디든"

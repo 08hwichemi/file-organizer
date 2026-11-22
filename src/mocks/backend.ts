@@ -56,7 +56,7 @@ const HOME = "C:\\Users\\선생님";
 const SEP = "\\";
 const DOWNLOADS = `${HOME}\\Downloads`;
 const DESKTOP = `${HOME}\\Desktop`;
-/** 카카오톡 PC가 받은 파일을 저장하는 곳(내 PC 어디든으로 찾은 파일 예) */
+/** 카카오톡 PC가 받은 파일을 저장하는 곳(처음부터 받은 파일이 모이는 폴더) */
 const KAKAO = `${HOME}\\Documents\\카카오톡 받은 파일`;
 
 const setupInfo: SetupInfo = {
@@ -66,6 +66,7 @@ const setupInfo: SetupInfo = {
   pictures: `${HOME}\\Pictures`,
   videos: `${HOME}\\Videos`,
   music: `${HOME}\\Music`,
+  kakao: KAKAO,
   rootFolderName: "정리 폴더",
   separator: SEP,
   teacherExample: [
@@ -121,7 +122,9 @@ let settings: Settings = startReady
       setupDone: true,
       rootFolder: readyRoot,
       watchFolders:
-        params.get("many") === "1" ? [DOWNLOADS, DESKTOP, `${HOME}\\Documents`, "D:\\", `${HOME}\\빈 폴더`] : [DOWNLOADS, DESKTOP],
+        params.get("many") === "1"
+          ? [DOWNLOADS, DESKTOP, KAKAO, `${HOME}\\Documents`, "D:\\", `${HOME}\\빈 폴더`]
+          : [DOWNLOADS, DESKTOP, KAKAO],
       organizeMode: "ask",
       placeMode: "suggest",
       firstTermMonth: 3,
@@ -132,7 +135,7 @@ let settings: Settings = startReady
       searchShortcut: "Alt+Space",
       searchWholePc: true,
       userKind: params.get("kind") === "general" ? "general" : "school",
-      newFileScope: params.get("scope") === "watched" ? "watched" : "anywhere",
+      newFileScope: params.get("scope") === "anywhere" ? "anywhere" : "watched",
       autoUpdate: params.get("auto") !== "0",
       // 화면 캡처·녹화가 저장되는 곳은 처음부터 묻지 않는다(Rust settings::add_default_quiet)
       quietFolders: [`${HOME}\\Pictures\\Screenshots`, `${HOME}\\Videos\\Captures`],
@@ -151,7 +154,7 @@ let settings: Settings = startReady
       searchShortcut: "Alt+Space",
       searchWholePc: true,
       userKind: params.get("kind") === "general" ? "general" : "school",
-      newFileScope: "anywhere",
+      newFileScope: "watched",
       quietFolders: [],
       autoUpdate: true,
     };
@@ -787,7 +790,12 @@ export const mockBackend = {
   },
 
   quietFolder(dir: string) {
-    if (!settings.quietFolders.includes(dir)) settings = { ...settings, quietFolders: [...settings.quietFolders, dir] };
+    // Rust commands::quiet_in: 받은 파일이 모이는 폴더만 볼 때는 그 폴더의 체크를 끈다(하나 남으면 묻지 않는 폴더로)
+    if (settings.newFileScope === "watched" && settings.watchFolders.length > 1 && settings.watchFolders.includes(dir)) {
+      settings = { ...settings, watchFolders: settings.watchFolders.filter((w) => w !== dir) };
+    } else if (!settings.quietFolders.includes(dir)) {
+      settings = { ...settings, quietFolders: [...settings.quietFolders, dir] };
+    }
     const inside = (p: string) => p === dir || p.startsWith(dir + SEP);
     pending = pending.filter((p) => !inside(p.sourceDir));
     mockEvents.emit("settings-changed");

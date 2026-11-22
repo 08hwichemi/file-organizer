@@ -30,15 +30,16 @@ pub enum PlaceMode {
     Classify,
 }
 
-/// 새 파일을 찾는 곳(SPEC 5장, 사용자 요청: 인터넷·카카오톡·메신저 등 어디로 받든 정리하고 싶다).
+/// 새 파일을 찾는 곳(SPEC 5장).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum NewFileScope {
     /// 내 PC 어디든: 바탕화면·문서·다운로드·사진·동영상·음악과 그 하위 폴더, 다른 고정 디스크까지
-    /// (정리 폴더·프로그램 폴더·묻지 않는 폴더는 뺀다). 예전 설정도 업데이트하면 이것으로.
-    #[default]
+    /// (정리 폴더·프로그램 폴더·묻지 않는 폴더는 뺀다). 다른 이름으로 저장·캡처한 파일도 물어서 자주 뜬다.
     Anywhere,
-    /// 지켜볼 폴더 바로 아래만(예전 방식)
+    /// 받은 파일이 모이는 폴더(지켜볼 폴더: 다운로드·바탕화면·카카오톡 받은 파일 등) 바로 아래만.
+    /// 기본(사용자 요청: 다른 이름으로 저장·캡처에도 떠서 너무 자주 뜬다).
+    #[default]
     Watched,
 }
 
@@ -90,8 +91,10 @@ pub struct Settings {
     pub search_whole_pc: bool,
     /// 쓰는 곳(처음 설정에서 고름, 예전 설정은 학교)
     pub user_kind: UserKind,
-    /// 새 파일을 찾는 곳(기본: 내 PC 어디든)
+    /// 새 파일을 찾는 곳(기본: 받은 파일이 모이는 폴더만)
     pub new_file_scope: NewFileScope,
+    /// '받은 파일이 모이는 폴더만'으로 한 번 바꿨는지(예전 설정 옮기기, `apply_received_only`)
+    pub received_only_applied: bool,
     /// 새 파일이 생겨도 묻지 않는 폴더(하위 폴더까지)
     pub quiet_folders: Vec<String>,
     /// 기본으로 묻지 않는 폴더(화면 캡처가 저장되는 곳)를 더했는지. 한 번만 더해서, 사용자가 [다시 묻기]로
@@ -124,7 +127,8 @@ impl Default for Settings {
             search_shortcut: "Alt+Space".into(),
             search_whole_pc: true,
             user_kind: UserKind::School,
-            new_file_scope: NewFileScope::Anywhere,
+            new_file_scope: NewFileScope::Watched,
+            received_only_applied: false,
             quiet_folders: Vec::new(),
             quiet_defaults_added: false,
             auto_update: true,
@@ -191,6 +195,41 @@ pub fn add_default_quiet(s: &mut Settings, defaults: &[std::path::PathBuf]) -> b
     true
 }
 
+/// 업데이트 때 한 번: 새 파일을 찾는 곳을 '받은 파일이 모이는 폴더만'으로 바꾸고(사용자 요청),
+/// 카카오톡 받은 파일 폴더(`kakao`, 있을 때만)를 지켜볼 폴더에 더한다.
+/// 묻지 않는 폴더로 꺼 둔 지켜볼 폴더는 지켜볼 폴더에서 체크를 끈 것으로 옮긴다(설정 화면에 그 목록만 보이므로).
+/// 바꿨으면(설정을 저장해야 하면) true.
+pub fn apply_received_only(s: &mut Settings, kakao: Option<&std::path::Path>) -> bool {
+    use crate::folders::{is_inside, same_dir};
+    use std::path::Path;
+    if s.received_only_applied {
+        return false;
+    }
+    s.received_only_applied = true;
+    s.new_file_scope = NewFileScope::Watched;
+    if !s.setup_done {
+        return true; // 처음 설정에서 고른다
+    }
+    if let Some(k) = kakao {
+        if !s.watch_folders.iter().any(|w| same_dir(Path::new(w), k)) {
+            s.watch_folders.push(k.to_string_lossy().into_owned());
+        }
+    }
+    let quieted = |w: &String| {
+        let w = Path::new(w);
+        s.quiet_folders
+            .iter()
+            .any(|q| same_dir(Path::new(q), w) || is_inside(Path::new(q), w))
+    };
+    let (off, on): (Vec<String>, Vec<String>) = s.watch_folders.iter().cloned().partition(quieted);
+    if !off.is_empty() && !on.is_empty() {
+        s.watch_folders = on;
+        s.quiet_folders
+            .retain(|q| !off.iter().any(|w| same_dir(Path::new(q), Path::new(w))));
+    }
+    true
+}
+
 pub fn valid_term_months(first: u32, second: u32) -> bool {
     (1..=12).contains(&first) && (1..=12).contains(&second) && first < second
 }
@@ -239,7 +278,8 @@ mod tests {
             search_shortcut: "Ctrl+Alt+F".into(),
             search_whole_pc: false,
             user_kind: UserKind::General,
-            new_file_scope: NewFileScope::Watched,
+            new_file_scope: NewFileScope::Anywhere,
+            received_only_applied: true,
             quiet_folders: vec!["C:\\Users\\선생님\\Pictures\\Screenshots".into()],
             quiet_defaults_added: true,
             auto_update: false,
@@ -269,8 +309,9 @@ mod tests {
         assert!(s.search_whole_pc);
         // 0.1.15 전: 학교
         assert_eq!(s.user_kind, UserKind::School);
-        // 0.1.33 전: 업데이트하면 내 PC 어디든(사용자 결정: 다시 설정하지 않아도 되게)
-        assert_eq!(s.new_file_scope, NewFileScope::Anywhere);
+        // 0.1.41 전: 받은 파일이 모이는 폴더만(사용자 요청: 너무 자주 뜬다). 켤 때 apply_received_only로 옮긴다
+        assert_eq!(s.new_file_scope, NewFileScope::Watched);
+        assert!(!s.received_only_applied);
         assert!(s.quiet_folders.is_empty());
         // 0.1.35 전: 업데이트는 자동으로(사용자 결정)
         assert!(s.auto_update);
@@ -314,6 +355,56 @@ mod tests {
         s.quiet_folders.clear();
         assert!(!add_default_quiet(&mut s, &[shots, caps]));
         assert!(s.quiet_folders.is_empty());
+    }
+
+    #[test]
+    fn received_only_is_applied_once_with_kakao_folder() {
+        let kakao = std::path::Path::new("C:\\Users\\t\\Documents\\카카오톡 받은 파일");
+        let mut s = Settings {
+            setup_done: true,
+            watch_folders: vec![
+                "C:\\Users\\t\\Downloads".into(),
+                "C:\\Users\\t\\Desktop".into(),
+            ],
+            new_file_scope: NewFileScope::Anywhere,
+            // 바탕화면은 팝업 ⋯ '이 폴더는 묻지 않기'로 꺼 둠
+            quiet_folders: vec![
+                "c:\\users\\t\\desktop".into(),
+                "C:\\Users\\t\\Pictures\\Screenshots".into(),
+            ],
+            ..Settings::default()
+        };
+        assert!(apply_received_only(&mut s, Some(kakao)));
+        assert_eq!(s.new_file_scope, NewFileScope::Watched);
+        assert_eq!(
+            s.watch_folders,
+            [
+                "C:\\Users\\t\\Downloads",
+                "C:\\Users\\t\\Documents\\카카오톡 받은 파일"
+            ]
+        );
+        assert_eq!(s.quiet_folders, ["C:\\Users\\t\\Pictures\\Screenshots"]);
+        // 한 번만: 그 뒤 사용자가 다시 고른 것은 그대로
+        s.new_file_scope = NewFileScope::Anywhere;
+        s.watch_folders.pop();
+        assert!(!apply_received_only(&mut s, Some(kakao)));
+        assert_eq!(s.new_file_scope, NewFileScope::Anywhere);
+        assert_eq!(s.watch_folders.len(), 1);
+
+        // 처음 설정 전이면 폴더는 건드리지 않는다. 카카오톡이 없으면 더하지 않는다
+        let mut fresh = Settings::default();
+        assert!(apply_received_only(&mut fresh, Some(kakao)));
+        assert!(fresh.watch_folders.is_empty());
+        let mut no_kakao = Settings {
+            setup_done: true,
+            watch_folders: vec!["C:\\Users\\t\\Downloads".into()],
+            quiet_folders: vec!["C:\\Users\\t\\Downloads".into()],
+            ..Settings::default()
+        };
+        assert!(apply_received_only(&mut no_kakao, None));
+        // 지켜볼 폴더가 모두 꺼지게 되면 옮기지 않는다
+        assert_eq!(no_kakao.watch_folders, ["C:\\Users\\t\\Downloads"]);
+        assert_eq!(no_kakao.quiet_folders.len(), 1);
     }
 
     #[test]

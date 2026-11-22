@@ -355,46 +355,51 @@ export default function SettingsPage() {
 
       <Section tab="folders"
         title="새 파일을 찾는 곳"
-        description="인터넷·카카오톡·메신저 등 어떤 프로그램으로 받았든, 새로 저장된 파일을 알아보고 어디에 넣을지 물어봐요."
+        description="받은 파일이 들어오는 폴더에 새 파일이 생기면 어디에 넣을지 물어봐요."
         saved={saved === "watch" || saved === "scope"}
         error={errors.watch ?? errors.scope}
       >
         <div className="stack-12" role="radiogroup" aria-label="새 파일을 찾는 곳">
           <ChoiceCard
             name="new-file-scope"
-            checked={settings.newFileScope === "anywhere"}
-            onSelect={() => void changeScope("anywhere")}
-            icon={<Monitor size={20} />}
-            title="내 PC 어디든 (추천)"
-            description="바탕화면·문서·다운로드·사진과 그 안의 폴더, D: 같은 다른 드라이브에 새로 저장된 파일을 알아봐요. 정리 폴더와 프로그램 폴더(Windows·Program Files·AppData)는 빼요."
-          />
-          <ChoiceCard
-            name="new-file-scope"
             checked={settings.newFileScope === "watched"}
             onSelect={() => void changeScope("watched")}
             icon={<FolderCheck size={20} />}
-            title="고른 폴더만"
-            description="다운로드·바탕화면처럼 골라 둔 폴더에 바로 저장되는 파일만 봐요. 지금까지의 방식이에요."
+            title="받은 파일이 모이는 폴더만 (추천)"
+            description="다운로드·바탕화면·카카오톡 받은 파일처럼 아래 폴더에 새로 생긴 파일만 물어요. 문서·사진 폴더에 직접 저장하거나 캡처한 파일은 묻지 않아요."
+          />
+          <ChoiceCard
+            name="new-file-scope"
+            checked={settings.newFileScope === "anywhere"}
+            onSelect={() => void changeScope("anywhere")}
+            icon={<Monitor size={20} />}
+            title="내 PC 어디든"
+            description="문서·사진과 그 안의 폴더, 다른 드라이브까지 새로 생긴 파일을 모두 물어요. 다른 이름으로 저장하거나 캡처한 파일도 물어서 자주 뜰 수 있어요."
           />
         </div>
         {settings.newFileScope === "anywhere" && settings.placeMode !== "suggest" && (
           <p className="settings__note">
-            ‘{settings.placeMode === "auto" ? "바로 정리" : "자동 분류"}’는 지켜볼 폴더(
+            ‘{settings.placeMode === "auto" ? "바로 정리" : "자동 분류"}’는 받은 파일이 모이는 폴더(
             {settings.watchFolders.map((w) => friendlyName(w, known)).join("·")}) 바로 안의 파일에만 해요. 그 밖에서 찾은
             파일은 직접 저장한 문서일 수 있어 옮기기 전에 물어봐요.
           </p>
         )}
-        {settings.newFileScope === "watched" && (
-          <div className="settings__watch">
-            <h3 className="quiet__title">지켜볼 폴더</h3>
-            <WatchFolderEditor known={known} value={watchDraft} onChange={changeWatch} />
-          </div>
+        <div className="settings__watch">
+          <h3 className="quiet__title">받은 파일이 모이는 폴더</h3>
+          <WatchFolderEditor
+            known={known}
+            value={watchDraft}
+            onChange={changeWatch}
+            note="아이스톡 등 다른 메신저로 받은 파일도 물어보게 하려면, 그 메신저가 파일을 저장하는 폴더를 더해 주세요. 폴더 위치는 받은 파일을 오른쪽 클릭 → 속성에서 볼 수 있어요."
+          />
+        </div>
+        {settings.newFileScope === "anywhere" && (
+          <QuietFolderEditor
+            known={known}
+            value={settings.quietFolders}
+            onChange={(folders) => void save("scope", () => saveQuiet(folders))}
+          />
         )}
-        <QuietFolderEditor
-          known={known}
-          value={settings.quietFolders}
-          onChange={(folders) => void save("scope", () => saveQuiet(folders))}
-        />
       </Section>
 
       <Section tab="folders"

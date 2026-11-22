@@ -36,7 +36,7 @@ export interface Settings {
   searchWholePc: boolean;
   /** 쓰는 곳: school = 학교(교사용 예시 폴더·단어·학기), general = 집·개인(파일 종류로 나눔) */
   userKind: UserKind;
-  /** 새 파일을 찾는 곳: anywhere = 내 PC 어디든(기본), watched = 지켜볼 폴더만 */
+  /** 새 파일을 찾는 곳: watched = 받은 파일이 모이는 폴더(지켜볼 폴더)만(기본), anywhere = 내 PC 어디든 */
   newFileScope: NewFileScope;
   /** 새 파일이 생겨도 묻지 않는 폴더(하위 폴더까지) */
   quietFolders: string[];
@@ -118,6 +118,8 @@ export interface SetupInfo {
   pictures: string | null;
   videos: string | null;
   music: string | null;
+  /** 카카오톡 PC가 받은 파일을 저장하는 폴더(이 PC에 있을 때만) */
+  kakao: string | null;
   rootFolderName: string;
   separator: string;
   teacherExample: ExampleFolder[];
