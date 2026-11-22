@@ -95,7 +95,10 @@ pub fn run() {
             .into_iter()
             .filter_map(Result::ok)
             .collect();
-            if settings::add_default_quiet(&mut current, &default_quiet) {
+            let added = settings::add_default_quiet(&mut current, &default_quiet);
+            // 새 파일은 받은 파일이 모이는 폴더에서만 묻는다(한 번만, 카카오톡 받은 파일 폴더가 있으면 더함)
+            let kakao = commands::kakao_dir(app.handle());
+            if settings::apply_received_only(&mut current, kakao.as_deref()) || added {
                 settings::save(&conn, &current)?;
             }
 

@@ -497,6 +497,8 @@ pub struct SetupInfo {
     pub pictures: Option<String>,
     pub videos: Option<String>,
     pub music: Option<String>,
+    /// 카카오톡 PC가 받은 파일을 저장하는 폴더(이 PC에 있을 때만)
+    pub kakao: Option<String>,
     pub root_folder_name: &'static str,
     pub separator: String,
     pub teacher_example: Vec<ExampleFolder>,
@@ -510,6 +512,12 @@ pub struct ExampleFolder {
     pub children: &'static [&'static str],
 }
 
+/// 카카오톡 PC가 받은 파일을 저장하는 기본 폴더(문서\카카오톡 받은 파일). 이 PC에 있을 때만.
+pub fn kakao_dir(app: &AppHandle) -> Option<PathBuf> {
+    let dir = app.path().document_dir().ok()?.join("카카오톡 받은 파일");
+    dir.is_dir().then_some(dir)
+}
+
 #[tauri::command]
 pub fn setup_info(app: tauri::AppHandle) -> SetupInfo {
     let path = app.path();
@@ -521,6 +529,7 @@ pub fn setup_info(app: tauri::AppHandle) -> SetupInfo {
         pictures: s(path.picture_dir()),
         videos: s(path.video_dir()),
         music: s(path.audio_dir()),
+        kakao: kakao_dir(&app).map(|p| p.to_string_lossy().into_owned()),
         root_folder_name: setup::ROOT_FOLDER_NAME,
         separator: std::path::MAIN_SEPARATOR.to_string(),
         teacher_example: setup::TEACHER_EXAMPLE
@@ -687,14 +696,8 @@ pub fn quiet_folder(
     let d = PathBuf::from(&dir);
     let s = state.with_db(|conn| {
         let mut s = settings::load(conn)?;
-        if !s
-            .quiet_folders
-            .iter()
-            .any(|q| folders::same_dir(Path::new(q), &d))
-        {
-            s.quiet_folders.push(dir.clone());
-            settings::save(conn, &s)?;
-        }
+        quiet_in(&mut s, &dir);
+        settings::save(conn, &s)?;
         Ok(s)
     })?;
     state.apply_watch_folders(&s);
@@ -707,6 +710,27 @@ pub fn quiet_folder(
     let _ = app.emit(EVENT_POPUP_CHANGED, ());
     let _ = app.emit(EVENT_SETTINGS_CHANGED, ());
     Ok(s)
+}
+
+/// '이 폴더는 묻지 않기'를 설정에 담는다. 받은 파일이 모이는 폴더만 볼 때 그 폴더가 지켜볼 폴더면 체크를 끈다
+/// (설정 화면에서 다시 켤 수 있게). 하나 남은 지켜볼 폴더거나 그 밖의 폴더면 묻지 않는 폴더에 더한다.
+fn quiet_in(s: &mut Settings, dir: &str) {
+    let d = Path::new(dir);
+    if s.new_file_scope == NewFileScope::Watched && s.watch_folders.len() > 1 {
+        let before = s.watch_folders.len();
+        s.watch_folders
+            .retain(|w| !folders::same_dir(Path::new(w), d));
+        if s.watch_folders.len() < before {
+            return;
+        }
+    }
+    if !s
+        .quiet_folders
+        .iter()
+        .any(|q| folders::same_dir(Path::new(q), d))
+    {
+        s.quiet_folders.push(dir.to_string());
+    }
 }
 
 /// 한꺼번에 생긴 파일 알림을 닫으며 할 일
@@ -1935,6 +1959,31 @@ mod tests {
     use super::*;
 
     #[test]
+    fn quiet_unchecks_a_watched_folder_or_adds_a_quiet_one() {
+        let mut s = Settings {
+            setup_done: true,
+            watch_folders: vec![
+                "C:\\Users\\t\\Downloads".into(),
+                "C:\\Users\\t\\Desktop".into(),
+            ],
+            new_file_scope: NewFileScope::Watched,
+            ..Settings::default()
+        };
+        quiet_in(&mut s, "c:\\users\\t\\desktop");
+        assert_eq!(s.watch_folders, ["C:\\Users\\t\\Downloads"]);
+        assert!(s.quiet_folders.is_empty());
+        // 하나 남은 지켜볼 폴더는 끄지 않고 묻지 않는 폴더로
+        quiet_in(&mut s, "C:\\Users\\t\\Downloads");
+        assert_eq!(s.watch_folders.len(), 1);
+        assert_eq!(s.quiet_folders, ["C:\\Users\\t\\Downloads"]);
+        // 내 PC 어디든이면 묻지 않는 폴더로(두 번 넣지 않음)
+        s.new_file_scope = NewFileScope::Anywhere;
+        quiet_in(&mut s, "D:\\받은 파일");
+        quiet_in(&mut s, "D:\\받은 파일");
+        assert_eq!(s.quiet_folders.len(), 2);
+    }
+
+    #[test]
     fn watch_scope_follows_new_file_scope_and_quiet_folders() {
         let p = PathBuf::from;
         let wide = [p("C:\\Users\\t\\Documents"), p("D:\\")];
@@ -1946,9 +1995,9 @@ mod tests {
                 "C:\\Users\\t\\Desktop".into(),
             ],
             quiet_folders: vec!["c:\\users\\t\\desktop".into()],
+            new_file_scope: NewFileScope::Anywhere,
             ..Settings::default()
         };
-        // 예전 설정도 기본은 내 PC 어디든
         let scope = watch_scope(&s, &wide);
         assert_eq!(scope.wide, wide);
         // 묻지 않는 폴더는 지켜볼 폴더에서도 빠지고, 정리 폴더와 함께 넓은 감시에서 뺀다
