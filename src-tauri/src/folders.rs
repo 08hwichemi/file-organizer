@@ -284,22 +284,23 @@ fn visible_entries(dir: &Path) -> std::io::Result<Vec<(PathBuf, bool)>> {
     Ok(out)
 }
 
-fn is_hidden(path: &Path, _entry: &fs::DirEntry) -> bool {
+fn is_hidden(path: &Path, entry: &fs::DirEntry) -> bool {
     let name = file_name(path);
-    if name.starts_with('.') || name.starts_with('~') {
-        return true;
-    }
+    name.starts_with('.') || name.starts_with('~') || hidden_attr(entry)
+}
+
+/// Windows 숨김·시스템 속성(다른 운영체제는 늘 false)
+fn hidden_attr(_entry: &fs::DirEntry) -> bool {
     #[cfg(windows)]
     {
         use std::os::windows::fs::MetadataExt;
         const FILE_ATTRIBUTE_HIDDEN: u32 = 0x2;
         const FILE_ATTRIBUTE_SYSTEM: u32 = 0x4;
-        if let Ok(meta) = _entry.metadata() {
-            if meta.file_attributes() & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM) != 0 {
-                return true;
-            }
-        }
+        return _entry.metadata().is_ok_and(|meta| {
+            meta.file_attributes() & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM) != 0
+        });
     }
+    #[allow(unreachable_code)]
     false
 }
 
